@@ -2,18 +2,47 @@
 
 ## GitHub Workflow
 
-이 저장소는 `main` 브랜치에 직접 push하지 않습니다. 모든 변경은 브랜치, 커밋, PR을 거쳐 반영합니다.
+이 저장소는 `main` 브랜치에 직접 push하지 않습니다. 모든 변경은 이슈, 브랜치, 커밋, PR을 거쳐 반영합니다.
 
 기본 흐름:
 
-1. `main`을 최신 상태로 맞춥니다.
-2. 작업 브랜치를 만듭니다.
-3. 변경을 구현하고 필요한 검증을 실행합니다.
-4. 논리 단위로 커밋합니다.
-5. 원격 브랜치에 push하고 PR을 엽니다.
-6. 리뷰와 검증을 마친 뒤 `main`에 merge합니다.
+1. 기획 또는 요구사항을 정리합니다.
+2. GitHub Issue를 생성합니다.
+3. `main`을 최신 상태로 맞춥니다.
+4. 작업 브랜치를 만듭니다.
+5. 변경을 구현하고 필요한 검증을 실행합니다.
+6. 논리 단위로 커밋합니다.
+7. 원격 브랜치에 push하고 draft PR을 엽니다.
+8. PR 본문과 체크리스트를 정리합니다.
+9. 추가 테스트, 리뷰, 수정을 마친 뒤 ready for review로 전환합니다.
+10. 리뷰와 검증을 마친 뒤 `main`에 merge합니다.
 
-Codex가 작업을 수행할 때도 같은 흐름을 따릅니다. 명시적인 예외 요청이 없으면 Codex는 작업 브랜치 생성, 커밋, 원격 브랜치 push, PR 본문 작성을 자체적으로 진행합니다.
+Codex가 작업을 수행할 때도 같은 흐름을 따릅니다. 명시적인 예외 요청이 없으면 Codex는 이슈 본문 작성, 작업 브랜치 생성, 커밋, 원격 브랜치 push, PR 본문 작성을 자체적으로 진행합니다.
+
+## Issues
+
+Issue 제목은 영어를 사용합니다.
+
+예시:
+
+```text
+feat: add evidence upload flow
+fix: prevent export csv formula injection
+docs: add github workflow convention
+```
+
+Issue 본문은 한국어로 작성합니다. 공통 Issue 템플릿은 `.github/ISSUE_TEMPLATE/task.md`에 둡니다.
+
+Issue는 다음 내용을 기준으로 작업 범위를 고정합니다.
+
+- Goal: 달성하려는 목표
+- Scope: 포함 범위
+- Out of Scope: 제외 범위
+- Acceptance Criteria: 완료 판단 기준
+- Verification: 예상 검증 방법
+- Risks / Notes: 리스크, 제약, 후속 작업
+
+작업 중 범위가 커지면 기존 Issue를 확장하기보다 후속 Issue로 분리합니다.
 
 ## Branch Naming
 
