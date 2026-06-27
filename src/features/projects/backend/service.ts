@@ -1,0 +1,193 @@
+import { randomUUID } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { failure, success, type HandlerResult } from "@/backend/http/response";
+import type { Database } from "@/lib/supabase/types";
+import { projectErrorCodes, type ProjectServiceError } from "./error";
+import {
+  getDocumentMetadata,
+  PROJECT_DOCUMENT_BUCKET,
+  ProjectDocumentResponseSchema,
+  ProjectResponseSchema,
+  type ProjectDocumentResponse,
+  type ProjectInput,
+  type ProjectResponse,
+  type UploadIntentInput,
+} from "./schema";
+
+type Client = SupabaseClient<Database>;
+type Result<T> = HandlerResult<T, ProjectServiceError, unknown>;
+const PROJECT_SELECT = "id, company_id, project_name, host_institution, agreement_start_date, agreement_end_date, government_subsidy_amount, self_cash_amount, self_in_kind_amount, self_contribution_amount, total_project_budget, assignment_number, assignment_name, manager_name, manager_email, manager_phone, project_notes, profile_status, created_at, updated_at";
+const DOCUMENT_SELECT = "id, project_id, original_file_name, file_size, mime_type, created_at";
+const ASSIGNMENT_CONSTRAINT = "projects_company_assignment_number_unique";
+
+const mapProject = (row: Record<string, unknown>, status: 200 | 201 = 200): Result<ProjectResponse> => {
+  const parsed = ProjectResponseSchema.safeParse({
+    agreementEndDate: row.agreement_end_date, agreementStartDate: row.agreement_start_date,
+    assignmentName: row.assignment_name, assignmentNumber: row.assignment_number, companyId: row.company_id,
+    createdAt: row.created_at, governmentSubsidyAmount: row.government_subsidy_amount, hostInstitution: row.host_institution,
+    id: row.id, managerEmail: row.manager_email, managerName: row.manager_name, managerPhone: row.manager_phone,
+    profileStatus: row.profile_status, projectName: row.project_name, projectNotes: row.project_notes,
+    selfCashAmount: row.self_cash_amount, selfContributionAmount: row.self_contribution_amount,
+    selfInKindAmount: row.self_in_kind_amount, totalProjectBudget: row.total_project_budget, updatedAt: row.updated_at,
+  });
+  return parsed.success ? success(parsed.data, status) : failure(500, projectErrorCodes.responseInvalid, "저장된 사업 정보가 올바르지 않습니다.");
+};
+
+const mapDocument = (row: Record<string, unknown>): Result<ProjectDocumentResponse> => {
+  const parsed = ProjectDocumentResponseSchema.safeParse({
+    createdAt: row.created_at, fileSize: row.file_size, id: row.id, mimeType: row.mime_type,
+    originalFileName: row.original_file_name, projectId: row.project_id,
+  });
+  return parsed.success ? success(parsed.data) : failure(500, projectErrorCodes.responseInvalid, "첨부파일 정보가 올바르지 않습니다.");
+};
+
+const totals = (input: ProjectInput) => {
+  const subsidy = BigInt(input.governmentSubsidyAmount);
+  const cash = BigInt(input.selfCashAmount);
+  const inKind = BigInt(input.selfInKindAmount);
+  return { cash: Number(cash), inKind: Number(inKind), self: Number(cash + inKind), subsidy: Number(subsidy), total: Number(subsidy + cash + inKind) };
+};
+
+const toPayload = (input: ProjectInput) => {
+  const amount = totals(input);
+  return {
+    agreement_end_date: input.agreementEndDate, agreement_start_date: input.agreementStartDate,
+    assignment_name: input.assignmentName, assignment_number: input.assignmentNumber,
+    government_subsidy_amount: amount.subsidy, host_institution: input.hostInstitution,
+    manager_email: input.managerEmail, manager_name: input.managerName, manager_phone: input.managerPhone,
+    profile_status: "complete", project_name: input.projectName, project_notes: input.projectNotes,
+    self_cash_amount: amount.cash, self_contribution_amount: amount.self, self_in_kind_amount: amount.inKind,
+    total_project_budget: amount.total,
+  };
+};
+
+const writeFailure = (error: { code?: string; message?: string }) =>
+  error.code === "23505" && error.message?.includes(ASSIGNMENT_CONSTRAINT)
+    ? failure(409, projectErrorCodes.assignmentConflict, "같은 기업에 이미 등록된 과제번호입니다.")
+    : failure(500, projectErrorCodes.writeError, "사업 정보를 저장하지 못했습니다.");
+
+const getActiveCompany = (client: Client, companyId: string) =>
+  client.from("companies").select("id").eq("id", companyId).is("deleted_at", null).maybeSingle();
+
+export const listProjects = async (client: Client, companyId: string): Promise<Result<ProjectResponse[]>> => {
+  const company = await getActiveCompany(client, companyId);
+  if (company.error) return failure(500, projectErrorCodes.fetchError, "기업 정보를 확인하지 못했습니다.");
+  if (!company.data) return failure(404, projectErrorCodes.notFound, "기업을 찾을 수 없습니다.");
+  const { data, error } = await client.from("projects").select(PROJECT_SELECT).eq("company_id", companyId).is("deleted_at", null).order("created_at").order("id");
+  if (error) return failure(500, projectErrorCodes.fetchError, "사업 목록을 불러오지 못했습니다.");
+  const result: ProjectResponse[] = [];
+  for (const row of data ?? []) {
+    const mapped = mapProject(row as Record<string, unknown>);
+    if (mapped.ok === false) return failure(mapped.status, mapped.error.code, mapped.error.message, mapped.error.details);
+    result.push(mapped.data);
+  }
+  return success(result);
+};
+
+export const getProject = async (client: Client, projectId: string): Promise<Result<ProjectResponse>> => {
+  const { data, error } = await client.from("projects").select(PROJECT_SELECT).eq("id", projectId).is("deleted_at", null).maybeSingle();
+  if (error) return failure(500, projectErrorCodes.fetchError, "사업 정보를 불러오지 못했습니다.");
+  return data ? mapProject(data as Record<string, unknown>) : failure(404, projectErrorCodes.notFound, "사업을 찾을 수 없습니다.");
+};
+
+export const createProject = async (client: Client, companyId: string, input: ProjectInput): Promise<Result<ProjectResponse>> => {
+  const company = await getActiveCompany(client, companyId);
+  if (company.error) return failure(500, projectErrorCodes.fetchError, "기업 정보를 확인하지 못했습니다.");
+  if (!company.data) return failure(404, projectErrorCodes.notFound, "기업을 찾을 수 없습니다.");
+  const { data, error } = await client.from("projects").insert({ company_id: companyId, ...toPayload(input) }).select(PROJECT_SELECT).single();
+  return error ? writeFailure(error) : mapProject(data as Record<string, unknown>, 201);
+};
+
+export const updateProject = async (client: Client, projectId: string, input: ProjectInput): Promise<Result<ProjectResponse>> => {
+  const { data, error } = await client.from("projects").update(toPayload(input)).eq("id", projectId).is("deleted_at", null).select(PROJECT_SELECT).maybeSingle();
+  if (error) return writeFailure(error);
+  return data ? mapProject(data as Record<string, unknown>) : failure(404, projectErrorCodes.notFound, "사업을 찾을 수 없습니다.");
+};
+
+const getDocumentRow = (client: Client, projectId: string, documentId: string) =>
+  client.from("project_documents").select("*").eq("id", documentId).eq("project_id", projectId).maybeSingle();
+
+export const listProjectDocuments = async (client: Client, projectId: string): Promise<Result<ProjectDocumentResponse[]>> => {
+  const project = await getProject(client, projectId);
+  if (project.ok === false) return failure(project.status, project.error.code, project.error.message, project.error.details);
+  const { data, error } = await client.from("project_documents").select(DOCUMENT_SELECT).eq("project_id", projectId).eq("upload_status", "ready").is("deleted_at", null).order("created_at");
+  if (error) return failure(500, projectErrorCodes.fetchError, "첨부파일을 불러오지 못했습니다.");
+  const documents: ProjectDocumentResponse[] = [];
+  for (const row of data ?? []) {
+    const mapped = mapDocument(row as Record<string, unknown>);
+    if (mapped.ok === false) return failure(mapped.status, mapped.error.code, mapped.error.message, mapped.error.details);
+    documents.push(mapped.data);
+  }
+  return success(documents);
+};
+
+export const createUploadIntent = async (client: Client, projectId: string, userId: string, input: UploadIntentInput) => {
+  const project = await getProject(client, projectId);
+  if (project.ok === false) return failure(project.status, project.error.code, project.error.message, project.error.details);
+  const metadata = getDocumentMetadata(input);
+  if (!metadata) return failure(400, projectErrorCodes.documentInvalid, "파일 확장자와 형식을 확인해 주세요.");
+  const documentId = randomUUID();
+  const storedFileName = `${randomUUID()}.${metadata.extension}`;
+  const storagePath = `${project.data.companyId}/${projectId}/${documentId}/${storedFileName}`;
+  const { error: insertError } = await client.from("project_documents").insert({
+    company_id: project.data.companyId, file_extension: metadata.extension, file_size: input.fileSize,
+    id: documentId, mime_type: metadata.canonicalMimeType, original_file_name: input.originalFileName,
+    project_id: projectId, storage_path: storagePath, stored_file_name: storedFileName, uploaded_by: userId,
+  });
+  if (insertError) return failure(500, projectErrorCodes.writeError, "파일 업로드를 준비하지 못했습니다.");
+  const { data, error } = await client.storage.from(PROJECT_DOCUMENT_BUCKET).createSignedUploadUrl(storagePath);
+  if (error || !data) {
+    await client.from("project_documents").update({ deleted_at: new Date().toISOString() }).eq("id", documentId);
+    return failure(500, projectErrorCodes.storageError, "파일 업로드 주소를 만들지 못했습니다.");
+  }
+  return success({ canonicalMimeType: metadata.canonicalMimeType, documentId, path: storagePath, signedUrl: data.signedUrl, token: data.token }, 201);
+};
+
+export const completeUpload = async (client: Client, projectId: string, documentId: string): Promise<Result<ProjectDocumentResponse>> => {
+  const lookup = await getDocumentRow(client, projectId, documentId);
+  if (lookup.error) return failure(500, projectErrorCodes.fetchError, "첨부파일 상태를 확인하지 못했습니다.");
+  const row = lookup.data;
+  if (!row) return failure(404, projectErrorCodes.notFound, "첨부파일을 찾을 수 없습니다.");
+  if (row.deleted_at) return failure(409, projectErrorCodes.documentStateConflict, "삭제된 첨부파일입니다.");
+  if (row.upload_status === "ready") return mapDocument(row as Record<string, unknown>);
+  const parts = row.storage_path.split("/");
+  const fileName = parts.pop()!;
+  const { data, error } = await client.storage.from(PROJECT_DOCUMENT_BUCKET).list(parts.join("/"), { search: fileName });
+  const object = data?.find((file) => file.name === fileName);
+  const objectSize = Number(object?.metadata?.size ?? -1);
+  const objectMime = String(object?.metadata?.mimetype ?? object?.metadata?.contentType ?? "");
+  if (error || !object || objectSize !== row.file_size || objectMime !== row.mime_type) {
+    return failure(409, projectErrorCodes.documentStateConflict, "업로드된 파일 검증에 실패했습니다.");
+  }
+  const now = new Date().toISOString();
+  const { data: updated, error: updateError } = await client.from("project_documents").update({ ready_at: now, upload_status: "ready" }).eq("id", documentId).eq("project_id", projectId).eq("upload_status", "uploading").is("deleted_at", null).select(DOCUMENT_SELECT).maybeSingle();
+  if (updateError) return failure(500, projectErrorCodes.writeError, "첨부파일 상태를 저장하지 못했습니다.");
+  if (updated) return mapDocument(updated as Record<string, unknown>);
+  const current = await getDocumentRow(client, projectId, documentId);
+  if (current.error) return failure(500, projectErrorCodes.fetchError, "첨부파일 상태를 확인하지 못했습니다.");
+  if (current.data?.deleted_at) return failure(409, projectErrorCodes.documentStateConflict, "삭제된 첨부파일입니다.");
+  if (current.data?.upload_status === "ready") return mapDocument(current.data as Record<string, unknown>);
+  return failure(409, projectErrorCodes.documentStateConflict, "첨부파일 상태가 변경되었습니다.");
+};
+
+export const deleteProjectDocument = async (client: Client, projectId: string, documentId: string) => {
+  const lookup = await getDocumentRow(client, projectId, documentId);
+  if (lookup.error) return failure(500, projectErrorCodes.fetchError, "첨부파일 상태를 확인하지 못했습니다.");
+  const row = lookup.data;
+  if (!row || row.deleted_at) return failure(404, projectErrorCodes.notFound, "첨부파일을 찾을 수 없습니다.");
+  const { data: deleted, error } = await client.from("project_documents").update({ deleted_at: new Date().toISOString() }).eq("id", documentId).eq("project_id", projectId).is("deleted_at", null).select("id").maybeSingle();
+  if (error) return failure(500, projectErrorCodes.writeError, "첨부파일을 삭제하지 못했습니다.");
+  if (!deleted) return failure(409, projectErrorCodes.documentStateConflict, "첨부파일 상태가 변경되었습니다.");
+  const removal = await client.storage.from(PROJECT_DOCUMENT_BUCKET).remove([row.storage_path]);
+  if (removal.error) console.warn("Project document object cleanup failed", { documentId, projectId });
+  return success({ id: documentId });
+};
+
+export const createDocumentSignedUrl = async (client: Client, projectId: string, documentId: string) => {
+  const lookup = await getDocumentRow(client, projectId, documentId);
+  if (lookup.error) return failure(500, projectErrorCodes.fetchError, "첨부파일 상태를 확인하지 못했습니다.");
+  const row = lookup.data;
+  if (!row || row.deleted_at || row.upload_status !== "ready") return failure(404, projectErrorCodes.notFound, "첨부파일을 찾을 수 없습니다.");
+  const { data, error } = await client.storage.from(PROJECT_DOCUMENT_BUCKET).createSignedUrl(row.storage_path, 60);
+  return error || !data ? failure(500, projectErrorCodes.storageError, "파일을 열 수 없습니다.") : success({ signedUrl: data.signedUrl });
+};
