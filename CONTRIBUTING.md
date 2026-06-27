@@ -173,4 +173,12 @@ GitHub 저장소 설정은 이 정책을 강제하도록 맞춥니다.
 - merge 방식은 squash merge만 허용합니다.
 - GitHub auto-merge는 필수 체크가 성공한 뒤에만 사용합니다.
 
+초기 설정 순서:
+
+1. CI workflow가 `main`에 존재하지 않는 경우, CI workflow를 추가하는 PR은 bootstrap PR로 취급합니다.
+2. bootstrap PR은 로컬에서 `npm run typecheck`, `npm run test`, `npm run build`가 통과했을 때만 squash merge합니다.
+3. bootstrap PR merge 후 새 PR을 열어 `ci` 체크가 GitHub Actions에 나타나는지 확인합니다.
+4. `ci` 체크가 확인되면 `main` branch protection의 required status check에 `ci`를 지정합니다.
+5. 이후 모든 PR은 bootstrap 예외 없이 `ci` 성공이 확인되어야만 squash merge합니다.
+
 Codex가 PR merge를 수행할 때도 위 조건을 먼저 확인합니다. 조건 중 하나라도 확인되지 않으면 merge하지 않고 PR에 남은 조치를 기록합니다.
