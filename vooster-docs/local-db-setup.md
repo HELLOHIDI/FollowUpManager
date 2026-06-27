@@ -83,7 +83,6 @@ npm.cmd exec supabase -- db reset
 Expected migration order:
 
 ```text
-0001_create_example_table.sql
 0002_create_common_database_utilities.sql
 0003_create_companies.sql
 0004_create_projects.sql
@@ -94,6 +93,14 @@ Expected migration order:
 0009_create_expense_history_events.sql
 0010_create_dashboard_views.sql
 0011_enforce_expense_evidence_boundaries.sql
+0012_align_company_registration_fields.sql
+0013_grant_company_api_roles.sql
+0014_align_project_registration_and_documents.sql
+0015_align_expense_dashboard_slice.sql
+0016_seed_project_budget_categories.sql
+0017_add_expense_funding_source.sql
+0018_add_expense_detail_history_rpcs.sql
+0019_add_expense_evidence_history_rpcs.sql
 ```
 
 After migrations, `supabase/seed.sql` restores the fixed local development

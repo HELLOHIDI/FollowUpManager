@@ -1,6 +1,12 @@
 export const routes = {
   projects: "/projects",
   companySettings: "/settings/company",
+  companyCreate: (returnTo?: string) =>
+    `/settings/company?mode=create${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`,
+  companyEdit: (companyId: string, returnTo?: string) =>
+    `/settings/company?companyId=${encodeURIComponent(companyId)}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`,
+  companyProjectCreate: (companyId: string, returnTo?: string) =>
+    `/settings/company?mode=project-create&projectCompanyId=${encodeURIComponent(companyId)}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`,
   project: (projectId: string) => `/projects/${encodeURIComponent(projectId)}`,
   projectExpenses: (projectId: string) =>
     `/projects/${encodeURIComponent(projectId)}/expenses`,

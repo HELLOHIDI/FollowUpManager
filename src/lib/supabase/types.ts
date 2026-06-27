@@ -139,30 +139,6 @@ export type Database = {
         }
         Relationships: []
       }
-      example: {
-        Row: {
-          avatar_url: string | null
-          bio: string | null
-          full_name: string | null
-          id: string
-          updated_at: string
-        }
-        Insert: {
-          avatar_url?: string | null
-          bio?: string | null
-          full_name?: string | null
-          id?: string
-          updated_at?: string
-        }
-        Update: {
-          avatar_url?: string | null
-          bio?: string | null
-          full_name?: string | null
-          id?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       expense_evidence_files: {
         Row: {
           company_id: string

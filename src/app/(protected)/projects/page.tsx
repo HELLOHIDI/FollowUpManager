@@ -1,54 +1,262 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Building2, FolderKanban } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  ArrowRight,
+  Building2,
+  FolderKanban,
+  Loader2,
+  Plus,
+  Settings,
+} from "lucide-react";
 import { PageHeading } from "@/components/product-shell";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { routes } from "@/constants/routes";
+import { useCompaniesQuery } from "@/features/company/hooks/use-companies-query";
+import {
+  formatBusinessRegistrationNumber,
+  type CompanyResponse,
+} from "@/features/company/lib/dto";
+import {
+  useCompanyProjectsQuery,
+  useProjectNavigationPrefetch,
+} from "@/features/projects/hooks/use-projects";
 
 export default function ProjectsPage() {
+  const companiesQuery = useCompaniesQuery();
+  const companies = companiesQuery.data ?? [];
+
   return (
     <>
       <PageHeading
-        eyebrow="시작하기"
-        title="프로젝트를 선택하세요"
-        description="등록된 프로젝트가 생기면 이곳에서 선택해 지출 현황 대시보드로 이동할 수 있습니다."
+        eyebrow="사업 선택"
+        title="운영 대시보드로 이동하세요"
+        description="등록된 기업과 사업을 한곳에서 확인하고, 바로 사업 운영 대시보드로 이동할 수 있습니다."
+        actions={
+          <Button asChild variant="outline">
+            <Link href={routes.companyCreate(routes.projects)}>
+              <Building2 className="size-4" aria-hidden="true" />
+              기업 추가하기
+            </Link>
+          </Button>
+        }
       />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <Card className="border-dashed shadow-none">
-          <CardHeader className="items-start">
-            <span className="grid size-12 place-items-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
-              <FolderKanban className="size-6" />
-            </span>
-            <CardTitle className="pt-3 text-xl">아직 선택할 프로젝트가 없습니다</CardTitle>
-            <CardDescription className="max-w-xl leading-6">
-              프로젝트 목록과 생성 기능은 데이터 수직 슬라이스에서 연결합니다. 먼저 기업 기본 정보를 확인해 초기 설정을 준비하세요.
-            </CardDescription>
+
+      {companiesQuery.isPending ? (
+        <LoadingProjects />
+      ) : companiesQuery.isError ? (
+        <Card className="border-destructive/30 shadow-none" role="alert">
+          <CardHeader>
+          <CardTitle className="text-lg" role="heading" aria-level={2}>
+              기업 정보를 불러오지 못했습니다
+            </CardTitle>
+            <CardDescription>잠시 후 다시 시도해 주세요.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild>
-              <Link href={routes.companySettings}>
-                기업 정보 설정 <ArrowRight className="ml-2 size-4" aria-hidden="true" />
-              </Link>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void companiesQuery.refetch()}
+            >
+              다시 시도
             </Button>
           </CardContent>
         </Card>
-        <Card className="shadow-none">
+      ) : companies.length === 0 ? (
+        <EmptyCompanyState />
+      ) : (
+        <div className="grid gap-4">
+          <section className="grid gap-4" aria-label="등록 기업과 사업">
+            {companies.map((company) => (
+              <CompanyProjectCard key={company.id} company={company} />
+            ))}
+          </section>
+        </div>
+      )}
+    </>
+  );
+}
+
+function LoadingProjects() {
+  return (
+    <div className="grid gap-4" aria-label="기업과 사업 목록을 불러오는 중">
+      {[1, 2].map((item) => (
+        <Card className="shadow-none" key={item}>
           <CardHeader>
-            <Building2 className="size-5 text-primary" aria-hidden="true" />
-            <CardTitle className="text-base">설정 순서</CardTitle>
-            <CardDescription>실제 저장 기능이 연결되면 다음 순서로 시작합니다.</CardDescription>
+            <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-64 animate-pulse rounded bg-muted" />
           </CardHeader>
           <CardContent>
-            <ol className="space-y-3 text-sm text-muted-foreground">
-              <li><span className="mr-2 font-semibold text-primary">1.</span>기업 기본 정보 입력</li>
-              <li><span className="mr-2 font-semibold text-primary">2.</span>지원 사업과 예산 등록</li>
-              <li><span className="mr-2 font-semibold text-primary">3.</span>프로젝트 대시보드 확인</li>
-            </ol>
+            <div className="h-12 animate-pulse rounded bg-muted" />
           </CardContent>
         </Card>
-      </div>
-    </>
+      ))}
+    </div>
+  );
+}
+
+function EmptyCompanyState() {
+  return (
+    <div className="grid gap-4">
+      <Card className="border-dashed shadow-none">
+        <CardHeader className="items-start">
+          <span
+            className="grid size-12 place-items-center rounded-lg bg-primary/10 text-primary"
+            aria-hidden="true"
+          >
+            <Building2 className="size-6" />
+          </span>
+          <CardTitle className="pt-3 text-xl" role="heading" aria-level={2}>
+            등록된 기업이 없습니다
+          </CardTitle>
+          <CardDescription className="max-w-xl leading-6">
+            먼저 기업 정보를 등록하면 이 화면에서 기업별 사업을 확인하고
+            운영 대시보드로 이동할 수 있습니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild>
+            <Link href={routes.companyCreate(routes.projects)}>
+              기업 정보 등록
+              <ArrowRight className="ml-2 size-4" aria-hidden="true" />
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function CompanyProjectCard({ company }: { company: CompanyResponse }) {
+  const projectsQuery = useCompanyProjectsQuery(company.id);
+  const { prefetchDashboard, prefetchProject } = useProjectNavigationPrefetch();
+  const projects = projectsQuery.data ?? [];
+
+  return (
+    <Card className="shadow-none">
+      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"
+              aria-hidden="true"
+            >
+              <Building2 className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <CardTitle className="truncate text-lg" role="heading" aria-level={2}>
+                {company.companyName}
+              </CardTitle>
+              <CardDescription className="mt-1 tabular-nums">
+                사업자등록번호{" "}
+                {formatBusinessRegistrationNumber(
+                  company.businessRegistrationNumber,
+                )}
+              </CardDescription>
+            </div>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href={routes.companyProjectCreate(company.id, routes.projects)}>
+              <Plus className="size-4" aria-hidden="true" />
+              사업 등록
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href={routes.companyEdit(company.id, routes.projects)}>
+              <Settings className="size-4" aria-hidden="true" />
+              기업 정보 수정
+            </Link>
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {projectsQuery.isPending ? (
+          <div className="flex items-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            사업 목록을 불러오는 중입니다.
+          </div>
+        ) : projectsQuery.isError ? (
+          <div
+            className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4"
+            role="alert"
+          >
+            <p className="text-sm text-destructive">
+              사업 목록을 불러오지 못했습니다.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void projectsQuery.refetch()}
+            >
+              다시 시도
+            </Button>
+          </div>
+        ) : projects.length === 0 ? (
+          <div className="rounded-md border border-dashed p-4">
+            <p className="text-sm font-medium">아직 등록된 사업이 없습니다</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              이 기업의 첫 사업을 등록하면 대시보드가 생성됩니다.
+            </p>
+            <Button asChild className="mt-3" size="sm">
+              <Link href={routes.companyProjectCreate(company.id, routes.projects)}>
+                사업 등록하기
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <ul
+            className="divide-y rounded-md border"
+            aria-label={`${company.companyName} 사업 목록`}
+          >
+            {projects.map((project) => (
+              <li
+                className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                key={project.id}
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{project.projectName}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {project.hostInstitution} · {project.agreementStartDate} ~{" "}
+                    {project.agreementEndDate}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button asChild>
+                    <Link
+                      href={routes.project(project.id)}
+                      onFocus={() => void prefetchDashboard(project.id)}
+                      onMouseEnter={() => void prefetchDashboard(project.id)}
+                    >
+                      <FolderKanban className="size-4" aria-hidden="true" />
+                      대시보드
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link
+                      href={routes.projectManagement(project.id)}
+                      onFocus={() => void prefetchProject(project.id)}
+                      onMouseEnter={() => void prefetchProject(project.id)}
+                    >
+                      <Settings className="size-4" aria-hidden="true" />
+                      관리
+                    </Link>
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }

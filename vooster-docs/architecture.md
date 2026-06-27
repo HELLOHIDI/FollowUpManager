@@ -31,7 +31,6 @@ Next.js 15, Hono.js, Supabase Auth, Supabase PostgreSQL, Supabase Storage, TypeS
 │   │   │   └── settings/           # /settings/company pages
 │   │   ├── api/                    # API routes (Hono integration)
 │   │   ├── login/                  # Supabase Auth login page
-│   │   └── example/                # example pages
 │   ├── backend/                    # server-side logic
 │   │   ├── config/                 # backend configuration
 │   │   ├── hono/                   # Hono app setup

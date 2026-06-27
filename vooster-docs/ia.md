@@ -10,7 +10,7 @@
   - #kanban (지출 칸반)
 - /projects/:projectId/expenses/:expenseId (지출 상세)
 - /projects/:projectId/export (CSV 내보내기)
-- /settings/company (기업 정보 설정 — 필요 시)
+- /settings/company (기업 추가·수정·사업 등록 전용 플로우, 기본 접근은 /projects로 리다이렉트)
 - /_health (운영 점검용, 비공개)
 
 공개/보호 경로
@@ -22,7 +22,7 @@
 메모
 - 대시보드 현황 파악은 /projects/:projectId 단일 화면 내 섹션 이동(앵커)로 완결됩니다.
 - 개별 지출의 단계별 입력, 증빙, 히스토리 관리는 /projects/:projectId/expenses/:expenseId 상세 풀페이지에서 처리합니다.
-- 기업 등록·수정은 `/settings/company`에서 처리한다. 사업/비목 온보딩과 대시보드 연결은 후속 Slice에서 정의한다.
+- 기업 등록·수정·사업 등록은 `/projects`의 기업 카드에서 `/settings/company` 전용 플로우로 진입해 처리한다. 쿼리 없는 `/settings/company` 전체 설정 화면은 제공하지 않는다.
 
 ## 2. User Flow (사용자 흐름)
 우선순위 기준으로 3가지 핵심 여정을 정의합니다.
@@ -42,11 +42,11 @@
   6) 상세 풀페이지 또는 칸반에서 forward-only 단계 이동(사업비 등록 → 사전 승인 → 집행 수행 → 집행 요청 → 집행 완료)
   7) 소프트 게이트 안내 확인 후 이동, 저장 시 KPI·차트 실시간 반영(#overview에 즉시 업데이트)
 
-- 핵심 여정 C: 기업 설정
-  1) `/settings/company`에서 현재 계정의 등록 기업 목록을 확인
-  2) 새 기업을 등록하거나 목록에서 기업을 선택해 수정
-  3) 법인 선택 시에만 법인등록번호 입력
-  4) 저장 후 목록과 선택 상세를 서버 응답으로 갱신
+- 핵심 여정 C: 기업과 사업 선택
+  1) `/projects`에서 현재 계정의 등록 기업과 각 기업의 사업 진입점을 확인
+  2) “기업 추가하기”로 새 기업을 등록하거나 기업 카드의 “기업 정보 수정”으로 기존 기업을 수정
+  3) 기업 카드의 “사업 등록”으로 해당 기업에 연결할 사업을 등록
+  4) 저장 후 `/projects` 또는 신규 사업 대시보드로 이동
 
 접근성/키보드
 - /(검색), N(새 지출), Cmd/Ctrl+S(저장), ]/[ (지출 단계 이동), 1–3(로컬 섹션 단축: 개요/비목/칸반)
@@ -92,7 +92,7 @@
   - /projects/:projectId/expenses/:expenseId (Depth 3) — 지출 상세 풀페이지
 - /projects/:projectId/export (Depth 2)
 - /settings (Depth 1)
-  - /settings/company (Depth 2)
+  - /settings/company (Depth 2, 기업 추가·수정·사업 등록 전용)
 - /_health (Depth 1, 운영 전용)
 
 라우팅 원칙
@@ -110,7 +110,7 @@
 | 전역 유틸 바 | 프로젝트 스위처, 글로벌 검색, 기간 프리셋, +지출, ⋯(내보내기/도움말), 사용자/환경 |
 | 지출 빠른 등록 페이지 | 지출 제목, 비목 선택 드롭다운, 금액, 예상 날짜, 간단 메모, 카드 생성 액션 |
 | /projects/:projectId/export | 필터(기간/비목/단계), 미리보기 테이블, CSV 다운로드, 내보내기 규칙 안내 |
-| /settings/company | 다중 기업 목록, 기업 등록·수정 폼, 조건부 법인번호, 저장 피드백(토스트) |
+| /settings/company | 기업 추가·수정 폼, 사업 등록 폼, 조건부 법인번호, 저장 피드백(토스트). 다중 기업 목록은 `/projects`에서 제공 |
 
 텍스트/숫자 가독성
 - 숫자/금액 컬럼: 탭울러 숫자 폰트, 우측 정렬, 천단위 구분
@@ -212,9 +212,9 @@
     - DownloadButton (CSV)
 
 - 설정
-  - SettingsPage (/settings/company)
-    - CompanyList (등록 기업 선택)
+  - CompanyFlowPage (/settings/company)
     - CompanyForm (기업명/회사 형태/기업규모/사업자등록번호/설립일/조건부 법인등록번호)
+    - ProjectForm (선택 기업의 사업 등록)
     - SaveAction + Toast
 
 스타일/토큰(Design Guide 준수)
