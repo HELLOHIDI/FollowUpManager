@@ -1,5 +1,9 @@
 이 프로젝트는 [`EasyNext`](https://github.com/easynext/easynext)를 사용해 생성된 [Next.js](https://nextjs.org) 프로젝트입니다.
 
+## Contributing
+
+GitHub 브랜치, 커밋, PR 운영 규칙은 [CONTRIBUTING.md](./CONTRIBUTING.md)를 따릅니다.
+
 ## Getting Started
 
 개발 서버를 실행합니다.<br/>
