@@ -19,6 +19,8 @@
 
 Codex가 작업을 수행할 때도 같은 흐름을 따릅니다. 명시적인 예외 요청이 없으면 Codex는 이슈 본문 작성, 작업 브랜치 생성, 커밋, 원격 브랜치 push, PR 본문 작성을 자체적으로 진행합니다.
 
+ultragoal 기반 작업을 GitHub Issue, 작업 브랜치, draft PR, CI 확인으로 연결하는 세부 harness 절차는 `docs/github-harness.md`를 따릅니다.
+
 ## Issues
 
 Issue 제목은 영어를 사용합니다.
