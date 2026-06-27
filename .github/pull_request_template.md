@@ -1,18 +1,18 @@
 ## Summary
 
-- 
+-
 
 ## Scope
 
-- 
+-
 
 ## Verification
 
-- 
+-
 
 ## Notes
 
-- 
+-
 
 ## Checklist
 

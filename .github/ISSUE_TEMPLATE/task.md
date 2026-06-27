@@ -8,25 +8,24 @@ assignees: ""
 
 ## Goal
 
-- 
+-
 
 ## Scope
 
-- 
+-
 
 ## Out of Scope
 
-- 
+-
 
 ## Acceptance Criteria
 
-- 
+-
 
 ## Verification
 
-- 
+-
 
 ## Risks / Notes
 
-- 
-
+-
