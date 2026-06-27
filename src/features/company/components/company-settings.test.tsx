@@ -179,7 +179,9 @@ describe("CompanySettings", () => {
       await screen.findByRole("heading", { name: "기업 정보 수정" }),
     ).toBeInTheDocument();
     const companyNameInput = await screen.findByLabelText("기업명");
-    expect(companyNameInput).toHaveValue("기존 기업");
+    await waitFor(() => {
+      expect(companyNameInput).toHaveValue("기존 기업");
+    });
 
     await user.clear(companyNameInput);
     await user.type(companyNameInput, "수정 기업");
