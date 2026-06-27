@@ -15,7 +15,7 @@
 7. 원격 브랜치에 push하고 draft PR을 엽니다.
 8. PR 본문과 체크리스트를 정리합니다.
 9. 추가 테스트, 리뷰, 수정을 마친 뒤 ready for review로 전환합니다.
-10. 리뷰와 검증을 마친 뒤 `main`에 merge합니다.
+10. 필수 CI 체크가 통과한 뒤 `main`에 squash merge합니다.
 
 Codex가 작업을 수행할 때도 같은 흐름을 따릅니다. 명시적인 예외 요청이 없으면 Codex는 이슈 본문 작성, 작업 브랜치 생성, 커밋, 원격 브랜치 push, PR 본문 작성을 자체적으로 진행합니다.
 
@@ -142,3 +142,35 @@ PR 크기는 균형형을 기준으로 합니다.
 - 넓은 범위 변경: `npm run test`, `npm run lint`, `npm run typecheck`, `npm run build`
 
 검증을 실행하지 못한 경우 PR 본문에 이유와 남은 위험을 명시합니다.
+
+## Merge Policy
+
+`main` merge는 자동화 가능한 squash merge를 기본 정책으로 합니다.
+
+자동 squash merge 조건:
+
+- PR 상태가 open이고 draft가 아닙니다.
+- PR이 `main`을 대상으로 합니다.
+- PR head commit이 `main`에 mergeable 상태입니다.
+- GitHub Actions 필수 체크 `ci`가 성공했습니다.
+- PR 본문에 검증 근거와 남은 위험이 한국어로 정리되어 있습니다.
+- merge 방식은 `squash`만 사용합니다.
+
+다음 경우에는 자동 merge하지 않습니다.
+
+- `ci` 체크가 실패, 취소, 누락, 또는 진행 중입니다.
+- PR이 draft 상태입니다.
+- 충돌이 있거나 mergeable 상태가 아닙니다.
+- PR 범위가 이슈와 다르거나 검증 근거가 부족합니다.
+- 보안, 비밀값, 배포, 데이터 삭제처럼 운영 위험이 있는 변경입니다.
+
+GitHub 저장소 설정은 이 정책을 강제하도록 맞춥니다.
+
+- `main` 직접 push를 금지합니다.
+- `main` branch protection에서 required status check로 `ci`를 지정합니다.
+- branch가 최신 상태일 때만 merge하도록 설정합니다.
+- required review는 자동화 검증 단계에서는 필수로 두지 않습니다.
+- merge 방식은 squash merge만 허용합니다.
+- GitHub auto-merge는 필수 체크가 성공한 뒤에만 사용합니다.
+
+Codex가 PR merge를 수행할 때도 위 조건을 먼저 확인합니다. 조건 중 하나라도 확인되지 않으면 merge하지 않고 PR에 남은 조치를 기록합니다.
