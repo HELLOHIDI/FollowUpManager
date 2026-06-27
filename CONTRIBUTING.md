@@ -13,6 +13,8 @@
 5. 원격 브랜치에 push하고 PR을 엽니다.
 6. 리뷰와 검증을 마친 뒤 `main`에 merge합니다.
 
+Codex가 작업을 수행할 때도 같은 흐름을 따릅니다. 명시적인 예외 요청이 없으면 Codex는 작업 브랜치 생성, 커밋, 원격 브랜치 push, PR 본문 작성을 자체적으로 진행합니다.
+
 ## Branch Naming
 
 브랜치명은 영어를 사용합니다.
@@ -65,9 +67,14 @@ docs: add github workflow convention
 
 PR 본문은 한국어로 작성합니다. 다음 내용을 포함합니다.
 
+PR은 기본적으로 draft로 엽니다. 최종 검증이 끝나고 리뷰 가능한 상태가 되면 ready for review로 전환합니다.
+
 ```md
 ## Summary
 - 변경 요약
+
+## Scope
+- 포함 범위와 제외 범위
 
 ## Verification
 - 실행한 테스트 또는 확인한 근거
@@ -82,6 +89,18 @@ PR 크기는 균형형을 기준으로 합니다.
 - DB/API/UI/test가 강하게 연결된 작업은 한 PR에 포함할 수 있습니다.
 - 서로 독립적인 기능은 PR을 분리합니다.
 - 리뷰가 어려울 정도로 커지는 경우 먼저 계획 또는 중간 PR로 나눕니다.
+
+공통 PR 템플릿은 `.github/pull_request_template.md`에 둡니다. 해당 없는 항목은 `N/A`로 명시합니다.
+
+최소 체크리스트:
+
+```md
+- [ ] Scope is limited to one slice or purpose
+- [ ] Tests or verification evidence are listed
+- [ ] Docs updated or N/A
+- [ ] Risks / follow-ups are documented or N/A
+- [ ] No secrets or local runtime files included
+```
 
 ## Verification Expectations
 
