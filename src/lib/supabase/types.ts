@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -351,11 +351,15 @@ export type Database = {
           funding_source_key: string
           id: string
           memo: string | null
+          policy_snapshot: Json | null
+          policy_version_id: string | null
           pre_approval_status: string | null
-          project_budget_category_id: string
+          project_budget_category_id: string | null
           project_id: string
           stage_fields: Json
           stage_key: string
+          subcategory_key: string | null
+          subcategory_name: string | null
           title: string
           updated_at: string
           vendor_name: string | null
@@ -372,11 +376,15 @@ export type Database = {
           funding_source_key?: string
           id?: string
           memo?: string | null
+          policy_snapshot?: Json | null
+          policy_version_id?: string | null
           pre_approval_status?: string | null
-          project_budget_category_id: string
+          project_budget_category_id?: string | null
           project_id: string
           stage_fields?: Json
           stage_key?: string
+          subcategory_key?: string | null
+          subcategory_name?: string | null
           title: string
           updated_at?: string
           vendor_name?: string | null
@@ -393,16 +401,27 @@ export type Database = {
           funding_source_key?: string
           id?: string
           memo?: string | null
+          policy_snapshot?: Json | null
+          policy_version_id?: string | null
           pre_approval_status?: string | null
-          project_budget_category_id?: string
+          project_budget_category_id?: string | null
           project_id?: string
           stage_fields?: Json
           stage_key?: string
+          subcategory_key?: string | null
+          subcategory_name?: string | null
           title?: string
           updated_at?: string
           vendor_name?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "expenses_policy_version_id_fkey"
+            columns: ["policy_version_id"]
+            isOneToOne: false
+            referencedRelation: "program_policy_versions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expenses_project_budget_category_match_fk"
             columns: [
@@ -423,6 +442,322 @@ export type Database = {
           },
           {
             foreignKeyName: "expenses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      program_policy_categories: {
+        Row: {
+          category_key: string
+          category_name: string
+          created_at: string
+          id: string
+          policy_version_id: string
+          raw_category_name: string | null
+          review_status: string
+          sort_order: number
+          source_reference: Json
+          updated_at: string
+        }
+        Insert: {
+          category_key: string
+          category_name: string
+          created_at?: string
+          id?: string
+          policy_version_id: string
+          raw_category_name?: string | null
+          review_status?: string
+          sort_order?: number
+          source_reference?: Json
+          updated_at?: string
+        }
+        Update: {
+          category_key?: string
+          category_name?: string
+          created_at?: string
+          id?: string
+          policy_version_id?: string
+          raw_category_name?: string | null
+          review_status?: string
+          sort_order?: number
+          source_reference?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_policy_categories_policy_version_id_fkey"
+            columns: ["policy_version_id"]
+            isOneToOne: false
+            referencedRelation: "program_policy_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      program_policy_documents: {
+        Row: {
+          created_at: string
+          file_size: number
+          id: string
+          mime_type: string
+          original_file_name: string
+          policy_version_id: string
+          project_id: string
+          ready_at: string | null
+          role: string
+          storage_bucket: string
+          storage_path: string
+          updated_at: string
+          upload_status: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_size: number
+          id?: string
+          mime_type?: string
+          original_file_name: string
+          policy_version_id: string
+          project_id: string
+          ready_at?: string | null
+          role: string
+          storage_bucket?: string
+          storage_path: string
+          updated_at?: string
+          upload_status?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_size?: number
+          id?: string
+          mime_type?: string
+          original_file_name?: string
+          policy_version_id?: string
+          project_id?: string
+          ready_at?: string | null
+          role?: string
+          storage_bucket?: string
+          storage_path?: string
+          updated_at?: string
+          upload_status?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_policy_documents_policy_version_id_fkey"
+            columns: ["policy_version_id"]
+            isOneToOne: false
+            referencedRelation: "program_policy_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_policy_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_kpi_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "program_policy_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      program_policy_evidence_requirements: {
+        Row: {
+          category_id: string | null
+          condition_text: string | null
+          created_at: string
+          document_key: string | null
+          evidence_key: string
+          evidence_name: string
+          fulfillment_type: string
+          id: string
+          policy_version_id: string
+          requirement_type: string
+          review_status: string
+          source_reference: Json
+          subcategory_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          condition_text?: string | null
+          created_at?: string
+          document_key?: string | null
+          evidence_key: string
+          evidence_name: string
+          fulfillment_type: string
+          id?: string
+          policy_version_id: string
+          requirement_type: string
+          review_status?: string
+          source_reference?: Json
+          subcategory_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          condition_text?: string | null
+          created_at?: string
+          document_key?: string | null
+          evidence_key?: string
+          evidence_name?: string
+          fulfillment_type?: string
+          id?: string
+          policy_version_id?: string
+          requirement_type?: string
+          review_status?: string
+          source_reference?: Json
+          subcategory_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_policy_evidence_requirements_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "program_policy_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_policy_evidence_requirements_policy_version_id_fkey"
+            columns: ["policy_version_id"]
+            isOneToOne: false
+            referencedRelation: "program_policy_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_policy_evidence_requirements_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "program_policy_subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      program_policy_subcategories: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          policy_version_id: string
+          raw_subcategory_name: string | null
+          review_status: string
+          sort_order: number
+          source_reference: Json
+          subcategory_key: string
+          subcategory_name: string
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          policy_version_id: string
+          raw_subcategory_name?: string | null
+          review_status?: string
+          sort_order?: number
+          source_reference?: Json
+          subcategory_key: string
+          subcategory_name: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          policy_version_id?: string
+          raw_subcategory_name?: string | null
+          review_status?: string
+          sort_order?: number
+          source_reference?: Json
+          subcategory_key?: string
+          subcategory_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_policy_subcategories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "program_policy_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_policy_subcategories_policy_version_id_fkey"
+            columns: ["policy_version_id"]
+            isOneToOne: false
+            referencedRelation: "program_policy_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      program_policy_versions: {
+        Row: {
+          archived_at: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          confirmed_summary: Json
+          created_at: string
+          created_by: string | null
+          extraction_failure_reason: string | null
+          extraction_status: string
+          id: string
+          operation_status: string
+          project_id: string
+          status: string
+          updated_at: string
+          version_number: number
+        }
+        Insert: {
+          archived_at?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          confirmed_summary?: Json
+          created_at?: string
+          created_by?: string | null
+          extraction_failure_reason?: string | null
+          extraction_status?: string
+          id?: string
+          operation_status?: string
+          project_id: string
+          status?: string
+          updated_at?: string
+          version_number: number
+        }
+        Update: {
+          archived_at?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          confirmed_summary?: Json
+          created_at?: string
+          created_by?: string | null
+          extraction_failure_reason?: string | null
+          extraction_status?: string
+          id?: string
+          operation_status?: string
+          project_id?: string
+          status?: string
+          updated_at?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_policy_versions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_kpi_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "program_policy_versions_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -600,6 +935,7 @@ export type Database = {
           assignment_name: string
           assignment_number: string
           company_id: string
+          confirmed_policy_version_id: string | null
           created_at: string
           deleted_at: string | null
           government_subsidy_amount: number
@@ -623,6 +959,7 @@ export type Database = {
           assignment_name: string
           assignment_number: string
           company_id: string
+          confirmed_policy_version_id?: string | null
           created_at?: string
           deleted_at?: string | null
           government_subsidy_amount?: number
@@ -646,6 +983,7 @@ export type Database = {
           assignment_name?: string
           assignment_number?: string
           company_id?: string
+          confirmed_policy_version_id?: string | null
           created_at?: string
           deleted_at?: string | null
           government_subsidy_amount?: number
@@ -669,6 +1007,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_confirmed_policy_version_id_fkey"
+            columns: ["confirmed_policy_version_id"]
+            isOneToOne: false
+            referencedRelation: "program_policy_versions"
             referencedColumns: ["id"]
           },
         ]
@@ -866,6 +1211,40 @@ export type Database = {
       }
     }
     Functions: {
+      budget_category_sort_order: {
+        Args: { category_key: string }
+        Returns: number
+      }
+      confirm_program_policy_version: {
+        Args: {
+          p_confirmed_by: string
+          p_confirmed_summary: Json
+          p_policy_version_id: string
+          p_project_id: string
+        }
+        Returns: {
+          archived_at: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          confirmed_summary: Json
+          created_at: string
+          created_by: string | null
+          extraction_failure_reason: string | null
+          extraction_status: string
+          id: string
+          operation_status: string
+          project_id: string
+          status: string
+          updated_at: string
+          version_number: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "program_policy_versions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_expense_evidence_with_history: {
         Args: {
           p_company_id: string
@@ -877,16 +1256,41 @@ export type Database = {
           p_mime_type: string
           p_original_file_name: string
           p_project_id: string
-          p_requirement_key: string | null
+          p_requirement_key: string
           p_storage_path: string
           p_stored_file_name: string
-          p_uploaded_by?: string | null
+          p_uploaded_by?: string
         }
-        Returns: Database["public"]["Tables"]["expense_evidence_files"]["Row"]
+        Returns: {
+          company_id: string
+          deleted_at: string | null
+          document_key: string
+          duplicate_group_key: string | null
+          expense_id: string
+          file_extension: string | null
+          file_hash: string | null
+          file_size: number | null
+          id: string
+          mime_type: string | null
+          original_file_name: string
+          project_id: string
+          requirement_key: string | null
+          storage_bucket: string
+          storage_path: string
+          stored_file_name: string
+          uploaded_at: string
+          uploaded_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "expense_evidence_files"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       delete_expense_evidence_with_history: {
         Args: {
-          p_changed_by?: string | null
+          p_changed_by?: string
           p_evidence_id: string
           p_expense_id: string
           p_project_id: string
@@ -897,37 +1301,156 @@ export type Database = {
         Args: { project_id: string }
         Returns: Json
       }
+      seed_project_budget_categories: {
+        Args: { target_project_id: string }
+        Returns: undefined
+      }
       update_expense_stage_with_history: {
         Args: {
-          p_changed_by?: string | null
+          p_changed_by?: string
           p_current_stage_key: string
           p_expense_id: string
           p_project_id: string
           p_target_stage_key: string
         }
-        Returns: Database["public"]["Tables"]["expenses"]["Row"]
+        Returns: {
+          amount: number
+          category_key: string
+          created_at: string
+          deleted_at: string | null
+          execution_progress_status: string | null
+          execution_request_date: string | null
+          execution_request_status: string | null
+          expected_spend_date: string | null
+          funding_source_key: string
+          id: string
+          memo: string | null
+          policy_snapshot: Json | null
+          policy_version_id: string | null
+          pre_approval_status: string | null
+          project_budget_category_id: string | null
+          project_id: string
+          stage_fields: Json
+          stage_key: string
+          subcategory_key: string | null
+          subcategory_name: string | null
+          title: string
+          updated_at: string
+          vendor_name: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "expenses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       update_expense_with_history: {
         Args: {
           p_amount: number
           p_category_key: string
-          p_changed_by?: string | null
-          p_execution_progress_status: string | null
-          p_execution_request_date: string | null
-          p_execution_request_status: string | null
-          p_expected_spend_date: string | null
+          p_changed_by?: string
+          p_execution_progress_status: string
+          p_execution_request_date: string
+          p_execution_request_status: string
+          p_expected_spend_date: string
           p_expense_id: string
           p_funding_source_key: string
           p_history_summary?: string
-          p_memo: string | null
-          p_pre_approval_status: string | null
+          p_memo: string
+          p_pre_approval_status: string
           p_project_budget_category_id: string
           p_project_id: string
           p_stage_fields: Json
           p_title: string
-          p_vendor_name: string | null
+          p_vendor_name: string
         }
-        Returns: Database["public"]["Tables"]["expenses"]["Row"]
+        Returns: {
+          amount: number
+          category_key: string
+          created_at: string
+          deleted_at: string | null
+          execution_progress_status: string | null
+          execution_request_date: string | null
+          execution_request_status: string | null
+          expected_spend_date: string | null
+          funding_source_key: string
+          id: string
+          memo: string | null
+          policy_snapshot: Json | null
+          policy_version_id: string | null
+          pre_approval_status: string | null
+          project_budget_category_id: string | null
+          project_id: string
+          stage_fields: Json
+          stage_key: string
+          subcategory_key: string | null
+          subcategory_name: string | null
+          title: string
+          updated_at: string
+          vendor_name: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "expenses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_policy_expense_with_history: {
+        Args: {
+          p_amount: number
+          p_category_key: string
+          p_changed_by?: string
+          p_execution_progress_status: string
+          p_execution_request_date: string
+          p_execution_request_status: string
+          p_expected_spend_date: string
+          p_expense_id: string
+          p_funding_source_key: string
+          p_history_summary?: string
+          p_memo: string
+          p_policy_snapshot: Json
+          p_policy_version_id: string
+          p_pre_approval_status: string
+          p_project_id: string
+          p_stage_fields: Json
+          p_subcategory_key: string
+          p_subcategory_name: string
+          p_title: string
+          p_vendor_name: string
+        }
+        Returns: {
+          amount: number
+          category_key: string
+          created_at: string
+          deleted_at: string | null
+          execution_progress_status: string | null
+          execution_request_date: string | null
+          execution_request_status: string | null
+          expected_spend_date: string | null
+          funding_source_key: string
+          id: string
+          memo: string | null
+          policy_snapshot: Json | null
+          policy_version_id: string | null
+          pre_approval_status: string | null
+          project_budget_category_id: string | null
+          project_id: string
+          stage_fields: Json
+          stage_key: string
+          subcategory_key: string | null
+          subcategory_name: string | null
+          title: string
+          updated_at: string
+          vendor_name: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "expenses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {

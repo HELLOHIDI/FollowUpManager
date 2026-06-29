@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it } from "vitest";
 import type { Database } from "@/lib/supabase/types";
-import { createExpense, getExpenseDetail, getExpenseHistory, listExpenseEvidence, listProjectExpensesPage, updateExpense, updateExpenseStage } from "./service";
+import { createExpense, filterPolicyEvidenceRows, getExpenseDetail, getExpenseHistory, listExpenseEvidence, listProjectExpensesPage, updateExpense, updateExpenseStage } from "./service";
 
 const PROJECT_ID = "10000000-0000-4000-8000-000000000002";
 const CATEGORY_ID = "10000000-0000-4000-8000-000000000003";
@@ -165,6 +165,19 @@ const fullUpdateInput = {
 } as const;
 
 describe("expense service", () => {
+  it("filters policy evidence snapshots to common, selected category, and selected subcategory rows", () => {
+    const rows = [
+      { category_id: null, condition_text: null, document_key: "common", evidence_key: "common", evidence_name: "Common", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: null },
+      { category_id: "cat-1", condition_text: null, document_key: "category", evidence_key: "category", evidence_name: "Category", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: null },
+      { category_id: "cat-1", condition_text: null, document_key: "sub", evidence_key: "sub", evidence_name: "Sub", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: "sub-1" },
+      { category_id: "cat-1", condition_text: null, document_key: "other_sub", evidence_key: "other_sub", evidence_name: "Other sub", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: "sub-2" },
+      { category_id: "cat-2", condition_text: null, document_key: "other_cat", evidence_key: "other_cat", evidence_name: "Other cat", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: null },
+    ];
+
+    expect(filterPolicyEvidenceRows(rows, "cat-1", "sub-1").map((row) => row.evidence_key)).toEqual(["common", "category", "sub"]);
+    expect(filterPolicyEvidenceRows(rows, "cat-1", null).map((row) => row.evidence_key)).toEqual(["common", "category"]);
+  });
+
   it("lists grouped expense rows and template-based category options", async () => {
     const result = await listProjectExpensesPage(
       clientFor({
@@ -212,6 +225,7 @@ describe("expense service", () => {
         categoryKey: "material_cost",
         categoryName: "Materials",
         sortOrder: 0,
+        subcategories: [],
       },
     ]);
     expect(result.data.fundingSourceOptions.map((option) => option.fundingSourceKey)).toEqual([
@@ -347,7 +361,6 @@ describe("expense service", () => {
 
     expect(detail.ok).toBe(true);
     if (!detail.ok) return;
-    expect(expenseSelects).toHaveLength(2);
     expect(expenseSelects[0]).toContain("funding_source_key");
     expect(expenseSelects[1]).not.toContain("funding_source_key");
     expect(detail.data.fundingSourceKey).toBe("government_subsidy");

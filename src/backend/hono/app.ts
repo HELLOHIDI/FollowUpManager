@@ -23,6 +23,7 @@ import {
 } from "@/features/expenses/backend/mutation-client";
 import { registerExpenseRoutes } from "@/features/expenses/backend/route";
 import { registerProjectExportRoutes } from "@/features/project-export/backend/route";
+import { registerProgramEvidencePolicyRoutes } from "@/features/program-evidence-policy/backend/route";
 
 type CreateHonoAppOptions = {
   createAuthenticatedClient?: AuthenticatedClientFactory;
@@ -71,6 +72,7 @@ export const createHonoApp = (options: CreateHonoAppOptions = {}) => {
     createExpenseMutationClient:
       options.createExpenseMutationClient ?? createExpenseMutationClient,
   });
+  registerProgramEvidencePolicyRoutes(app);
   registerProjectExportRoutes(app);
 
   return app;
