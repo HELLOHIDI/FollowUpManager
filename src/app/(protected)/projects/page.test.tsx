@@ -1,0 +1,153 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CompanyResponse } from "@/features/company/lib/dto";
+import type { ProjectResponse } from "@/features/projects/lib/dto";
+import ProjectsPage from "./page";
+
+const companyApi = vi.hoisted(() => ({
+  fetchCompanies: vi.fn(),
+}));
+
+const dashboardApi = vi.hoisted(() => ({
+  fetchProjectDashboard: vi.fn(),
+}));
+
+const projectApi = vi.hoisted(() => ({
+  createProjectRequest: vi.fn(),
+  deleteProjectDocumentRequest: vi.fn(),
+  fetchCompanyProjects: vi.fn(),
+  fetchProject: vi.fn(),
+  fetchProjectDocuments: vi.fn(),
+  updateProjectRequest: vi.fn(),
+  uploadProjectDocument: vi.fn(),
+}));
+
+vi.mock("@/features/company/api", () => companyApi);
+vi.mock("@/features/dashboard/api", () => dashboardApi);
+vi.mock("@/features/projects/api", () => projectApi);
+
+const company = (overrides: Partial<CompanyResponse> = {}): CompanyResponse => ({
+  businessRegistrationNumber: "1234567890",
+  businessType: "sole_proprietor",
+  companyName: "테스트 기업",
+  companySize: "small_enterprise",
+  corporateRegistrationNumber: null,
+  createdAt: "2026-06-22T00:00:00.000Z",
+  foundedAt: "2020-01-01",
+  id: "11111111-1111-4111-8111-111111111111",
+  profileStatus: "complete",
+  updatedAt: "2026-06-22T00:00:00.000Z",
+  ...overrides,
+});
+
+const project = (overrides: Partial<ProjectResponse> = {}): ProjectResponse => ({
+  agreementEndDate: "2026-12-31",
+  agreementStartDate: "2026-01-01",
+  assignmentName: "사업 과제",
+  assignmentNumber: "A-001",
+  companyId: "11111111-1111-4111-8111-111111111111",
+  createdAt: "2026-06-22T00:00:00.000Z",
+  governmentSubsidyAmount: 700,
+  hostInstitution: "창업진흥원",
+  id: "22222222-2222-4222-8222-222222222222",
+  managerEmail: null,
+  managerName: "PM",
+  managerPhone: null,
+  profileStatus: "complete",
+  projectName: "운영 대시보드 사업",
+  projectNotes: null,
+  selfCashAmount: 200,
+  selfContributionAmount: 300,
+  selfInKindAmount: 100,
+  totalProjectBudget: 1000,
+  updatedAt: "2026-06-22T00:00:00.000Z",
+  ...overrides,
+});
+
+const renderProjectsPage = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      mutations: { retry: false },
+      queries: { retry: false },
+    },
+  });
+
+  const Wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+
+  return render(<ProjectsPage />, { wrapper: Wrapper });
+};
+
+describe("ProjectsPage", () => {
+  beforeEach(() => {
+    companyApi.fetchCompanies.mockReset();
+    dashboardApi.fetchProjectDashboard.mockReset();
+    projectApi.fetchCompanyProjects.mockReset();
+    projectApi.fetchProject.mockReset();
+  });
+
+  it("guides users to company setup when no companies are registered", async () => {
+    companyApi.fetchCompanies.mockResolvedValue([]);
+
+    renderProjectsPage();
+
+    expect(
+      await screen.findByRole("heading", { name: "등록된 기업이 없습니다" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /기업 정보 등록/ }),
+    ).toHaveAttribute("href", "/settings/company?mode=create&returnTo=%2Fprojects");
+  });
+
+  it("lists registered companies and links projects to their dashboards", async () => {
+    const registeredCompany = company();
+    const registeredProject = project();
+    companyApi.fetchCompanies.mockResolvedValue([registeredCompany]);
+    projectApi.fetchCompanyProjects.mockResolvedValue([registeredProject]);
+    projectApi.fetchProject.mockResolvedValue(registeredProject);
+    dashboardApi.fetchProjectDashboard.mockResolvedValue({
+      categories: [],
+      kpis: {
+        burnRatio: 0,
+        remainingAmount: 1000,
+        spentAmount: 0,
+        totalBudget: 1000,
+      },
+      project: {
+        id: registeredProject.id,
+        name: registeredProject.projectName,
+      },
+    });
+
+    renderProjectsPage();
+    const dashboardLink = await screen.findByRole("link", {
+      name: /대시보드/,
+    });
+
+    expect(screen.getByText("테스트 기업")).toBeInTheDocument();
+    expect(screen.getByText("운영 대시보드 사업")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^사업 등록$/ })).toHaveAttribute(
+      "href",
+      `/settings/company?mode=project-create&projectCompanyId=${registeredCompany.id}&returnTo=%2Fprojects`,
+    );
+    expect(
+      screen.getByRole("link", { name: /기업 정보 수정/ }),
+    ).toHaveAttribute(
+      "href",
+      `/settings/company?companyId=${registeredCompany.id}&returnTo=%2Fprojects`,
+    );
+    expect(dashboardLink).toHaveAttribute(
+      "href",
+      `/projects/${registeredProject.id}`,
+    );
+
+    await userEvent.hover(dashboardLink);
+    await waitFor(() => {
+      expect(dashboardApi.fetchProjectDashboard).toHaveBeenCalledTimes(1);
+    });
+  });
+});

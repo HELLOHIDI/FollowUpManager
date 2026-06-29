@@ -21,17 +21,24 @@ const projectApi = vi.hoisted(() => ({
   fetchProject: vi.fn(),
   fetchProjectDocuments: vi.fn(),
   updateProjectRequest: vi.fn(),
-  uploadProjectDocuments: vi.fn(),
   uploadProjectDocument: vi.fn(),
+  uploadProjectDocuments: vi.fn(),
 }));
 const router = vi.hoisted(() => ({
   push: vi.fn(),
+  replace: vi.fn(),
+}));
+const navigationState = vi.hoisted(() => ({
+  searchParams: new URLSearchParams(),
 }));
 
 vi.mock("../api", () => api);
 vi.mock("@/features/dashboard/api", () => dashboardApi);
 vi.mock("@/features/projects/api", () => projectApi);
-vi.mock("next/navigation", () => ({ useRouter: () => router }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => router,
+  useSearchParams: () => navigationState.searchParams,
+}));
 vi.mock("@/lib/remote/api-client", () => ({
   extractApiErrorCode: (error: { code?: string }) => error?.code ?? null,
   extractApiErrorMessage: (_error: unknown, fallback: string) => fallback,
@@ -77,8 +84,8 @@ const project = {
 const renderSettings = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { retry: false },
       mutations: { retry: false },
+      queries: { retry: false },
     },
   });
 
@@ -101,23 +108,152 @@ describe("CompanySettings", () => {
     projectApi.fetchProject.mockReset();
     projectApi.fetchProjectDocuments.mockReset();
     projectApi.updateProjectRequest.mockReset();
-    projectApi.uploadProjectDocuments.mockReset();
     projectApi.uploadProjectDocument.mockReset();
+    projectApi.uploadProjectDocuments.mockReset();
     router.push.mockReset();
+    router.replace.mockReset();
+    navigationState.searchParams = new URLSearchParams();
   });
 
-  it("keeps the new-company form open when existing companies are present", async () => {
+  it("redirects the removed default company-settings screen to projects", async () => {
     api.fetchCompanies.mockResolvedValue([company()]);
     renderSettings();
 
-    expect(await screen.findByRole("heading", { name: "기업 정보 수정" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "기업 추가" }));
-
-    expect(screen.getByRole("heading", { name: "새 기업 등록" })).toBeInTheDocument();
-    expect(screen.getByLabelText("기업명")).toHaveValue("");
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "새 기업 등록" })).toBeInTheDocument();
+      expect(router.replace).toHaveBeenCalledWith("/projects");
     });
+  });
+
+  it("opens a focused company-create flow and returns to projects after create", async () => {
+    const created = company({
+      businessRegistrationNumber: "9876543210",
+      companyName: "추가 기업",
+      id: "33333333-3333-4333-8333-333333333333",
+    });
+    navigationState.searchParams = new URLSearchParams(
+      "mode=create&returnTo=%2Fprojects",
+    );
+    api.fetchCompanies.mockResolvedValue([company()]);
+    api.createCompanyRequest.mockResolvedValue(created);
+    renderSettings();
+    const user = userEvent.setup();
+
+    expect(
+      await screen.findByRole("heading", { name: "기업 추가하기" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "등록 기업" }),
+    ).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("기업명"), "추가 기업");
+    await user.selectOptions(screen.getByLabelText("기업규모"), "small_enterprise");
+    await user.type(screen.getByLabelText("사업자등록번호"), "9876543210");
+    await user.type(screen.getByLabelText("설립일"), "2020-01-01");
+    await user.click(screen.getByRole("button", { name: "기업 추가하기" }));
+
+    await waitFor(() => {
+      expect(api.createCompanyRequest.mock.calls[0]?.[0]).toEqual({
+        businessRegistrationNumber: "9876543210",
+        businessType: "sole_proprietor",
+        companyName: "추가 기업",
+        companySize: "small_enterprise",
+        corporateRegistrationNumber: null,
+        foundedAt: "2020-01-01",
+      });
+    });
+    expect(router.push).toHaveBeenCalledWith("/projects");
+  });
+
+  it("opens a focused company-edit flow and returns to projects after update", async () => {
+    const existingCompany = company();
+    const updated = company({ companyName: "수정 기업" });
+    navigationState.searchParams = new URLSearchParams(
+      `companyId=${existingCompany.id}&returnTo=%2Fprojects`,
+    );
+    api.fetchCompanies.mockResolvedValue([existingCompany]);
+    api.updateCompanyRequest.mockResolvedValue(updated);
+    renderSettings();
+    const user = userEvent.setup();
+
+    expect(
+      await screen.findByRole("heading", { name: "기업 정보 수정" }),
+    ).toBeInTheDocument();
+    const companyNameInput = await screen.findByLabelText("기업명");
+    await waitFor(() => {
+      expect(companyNameInput).toHaveValue("기존 기업");
+    });
+
+    await user.clear(companyNameInput);
+    await user.type(companyNameInput, "수정 기업");
+    await user.click(screen.getByRole("button", { name: "기업 정보 수정" }));
+
+    await waitFor(() => {
+      expect(api.updateCompanyRequest.mock.calls[0]?.[0]).toEqual({
+        companyId: existingCompany.id,
+        input: expect.objectContaining({ companyName: "수정 기업" }),
+      });
+    });
+    expect(router.push).toHaveBeenCalledWith("/projects");
+  });
+
+  it("opens a focused project-create flow and navigates to the new dashboard", async () => {
+    const existingCompany = company();
+    const createdProject = project;
+    navigationState.searchParams = new URLSearchParams(
+      `mode=project-create&projectCompanyId=${existingCompany.id}&returnTo=%2Fprojects`,
+    );
+    api.fetchCompanies.mockResolvedValue([existingCompany]);
+    projectApi.fetchCompanyProjects.mockResolvedValue([]);
+    projectApi.createProjectRequest.mockResolvedValue(createdProject);
+    projectApi.uploadProjectDocuments.mockResolvedValue({ failed: 0 });
+    dashboardApi.fetchProjectDashboard.mockResolvedValue({
+      categories: [],
+      kpis: {
+        burnRatio: 0,
+        remainingAmount: 1000,
+        spentAmount: 0,
+        totalBudget: 1000,
+      },
+      project: { id: createdProject.id, name: createdProject.projectName },
+    });
+    renderSettings();
+    const user = userEvent.setup();
+
+    expect(
+      await screen.findByRole("heading", { name: "사업 등록" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("기존 기업")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "등록 기업" }),
+    ).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("사업명"), "Fast Dashboard Project");
+    await user.type(screen.getByLabelText("주관기관"), "KISED");
+    await user.type(screen.getByLabelText("과제번호"), "A-001");
+    await user.type(screen.getByLabelText("과제명"), "Grant Project");
+    await user.type(screen.getByLabelText("협약 시작일"), "2026-01-01");
+    await user.type(screen.getByLabelText("협약 종료일"), "2026-12-31");
+    await user.type(screen.getByLabelText("담당자명"), "PM");
+    await user.type(screen.getByLabelText("담당자 이메일"), "pm@example.com");
+    const governmentSubsidyInput = screen.getByLabelText("정부지원금");
+    await user.clear(governmentSubsidyInput);
+    await user.type(governmentSubsidyInput, "1000");
+    await user.click(screen.getByRole("button", { name: "사업 등록" }));
+
+    await waitFor(() => {
+      expect(projectApi.createProjectRequest.mock.calls[0]?.[0]).toEqual({
+        companyId: existingCompany.id,
+        input: expect.objectContaining({
+          assignmentName: "Grant Project",
+          assignmentNumber: "A-001",
+          governmentSubsidyAmount: "1000",
+          hostInstitution: "KISED",
+          managerName: "PM",
+          projectName: "Fast Dashboard Project",
+        }),
+      });
+    });
+    expect(router.push).toHaveBeenCalledWith(`/projects/${createdProject.id}`);
   });
 
   it("requires the 13-digit corporate number only for corporations and creates a company", async () => {
@@ -128,14 +264,15 @@ describe("CompanySettings", () => {
       corporateRegistrationNumber: "1234567890123",
       id: "33333333-3333-4333-8333-333333333333",
     });
-    api.fetchCompanies
-      .mockResolvedValueOnce([])
-      .mockResolvedValue([created]);
+    navigationState.searchParams = new URLSearchParams(
+      "mode=create&returnTo=%2Fprojects",
+    );
+    api.fetchCompanies.mockResolvedValue([]);
     api.createCompanyRequest.mockResolvedValue(created);
     renderSettings();
-
     const user = userEvent.setup();
-    expect(await screen.findByText("등록된 기업이 없습니다.")).toBeInTheDocument();
+
+    expect(await screen.findByLabelText("기업명")).toBeInTheDocument();
     expect(screen.queryByLabelText("법인등록번호")).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("기업명"), "신규 법인");
@@ -144,7 +281,7 @@ describe("CompanySettings", () => {
     await user.type(screen.getByLabelText("사업자등록번호"), "987-65-43210");
     await user.type(screen.getByLabelText("설립일"), "2020-01-01");
     await user.type(screen.getByLabelText("법인등록번호"), "123456-7890123");
-    await user.click(screen.getByRole("button", { name: "기업 등록" }));
+    await user.click(screen.getByRole("button", { name: "기업 추가하기" }));
 
     await waitFor(() => {
       expect(api.createCompanyRequest.mock.calls[0]?.[0]).toEqual({
@@ -156,10 +293,13 @@ describe("CompanySettings", () => {
         foundedAt: "2020-01-01",
       });
     });
-    expect(await screen.findByRole("heading", { name: "기업 정보 수정" })).toBeInTheDocument();
+    expect(router.push).toHaveBeenCalledWith("/projects");
   });
 
   it("attaches a registration conflict to the business-number field", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "mode=create&returnTo=%2Fprojects",
+    );
     api.fetchCompanies.mockResolvedValue([]);
     api.createCompanyRequest.mockRejectedValue({
       code: "COMPANY_REGISTRATION_NUMBER_CONFLICT",
@@ -167,48 +307,15 @@ describe("CompanySettings", () => {
     renderSettings();
     const user = userEvent.setup();
 
-    await screen.findByText("등록된 기업이 없습니다.");
+    await screen.findByLabelText("기업명");
     await user.type(screen.getByLabelText("기업명"), "중복 기업");
     await user.selectOptions(screen.getByLabelText("기업규모"), "small_enterprise");
     await user.type(screen.getByLabelText("사업자등록번호"), "1234567890");
     await user.type(screen.getByLabelText("설립일"), "2020-01-01");
-    await user.click(
-      screen.getByRole("button", { name: /^기업 등록$/ })
-    );
+    await user.click(screen.getByRole("button", { name: "기업 추가하기" }));
 
     expect(
-      await screen.findByText("이미 등록된 사업자등록번호입니다.")
+      await screen.findByText("이미 등록된 사업자등록번호입니다."),
     ).toBeInTheDocument();
-  });
-
-  it("prefetches project navigation targets and uses SPA navigation", async () => {
-    const existingCompany = company({ companyName: "Existing Company" });
-    api.fetchCompanies.mockResolvedValue([existingCompany]);
-    projectApi.fetchCompanyProjects.mockResolvedValue([project]);
-    projectApi.fetchProject.mockResolvedValue(project);
-    dashboardApi.fetchProjectDashboard.mockResolvedValue({
-      categories: [],
-      kpis: { burnRatio: 0, remainingAmount: 1000, spentAmount: 0, totalBudget: 1000 },
-      project: { id: project.id, name: project.projectName },
-    });
-    renderSettings();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole("button", { name: /Existing Company/ }));
-    const dashboardButton = await screen.findByRole("button", { name: /^Fast Dashboard Project$/ });
-
-    expect(projectApi.fetchProject).not.toHaveBeenCalled();
-    expect(dashboardApi.fetchProjectDashboard).not.toHaveBeenCalled();
-
-    await user.hover(dashboardButton);
-    await waitFor(() => expect(dashboardApi.fetchProjectDashboard).toHaveBeenCalledTimes(1));
-    await user.click(dashboardButton);
-    expect(router.push).toHaveBeenCalledWith(`/projects/${project.id}`);
-
-    const managementButton = screen.getByRole("button", { name: /Fast Dashboard Project 관리/ });
-    await user.hover(managementButton);
-    await waitFor(() => expect(projectApi.fetchProject).toHaveBeenCalledTimes(1));
-    await user.click(managementButton);
-    expect(router.push).toHaveBeenCalledWith(`/settings/company/projects/${project.id}`);
   });
 });

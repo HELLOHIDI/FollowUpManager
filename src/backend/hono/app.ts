@@ -5,7 +5,6 @@ import { withAuthenticatedUser } from "@/backend/middleware/auth";
 import type { AppEnv } from "@/backend/hono/context";
 import { getCurrentUser } from "@/backend/hono/context";
 import type { AuthenticatedClientFactory } from "@/backend/supabase/authenticated-client";
-import { registerExampleRoutes } from "@/features/example/backend/route";
 import {
   createCompanyMutationClient,
   type CompanyMutationClientFactory,
@@ -44,7 +43,6 @@ export const createHonoApp = (options: CreateHonoAppOptions = {}) => {
   app.use("/companies/*", authMiddleware);
   app.use("/projects", authMiddleware);
   app.use("/projects/*", authMiddleware);
-  app.use("/example/*", authMiddleware);
 
   app.get("/auth/me", (context) => {
     const user = getCurrentUser(context);
@@ -57,7 +55,6 @@ export const createHonoApp = (options: CreateHonoAppOptions = {}) => {
     });
   });
 
-  registerExampleRoutes(app);
   registerCompanyRoutes(app, {
     createCompanyMutationClient:
       options.createCompanyMutationClient ?? createCompanyMutationClient,

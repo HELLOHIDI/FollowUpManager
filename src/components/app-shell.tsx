@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, Download, LogOut, Plus, Search, Settings2 } from "lucide-react";
+import { Download, LogOut, Plus, Search } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { routes, getProjectIdFromPathname } from "@/constants/routes";
@@ -36,12 +36,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground" aria-hidden="true">G</span>
             GrantFollow
           </Link>
-          <Button asChild variant="outline" className="max-w-60 justify-start">
-            <Link href={routes.projects}>
-              <Building2 className="mr-2 size-4" aria-hidden="true" />
-              <span className="truncate">{projectId ?? "프로젝트 선택"}</span>
-            </Link>
-          </Button>
           <Button variant="outline" disabled title="프로젝트 데이터 연결 후 사용할 수 있습니다.">
             기간 선택
           </Button>
@@ -76,11 +70,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Download className="size-4" aria-hidden="true" />
             </Button>
           )}
-          <Button asChild variant="outline" size="icon">
-            <Link href={routes.companySettings} aria-label="기업 설정">
-              <Settings2 className="size-4" aria-hidden="true" />
-            </Link>
-          </Button>
           <span className="max-w-44 truncate text-sm text-muted-foreground" title={user?.email ?? "관리자"}>
             {user?.email ?? "관리자"}
           </span>

@@ -35,9 +35,9 @@ PRD > IA > Architecture > Design Guide > Guideline > Step-by-step > Clean-code
 - Supabase Storage is the evidence file store.
 - Supabase Auth is used for a single internal account login.
 - Multi-user role and permission management is out of MVP scope.
-- Existing database work is only the starter `public.example` table.
-- GrantFollow domain migrations do not exist yet.
-- `src/lib/supabase/types.ts` currently has no generated database schema.
+- The starter `public.example` table has been removed from the active schema.
+- GrantFollow domain migrations are the active database baseline.
+- `src/lib/supabase/types.ts` reflects the GrantFollow schema.
 
 ## Decision 1. Security Model
 
@@ -628,7 +628,7 @@ The following decisions are locked for the first MVP database implementation:
 10. `file_hash` and `duplicate_group_key` are nullable in MVP.
 11. Dashboard aggregation starts with views or RPC, not stored aggregate tables.
 12. Expense history stores meaningful operational events, not full audit diffs.
-13. Existing starter migration `0001_create_example_table.sql` remains untouched.
+13. Existing starter migration `0001_create_example_table.sql` has been removed from the active migration set.
 14. GrantFollow migrations start at `0002`.
 
 ## Phase 1 Readiness Checklist

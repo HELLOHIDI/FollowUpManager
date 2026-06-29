@@ -237,22 +237,6 @@ describe("Hono authentication boundary", () => {
     expect(client.rpc).toHaveBeenCalledTimes(1);
   });
 
-  it("uses the authenticated client for the existing read-only route", async () => {
-    const { client, from } = createClientStub();
-    const app = createHonoApp({
-      createAuthenticatedClient: vi.fn(() => client),
-    });
-
-    const response = await app.request(
-      "/api/example/22222222-2222-4222-8222-222222222222",
-      { headers: { Authorization: "Bearer valid-token" } }
-    );
-
-    expect(response.status).toBe(404);
-    expect(from).toHaveBeenCalledWith("example");
-    expect(serviceClientMocks.createServiceClient).not.toHaveBeenCalled();
-  });
-
   it("does not expose unexpected error details", async () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
     const app = createHonoApp({
