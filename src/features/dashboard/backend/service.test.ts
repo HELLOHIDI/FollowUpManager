@@ -26,6 +26,51 @@ const clientFor = (data: unknown, error: unknown = null) => ({
   rpc: vi.fn().mockResolvedValue({ data, error }),
 }) as unknown as SupabaseClient<Database>;
 
+const buildChain = (result: unknown) => {
+  const chain: any = {
+    eq: () => chain,
+    is: () => chain,
+    limit: () => chain,
+    maybeSingle: async () => ({ data: result, error: null }),
+    order: () => chain,
+    select: () => chain,
+    then: (resolve: (value: unknown) => unknown, reject?: (reason?: unknown) => unknown) =>
+      Promise.resolve({ data: result, error: null }).then(resolve, reject),
+  };
+  return chain;
+};
+
+const clientForPolicyDirectDashboard = () => ({
+  rpc: vi.fn().mockResolvedValue({ data: snapshot({ activeExpenseCount: 1, expenseRows: [], integrityCode: "CATEGORY_METADATA_MISMATCH" }), error: null }),
+  from: (table: string) => {
+    if (table === "projects") {
+      return buildChain({ id: PROJECT_ID, company_id: "11111111-1111-4111-8111-111111111112", confirmed_policy_version_id: null });
+    }
+    if (table === "program_policy_versions") {
+      return buildChain([]);
+    }
+    if (table === "project_budget_categories") {
+      return buildChain([]);
+    }
+    if (table === "budget_category_policy_templates") {
+      return buildChain([{ category_key: "policy_material", category_name: "Policy materials" }]);
+    }
+    if (table === "expenses") {
+      return buildChain([{
+        amount: 70,
+        category_key: "policy_material",
+        created_at: "2026-06-29T00:00:00.000Z",
+        deleted_at: null,
+        id: "44444444-4444-4444-8444-444444444444",
+        policy_snapshot: { category_key: "policy_material", category_name: "Policy materials" },
+        stage_key: "execution_completed",
+        title: "policy expense",
+      }]);
+    }
+    return buildChain([]);
+  },
+}) as unknown as SupabaseClient<Database>;
+
 describe("getProjectDashboard", () => {
   it("uses one snapshot call and derives category count and sum", async () => {
     const client = clientFor(snapshot());
@@ -54,5 +99,16 @@ describe("getProjectDashboard", () => {
     const result = await getProjectDashboard(clientFor(null, new Error("database secret")), PROJECT_ID);
     expect(result).toMatchObject({ ok: false, status: 500, error: { code: "DASHBOARD_FETCH_ERROR" } });
     expect(JSON.stringify(result)).not.toContain("database secret");
+  });
+
+  it("uses direct expense grouping when legacy snapshot category metadata mismatches policy expenses", async () => {
+    const result = await getProjectDashboard(clientForPolicyDirectDashboard(), PROJECT_ID);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.categories).toEqual([expect.objectContaining({
+      categoryKey: "policy_material",
+      expenseCount: 1,
+      totalAmount: 70,
+    })]);
   });
 });

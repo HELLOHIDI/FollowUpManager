@@ -177,6 +177,7 @@ export const getEvidenceFileMetadata = (input: z.infer<typeof ExpenseEvidenceUpl
 export const ExpenseCreateInputSchema = z.object({
   title: z.string().trim().min(1),
   categoryKey: z.string().trim().min(1),
+  subcategoryKey: z.string().trim().min(1).nullable().optional(),
   fundingSourceKey: z.enum(EXPENSE_FUNDING_SOURCE_KEYS),
   amount: safeAmount,
   expectedSpendDate: nullableDate.optional(),
@@ -186,6 +187,7 @@ export const ExpenseCreateInputSchema = z.object({
 export const ExpenseUpdateInputSchema = z.object({
   title: z.string().trim().min(1),
   categoryKey: z.string().trim().min(1),
+  subcategoryKey: z.string().trim().min(1).nullable().optional(),
   fundingSourceKey: z.enum(EXPENSE_FUNDING_SOURCE_KEYS),
   amount: safeAmount,
   expectedSpendDate: nullableDate,
@@ -206,6 +208,11 @@ export const ExpenseCategoryOptionSchema = z.object({
   categoryKey: z.string().trim().min(1),
   categoryName: z.string().trim().min(1),
   sortOrder: z.number().int(),
+  subcategories: z.array(z.object({
+    subcategoryKey: z.string().trim().min(1),
+    subcategoryName: z.string().trim().min(1),
+    sortOrder: z.number().int(),
+  })).default([]),
 });
 
 export const ExpenseFundingSourceOptionSchema = z.object({
@@ -241,8 +248,12 @@ export const ExpensePageResponseSchema = z.object({
 export const ExpenseResponseSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().uuid(),
-  projectBudgetCategoryId: z.string().uuid(),
+  projectBudgetCategoryId: z.string().uuid().nullable(),
   categoryKey: z.string().trim().min(1),
+  subcategoryKey: z.string().nullable().optional(),
+  subcategoryName: z.string().nullable().optional(),
+  policyVersionId: z.string().uuid().nullable().optional(),
+  policySnapshot: z.record(z.unknown()).nullable().optional(),
   fundingSourceKey: z.enum(EXPENSE_FUNDING_SOURCE_KEYS),
   title: z.string().trim().min(1),
   amount: safeAmount,

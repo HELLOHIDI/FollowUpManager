@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,12 +8,18 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { requiresSubcategorySelection } from "../lib/policy-category-options";
 import type { ExpenseCreateInput } from "../backend/schema";
 
 type CategoryOption = {
   categoryKey: string;
   categoryName: string;
   sortOrder: number;
+  subcategories?: Array<{
+    subcategoryKey: string;
+    subcategoryName: string;
+    sortOrder: number;
+  }>;
 };
 
 type FundingSourceOption = {
@@ -24,6 +30,7 @@ type FundingSourceOption = {
 type ExpenseQuickCreateFormValues = {
   title: string;
   categoryKey: string;
+  subcategoryKey: string;
   fundingSourceKey: FundingSourceOption["fundingSourceKey"];
   amount: number;
   expectedSpendDate: string;
@@ -39,6 +46,7 @@ const buildDefaultValues = (
   return {
     title: "",
     categoryKey: firstCategory?.categoryKey ?? "",
+    subcategoryKey: "",
     fundingSourceKey: firstFundingSource?.fundingSourceKey ?? "government_subsidy",
     amount: 0,
     expectedSpendDate: "",
@@ -64,10 +72,20 @@ export function ExpenseQuickCreateSheet({
   const form = useForm<ExpenseQuickCreateFormValues>({
     defaultValues: buildDefaultValues(categoryOptions, fundingSourceOptions),
   });
+  const selectedCategoryKey = form.watch("categoryKey");
+  const selectedCategory = categoryOptions.find((option) => option.categoryKey === selectedCategoryKey);
+  const subcategoryOptions = useMemo(() => selectedCategory?.subcategories ?? [], [selectedCategory]);
 
   useEffect(() => {
     form.reset(buildDefaultValues(categoryOptions, fundingSourceOptions));
   }, [categoryOptions, fundingSourceOptions, form, open]);
+
+  useEffect(() => {
+    if (subcategoryOptions.some((option) => option.subcategoryKey === form.getValues("subcategoryKey"))) {
+      return;
+    }
+    form.setValue("subcategoryKey", "");
+  }, [form, selectedCategoryKey, subcategoryOptions]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -79,11 +97,17 @@ export function ExpenseQuickCreateSheet({
         <form
           className="mt-6 grid gap-4"
           onSubmit={form.handleSubmit(async (values) => {
+            if (requiresSubcategorySelection(selectedCategory) && !values.subcategoryKey) {
+              form.setError("subcategoryKey", { message: "하위비목을 선택해 주세요.", type: "required" });
+              return;
+            }
+            form.clearErrors("subcategoryKey");
             await onSubmit({
               ...values,
               amount: Number(values.amount),
               expectedSpendDate: values.expectedSpendDate ? values.expectedSpendDate : null,
               memo: values.memo.trim() ? values.memo.trim() : null,
+              subcategoryKey: values.subcategoryKey || null,
             });
           })}
         >
@@ -91,6 +115,32 @@ export function ExpenseQuickCreateSheet({
             <Label htmlFor="expense-title">지출 제목</Label>
             <Input id="expense-title" {...form.register("title", { required: true })} placeholder="예: 시제품 재료 구입" />
           </div>
+          {subcategoryOptions.length > 0 ? (
+            <div className="grid gap-2">
+              <Label htmlFor="expense-subcategory">Subcategory</Label>
+              <Controller
+                control={form.control}
+                name="subcategoryKey"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id="expense-subcategory">
+                      <SelectValue placeholder="Select a subcategory" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subcategoryOptions.map((option) => (
+                        <SelectItem key={option.subcategoryKey} value={option.subcategoryKey}>
+                          {option.subcategoryName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {form.formState.errors.subcategoryKey?.message ? (
+                <p className="text-sm text-destructive">{form.formState.errors.subcategoryKey.message}</p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="grid gap-2">
             <Label htmlFor="expense-category">비목</Label>
             <Controller

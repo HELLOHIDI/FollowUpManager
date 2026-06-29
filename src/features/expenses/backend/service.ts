@@ -8,6 +8,8 @@ import {
   isImmediateForwardExpenseStage,
   type ExpenseStageKey,
 } from "@/features/domain/contracts";
+import { resolvePolicyCategories } from "@/features/program-evidence-policy/backend/service";
+import { requiresSubcategorySelection } from "@/features/expenses/lib/policy-category-options";
 import { expenseErrorCodes } from "./error";
 import {
   ExpenseCreateInputSchema,
@@ -41,6 +43,7 @@ type ExpenseCategoryOption = {
   categoryKey: string;
   categoryName: string;
   sortOrder: number;
+  subcategories?: Array<{ subcategoryKey: string; subcategoryName: string; sortOrder: number }>;
 };
 
 type ExpenseCategoryGroup = {
@@ -65,6 +68,41 @@ type ResolveProjectBudgetCategoryResult =
   | { error: unknown }
   | { unavailable: true };
 
+type PolicyEvidenceRequirementRow = {
+  category_id: string | null;
+  condition_text: string | null;
+  document_key: string | null;
+  evidence_key: string;
+  evidence_name: string;
+  fulfillment_type: string;
+  requirement_type: string;
+  source_reference: unknown;
+  subcategory_id: string | null;
+};
+
+type ResolvedExpenseCategory =
+  | {
+      kind: "policy";
+      categoryKey: string;
+      categoryName: string;
+      policySnapshot: Record<string, unknown>;
+      policyVersionId: string;
+      projectBudgetCategoryId: null;
+      subcategoryKey: string | null;
+      subcategoryName: string | null;
+    }
+  | {
+      kind: "legacy";
+      categoryKey: string;
+      policySnapshot: null;
+      policyVersionId: null;
+      projectBudgetCategoryId: string;
+      subcategoryKey: null;
+      subcategoryName: null;
+    }
+  | { kind: "unavailable" }
+  | { kind: "error"; error: unknown };
+
 const defaultFundingSourceKey = "government_subsidy" as const;
 const stageFieldKeys = {
   approvalReference: "approval_reference",
@@ -77,8 +115,12 @@ const stageFieldKeys = {
 type ExpenseRow = {
   id: string;
   project_id: string;
-  project_budget_category_id: string;
+  project_budget_category_id: string | null;
   category_key: string;
+  subcategory_key?: string | null;
+  subcategory_name?: string | null;
+  policy_version_id?: string | null;
+  policy_snapshot?: unknown;
   funding_source_key?: string | null;
   title: string;
   amount: number;
@@ -138,6 +180,7 @@ const mapCategoryOptions = (rows: Array<{ category_key: string; category_name: s
       categoryKey: row.category_key,
       categoryName: row.category_name,
       sortOrder: getBudgetCategoryPolicySortOrder(row.category_key),
+      subcategories: [],
     }))
     .sort((left, right) => left.sortOrder - right.sortOrder || left.categoryKey.localeCompare(right.categoryKey));
 
@@ -212,12 +255,135 @@ const resolveProjectBudgetCategoryId = async (
   return { error: insertError ?? new Error("failed to create project budget category") };
 };
 
+export const filterPolicyEvidenceRows = (
+  rows: PolicyEvidenceRequirementRow[],
+  categoryId: string,
+  subcategoryId: string | null,
+) =>
+  rows.filter((row) => {
+    if (!row.category_id && !row.subcategory_id) return true;
+    if (row.category_id !== categoryId) return false;
+    return row.subcategory_id === null || row.subcategory_id === subcategoryId;
+  });
+
+const resolveExpenseCategory = async (
+  client: SupabaseClient<Database>,
+  projectId: string,
+  categoryKey: string,
+  subcategoryKey: string | null | undefined,
+): Promise<ResolvedExpenseCategory> => {
+  const policyOptions = await resolvePolicyCategories(client, projectId);
+  if (policyOptions.ok === false) {
+    return { kind: "error", error: policyOptions.error };
+  }
+
+  if (policyOptions.data.operationStatus === "confirmed_policy" && policyOptions.data.policyVersionId) {
+    const category = policyOptions.data.categories.find((option) => option.categoryKey === categoryKey);
+    if (!category) {
+      return { kind: "unavailable" };
+    }
+    const subcategory = subcategoryKey
+      ? category.subcategories.find((option) => option.subcategoryKey === subcategoryKey)
+      : null;
+    if (subcategoryKey && !subcategory) {
+      return { kind: "unavailable" };
+    }
+    if (requiresSubcategorySelection(category) && !subcategory) {
+      return { kind: "unavailable" };
+    }
+
+    const { data: categoryRow, error: categoryError } = await (client as SupabaseClient<any>)
+      .from("program_policy_categories")
+      .select("id")
+      .eq("policy_version_id", policyOptions.data.policyVersionId)
+      .eq("category_key", category.categoryKey)
+      .maybeSingle();
+    if (categoryError || !categoryRow) {
+      return categoryError ? { kind: "error", error: categoryError } : { kind: "unavailable" };
+    }
+
+    const subcategoryRow = subcategory
+      ? await (client as SupabaseClient<any>)
+          .from("program_policy_subcategories")
+          .select("id")
+          .eq("policy_version_id", policyOptions.data.policyVersionId)
+          .eq("category_id", categoryRow.id)
+          .eq("subcategory_key", subcategory.subcategoryKey)
+          .maybeSingle()
+      : { data: null, error: null };
+    if (subcategoryRow.error || (subcategory && !subcategoryRow.data)) {
+      return subcategoryRow.error ? { kind: "error", error: subcategoryRow.error } : { kind: "unavailable" };
+    }
+
+    const evidenceRows = await (client as SupabaseClient<any>)
+      .from("program_policy_evidence_requirements")
+      .select("category_id, subcategory_id, evidence_key, evidence_name, requirement_type, fulfillment_type, condition_text, document_key, source_reference")
+      .eq("policy_version_id", policyOptions.data.policyVersionId);
+    if (evidenceRows.error) {
+      return { kind: "error", error: evidenceRows.error };
+    }
+
+    const selectedEvidenceRows = filterPolicyEvidenceRows(
+      (evidenceRows.data ?? []) as PolicyEvidenceRequirementRow[],
+      categoryRow.id,
+      subcategoryRow.data?.id ?? null,
+    );
+    const policySnapshot = {
+      category_key: category.categoryKey,
+      category_name: category.categoryName,
+      evidence_requirements: selectedEvidenceRows.map((row) => ({
+        condition_text: row.condition_text ?? null,
+        document_key: row.document_key,
+        evidence_key: row.evidence_key,
+        evidence_name: row.evidence_name,
+        fulfillment_type: row.fulfillment_type,
+        requirement_type: row.requirement_type,
+        source_reference: row.source_reference ?? {},
+      })),
+      subcategory_key: subcategory?.subcategoryKey ?? null,
+      subcategory_name: subcategory?.subcategoryName ?? null,
+    };
+
+    return {
+      categoryKey: category.categoryKey,
+      categoryName: category.categoryName,
+      kind: "policy",
+      policySnapshot,
+      policyVersionId: policyOptions.data.policyVersionId,
+      projectBudgetCategoryId: null,
+      subcategoryKey: subcategory?.subcategoryKey ?? null,
+      subcategoryName: subcategory?.subcategoryName ?? null,
+    };
+  }
+
+  const resolvedCategory = await resolveProjectBudgetCategoryId(client, projectId, categoryKey);
+  if ("error" in resolvedCategory) {
+    return { kind: "error", error: resolvedCategory.error };
+  }
+  if ("unavailable" in resolvedCategory) {
+    return { kind: "unavailable" };
+  }
+  return {
+    categoryKey,
+    kind: "legacy",
+    policySnapshot: null,
+    policyVersionId: null,
+    projectBudgetCategoryId: resolvedCategory.data,
+    subcategoryKey: null,
+    subcategoryName: null,
+  };
+};
+
 const mapExpenseResponse = (row: ExpenseRow) =>
   ExpenseResponseSchema.safeParse({
     id: row.id,
     projectId: row.project_id,
     projectBudgetCategoryId: row.project_budget_category_id,
     categoryKey: row.category_key,
+    policySnapshot: row.policy_snapshot ?? null,
+    policyVersionId: row.policy_version_id ?? null,
+    subcategoryKey: row.subcategory_key ?? null,
+    subcategoryName: row.subcategory_name ?? null,
     fundingSourceKey: resolveFundingSourceKey(row.funding_source_key, row.stage_fields),
     title: row.title,
     amount: row.amount,
@@ -258,7 +424,7 @@ const mapHistoryResponse = (
   });
 
 const selectExpenseDetailColumns =
-  "id, project_id, project_budget_category_id, category_key, funding_source_key, title, amount, stage_key, expected_spend_date, vendor_name, memo, pre_approval_status, execution_progress_status, execution_request_status, execution_request_date, deleted_at, stage_fields";
+  "id, project_id, project_budget_category_id, category_key, subcategory_key, subcategory_name, policy_version_id, policy_snapshot, funding_source_key, title, amount, stage_key, expected_spend_date, vendor_name, memo, pre_approval_status, execution_progress_status, execution_request_status, execution_request_date, deleted_at, stage_fields";
 
 const selectLegacyExpenseDetailColumns =
   "id, project_id, project_budget_category_id, category_key, title, amount, stage_key, expected_spend_date, vendor_name, memo, pre_approval_status, execution_progress_status, execution_request_status, execution_request_date, deleted_at, stage_fields";
@@ -379,7 +545,7 @@ const fetchExpenseDetailRow = async (
   projectId: string,
   expenseId: string,
 ): Promise<ExpenseSelectResult> => {
-  const result = await client
+  const result = await (client as SupabaseClient<any>)
     .from("expenses")
     .select(selectExpenseDetailColumns)
     .eq("id", expenseId)
@@ -404,34 +570,29 @@ export const listProjectExpensesPage = async (
   client: SupabaseClient<Database>,
   projectId: string,
 ): Promise<HandlerResult<ExpensePageResponse, ExpenseErrorCode>> => {
-  const [projectResult, templatesResult, expensesResult, activeExpenseCountResult] = await Promise.all([
+  const [projectResult, categoryOptionsResult, expensesResult, activeExpenseCountResult] = await Promise.all([
     client
       .from("projects")
       .select("id, project_name, deleted_at")
       .eq("id", projectId)
       .is("deleted_at", null)
       .maybeSingle(),
-    client
-      .from("budget_category_policy_templates")
-      .select("category_key, category_name")
-      .eq("is_active", true)
-      .order("category_key", { ascending: true }),
-    client
-      .from("project_expenses_by_category")
-      .select("category_key, category_name, sort_order, expense_id, title, amount, stage_key")
+    resolvePolicyCategories(client, projectId),
+    (client as SupabaseClient<any>)
+      .from("expenses")
+      .select("id, title, amount, stage_key, category_key, policy_snapshot, deleted_at, created_at")
       .eq("project_id", projectId)
-      .order("sort_order", { ascending: true })
       .order("category_key", { ascending: true })
       .order("created_at", { ascending: true })
-      .order("expense_id", { ascending: true }),
-    client
+      .order("id", { ascending: true }),
+    (client as SupabaseClient<any>)
       .from("expenses")
       .select("id, deleted_at", { count: "exact", head: true })
       .eq("project_id", projectId)
       .is("deleted_at", null),
   ]);
 
-  if (projectResult.error || templatesResult.error || expensesResult.error || activeExpenseCountResult.error) {
+  if (projectResult.error || !categoryOptionsResult.ok || expensesResult.error || activeExpenseCountResult.error) {
     return failure(500, expenseErrorCodes.fetchError, "지출 목록을 불러오지 못했습니다.");
   }
 
@@ -439,30 +600,56 @@ export const listProjectExpensesPage = async (
     return failure(404, expenseErrorCodes.notFound, "프로젝트를 찾을 수 없습니다.");
   }
 
-  const categoryOptions = mapCategoryOptions(templatesResult.data ?? []);
+  const categoryOptions = categoryOptionsResult.data.categories;
   if (categoryOptions.length === 0) {
     return failure(409, expenseErrorCodes.integrity, "비목 정책 정보를 확인해 주세요.");
   }
 
-  const expenseRows = Array.isArray(expensesResult.data) ? expensesResult.data : [];
+  let expenseRows = Array.isArray(expensesResult.data) ? expensesResult.data.filter((row) => !row.deleted_at) : [];
+  if ((activeExpenseCountResult.count ?? 0) !== expenseRows.length && categoryOptionsResult.data.operationStatus !== "confirmed_policy") {
+    const legacyRows = await client
+      .from("project_expenses_by_category")
+      .select("category_key, category_name, sort_order, expense_id, title, amount, stage_key")
+      .eq("project_id", projectId)
+      .order("sort_order", { ascending: true })
+      .order("expense_id", { ascending: true });
+    if (!legacyRows.error && Array.isArray(legacyRows.data)) {
+      expenseRows = legacyRows.data.map((row) => ({
+        amount: row.amount,
+        category_key: row.category_key,
+        created_at: null,
+        deleted_at: null,
+        id: row.expense_id,
+        policy_snapshot: { category_key: row.category_key, category_name: row.category_name },
+        stage_key: row.stage_key,
+        title: row.title,
+      }));
+    }
+  }
+  const categoryNameByKey = new Map(categoryOptions.map((option) => [option.categoryKey, option.categoryName]));
   const grouped = new Map<string, ExpenseCategoryGroup>();
   for (const row of expenseRows) {
-    const category = grouped.get(row.category_key) ?? {
-      categoryKey: row.category_key,
-      categoryName: row.category_name,
+    const snapshot = row.policy_snapshot && typeof row.policy_snapshot === "object" && !Array.isArray(row.policy_snapshot)
+      ? row.policy_snapshot as Record<string, unknown>
+      : {};
+    const categoryKey = typeof snapshot.category_key === "string" ? snapshot.category_key : row.category_key;
+    const categoryName = typeof snapshot.category_name === "string" ? snapshot.category_name : categoryNameByKey.get(categoryKey) ?? categoryKey;
+    const category = grouped.get(categoryKey) ?? {
+      categoryKey,
+      categoryName,
       expenseCount: 0,
       totalAmount: 0,
       expenses: [],
     };
     category.expenses.push({
-      id: row.expense_id,
+      id: row.id,
       title: row.title,
       amount: row.amount,
       stageKey: row.stage_key as ExpenseStageKey,
     });
     category.expenseCount += 1;
     category.totalAmount += row.amount;
-    grouped.set(row.category_key, category);
+    grouped.set(categoryKey, category);
   }
 
   if ((activeExpenseCountResult.count ?? 0) !== expenseRows.length) {
@@ -509,21 +696,25 @@ export const createExpense = async (
     return failure(404, expenseErrorCodes.notFound, "프로젝트를 찾을 수 없습니다.");
   }
 
-  const resolvedCategory = await resolveProjectBudgetCategoryId(client, projectId, parsed.data.categoryKey);
-  if ("error" in resolvedCategory) {
+  const resolvedCategory = await resolveExpenseCategory(client, projectId, parsed.data.categoryKey, parsed.data.subcategoryKey);
+  if (resolvedCategory.kind === "error") {
     return failure(500, expenseErrorCodes.fetchError, "지출을 등록하지 못했습니다.");
   }
 
-  if ("unavailable" in resolvedCategory) {
+  if (resolvedCategory.kind === "unavailable") {
     return failure(409, expenseErrorCodes.categoryMismatch, "선택한 비목을 사용할 수 없습니다.");
   }
 
-  const { data, error } = await client
+  const { data, error } = await (client as SupabaseClient<any>)
     .from("expenses")
     .insert({
       project_id: projectId,
-      project_budget_category_id: resolvedCategory.data,
-      category_key: parsed.data.categoryKey,
+      project_budget_category_id: resolvedCategory.projectBudgetCategoryId,
+      category_key: resolvedCategory.categoryKey,
+      policy_snapshot: resolvedCategory.policySnapshot,
+      policy_version_id: resolvedCategory.policyVersionId,
+      subcategory_key: resolvedCategory.subcategoryKey,
+      subcategory_name: resolvedCategory.subcategoryName,
       funding_source_key: parsed.data.fundingSourceKey,
       stage_fields: {},
       title: parsed.data.title,
@@ -551,16 +742,12 @@ export const getExpenseDetail = async (
   projectId: string,
   expenseId: string,
 ): Promise<HandlerResult<ExpenseDetailResponse, ExpenseErrorCode>> => {
-  const [expenseResult, templatesResult] = await Promise.all([
+  const [expenseResult, categoryOptionsResult] = await Promise.all([
     fetchExpenseDetailRow(client, projectId, expenseId),
-    client
-      .from("budget_category_policy_templates")
-      .select("category_key, category_name")
-      .eq("is_active", true)
-      .order("category_key", { ascending: true }),
+    resolvePolicyCategories(client, projectId),
   ]);
 
-  if (expenseResult.error || templatesResult.error) {
+  if (expenseResult.error || !categoryOptionsResult.ok) {
     return failure(500, expenseErrorCodes.fetchError, "지출 정보를 불러오지 못했습니다.");
   }
 
@@ -575,7 +762,7 @@ export const getExpenseDetail = async (
 
   const response = ExpenseDetailResponseSchema.safeParse({
     ...expense.data,
-    categoryOptions: mapCategoryOptions(templatesResult.data ?? []),
+    categoryOptions: categoryOptionsResult.data.categories,
   });
 
   return response.success
@@ -646,13 +833,47 @@ export const updateExpense = async (
     return failure(409, expenseErrorCodes.integrity, "지출 응답 형식을 확인해 주세요.");
   }
 
-  const resolvedCategory = await resolveProjectBudgetCategoryId(client, projectId, parsed.data.categoryKey);
-  if ("error" in resolvedCategory) {
+  const resolvedCategory = await resolveExpenseCategory(client, projectId, parsed.data.categoryKey, parsed.data.subcategoryKey);
+  if (resolvedCategory.kind === "error") {
     return failure(500, expenseErrorCodes.fetchError, "지출을 수정하지 못했습니다.");
   }
 
-  if ("unavailable" in resolvedCategory) {
+  if (resolvedCategory.kind === "unavailable") {
     return failure(409, expenseErrorCodes.categoryMismatch, "선택한 비목을 사용할 수 없습니다.");
+  }
+
+  if (resolvedCategory.kind === "policy") {
+    const { data, error } = await (client as SupabaseClient<any>).rpc("update_policy_expense_with_history", {
+      p_amount: parsed.data.amount,
+      p_category_key: resolvedCategory.categoryKey,
+      p_changed_by: null,
+      p_execution_progress_status: parsed.data.executionProgressStatus,
+      p_execution_request_date: parsed.data.executionRequestDate,
+      p_execution_request_status: parsed.data.executionRequestStatus,
+      p_expected_spend_date: parsed.data.expectedSpendDate,
+      p_expense_id: expenseId,
+      p_funding_source_key: parsed.data.fundingSourceKey,
+      p_history_summary: "지출 정보를 수정했습니다.",
+      p_memo: parsed.data.memo,
+      p_policy_snapshot: resolvedCategory.policySnapshot as Json,
+      p_policy_version_id: resolvedCategory.policyVersionId,
+      p_pre_approval_status: parsed.data.preApprovalStatus,
+      p_project_id: projectId,
+      p_stage_fields: toDatabaseStageFields(parsed.data.stageFields) as Json,
+      p_subcategory_key: resolvedCategory.subcategoryKey,
+      p_subcategory_name: resolvedCategory.subcategoryName,
+      p_title: parsed.data.title,
+      p_vendor_name: parsed.data.vendorName,
+    });
+
+    if (error || !data) {
+      return failure(500, expenseErrorCodes.fetchError, "지출을 수정하지 못했습니다.");
+    }
+
+    const response = mapExpenseResponse(data);
+    return response.success
+      ? success(response.data)
+      : failure(409, expenseErrorCodes.integrity, "지출 응답 형식을 확인해 주세요.");
   }
 
   const { data, error } = await client.rpc("update_expense_with_history", {
@@ -668,7 +889,7 @@ export const updateExpense = async (
     p_history_summary: "지출 정보를 수정했습니다.",
     p_memo: parsed.data.memo,
     p_pre_approval_status: parsed.data.preApprovalStatus,
-    p_project_budget_category_id: resolvedCategory.data,
+    p_project_budget_category_id: resolvedCategory.projectBudgetCategoryId,
     p_project_id: projectId,
     p_stage_fields: toDatabaseStageFields(parsed.data.stageFields) as Json,
     p_title: parsed.data.title,

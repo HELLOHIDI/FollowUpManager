@@ -38,13 +38,30 @@ import {
   expenseStageDetailCopy,
   expenseStageFieldLabels,
   preApprovalStatuses,
-  type EvidenceDocumentOption,
 } from "../lib/expense-detail-policy";
+import { requiresSubcategorySelection } from "../lib/policy-category-options";
 
 type FormValues = ExpenseUpdateInput;
+type DetailEvidenceDocumentOption = { key: string; label: string };
 
 const selectedOrNone = (value: string | null | undefined) => value ?? "none";
 const noneToNull = (value: string) => (value === "none" ? null : value);
+const policyEvidenceOptionsFromSnapshot = (policySnapshot: ExpenseDetailResponse["policySnapshot"]): DetailEvidenceDocumentOption[] => {
+  const requirements = policySnapshot?.evidence_requirements;
+  if (!Array.isArray(requirements)) return [];
+
+  const uniqueOptions = new Map<string, DetailEvidenceDocumentOption>();
+  for (const requirement of requirements) {
+    if (!requirement || typeof requirement !== "object" || Array.isArray(requirement)) continue;
+    const row = requirement as Record<string, unknown>;
+    const key = typeof row.document_key === "string" ? row.document_key : typeof row.evidence_key === "string" ? row.evidence_key : null;
+    if (!key) continue;
+    const label = typeof row.evidence_name === "string" ? row.evidence_name : key;
+    uniqueOptions.set(key, { key, label });
+  }
+
+  return [...uniqueOptions.values()];
+};
 
 export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: string; expenseId: string }) {
   const { toast } = useToast();
@@ -59,6 +76,7 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
     defaultValues: {
       amount: 0,
       categoryKey: "",
+      subcategoryKey: null,
       executionProgressStatus: null,
       executionRequestDate: null,
       executionRequestStatus: null,
@@ -77,6 +95,7 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
     form.reset({
       amount: query.data.amount,
       categoryKey: query.data.categoryKey,
+      subcategoryKey: query.data.subcategoryKey ?? null,
       executionProgressStatus: query.data.executionProgressStatus,
       executionRequestDate: query.data.executionRequestDate,
       executionRequestStatus: query.data.executionRequestStatus,
@@ -114,8 +133,16 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   const currentStageIndex = getExpenseStageIndex(query.data.stageKey);
   const nextStageKey = getNextExpenseStageKey(query.data.stageKey);
   const currentStageLabel = EXPENSE_STAGES[currentStageIndex]?.label ?? query.data.stageKey;
+  const policyDocumentOptions = policyEvidenceOptionsFromSnapshot(query.data.policySnapshot);
 
   const handleSave = form.handleSubmit(async (values) => {
+    const selectedCategory = query.data.categoryOptions.find((option) => option.categoryKey === values.categoryKey);
+    if (requiresSubcategorySelection(selectedCategory) && !values.subcategoryKey) {
+      form.setError("subcategoryKey", { message: "하위비목을 선택해 주세요.", type: "required" });
+      toast({ title: "저장할 수 없습니다.", description: "선택한 비목의 하위비목을 선택해 주세요.", variant: "destructive" });
+      return;
+    }
+    form.clearErrors("subcategoryKey");
     try {
       await updateMutation.mutateAsync(values);
       toast({ title: "저장했습니다", description: "지출 상세 정보가 반영되었습니다." });
@@ -178,6 +205,7 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
           </CardHeader>
           <CardContent className="space-y-6">
             <BasicInfoFields form={form} categoryOptions={query.data.categoryOptions} />
+            <PolicyEvidenceSummary policySnapshot={query.data.policySnapshot} />
 
             <div className="space-y-4">
               {EXPENSE_STAGES.map((stage, index) => (
@@ -189,6 +217,7 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
                   evidenceQuery={evidenceQuery}
                   isCurrent={stage.key === query.data.stageKey}
                   isEditable={index <= currentStageIndex}
+                  policyDocumentOptions={policyDocumentOptions}
                   signedUrlMutation={evidenceMutations.signedUrlMutation}
                   stageKey={stage.key}
                   stageLabel={stage.label}
@@ -213,6 +242,17 @@ function BasicInfoFields({
   categoryOptions: ExpenseDetailResponse["categoryOptions"];
   form: ReturnType<typeof useForm<FormValues>>;
 }) {
+  const selectedCategoryKey = form.watch("categoryKey");
+  const selectedCategory = categoryOptions.find((option) => option.categoryKey === selectedCategoryKey);
+  const subcategoryOptions = useMemo(() => selectedCategory?.subcategories ?? [], [selectedCategory]);
+
+  useEffect(() => {
+    const currentSubcategoryKey = form.getValues("subcategoryKey");
+    if (!currentSubcategoryKey) return;
+    if (subcategoryOptions.some((option) => option.subcategoryKey === currentSubcategoryKey)) return;
+    form.setValue("subcategoryKey", null);
+  }, [form, selectedCategoryKey, subcategoryOptions]);
+
   return (
     <section className="rounded-md border bg-muted/20 p-4" aria-labelledby="expense-basic-info-title">
       <h2 id="expense-basic-info-title" className="mb-4 text-base font-semibold">기본 정보</h2>
@@ -240,6 +280,31 @@ function BasicInfoFields({
             )}
           />
         </Field>
+        {subcategoryOptions.length > 0 ? (
+          <Field id="expense-subcategory" label="하위비목">
+            <Controller
+              control={form.control}
+              name="subcategoryKey"
+              render={({ field }) => (
+                <Select value={field.value ?? ""} onValueChange={(value) => field.onChange(value || null)}>
+                  <SelectTrigger id="expense-subcategory">
+                    <SelectValue placeholder="하위비목을 선택해 주세요" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subcategoryOptions.map((option) => (
+                      <SelectItem key={option.subcategoryKey} value={option.subcategoryKey}>
+                        {option.subcategoryName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+          />
+          {form.formState.errors.subcategoryKey?.message ? (
+            <p className="text-sm text-destructive">{form.formState.errors.subcategoryKey.message}</p>
+          ) : null}
+        </Field>
+      ) : null}
         <Field id="expense-amount" label="금액">
           <Input id="expense-amount" type="number" min={0} {...form.register("amount", { valueAsNumber: true })} />
         </Field>
@@ -273,6 +338,30 @@ function BasicInfoFields({
           <Textarea id="expense-memo" rows={4} {...form.register("memo")} />
         </Field>
       </div>
+    </section>
+  );
+}
+
+function PolicyEvidenceSummary({ policySnapshot }: { policySnapshot: ExpenseDetailResponse["policySnapshot"] }) {
+  const requirements = policyEvidenceOptionsFromSnapshot(policySnapshot);
+  if (requirements.length === 0) return null;
+
+  return (
+    <section className="rounded-md border bg-primary/5 p-4" aria-labelledby="expense-policy-evidence-title">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 id="expense-policy-evidence-title" className="text-sm font-semibold">정책 증빙서류</h2>
+          <p className="mt-1 text-xs text-muted-foreground">확정된 사업 정책에서 이 지출에 저장된 증빙 요구사항입니다.</p>
+        </div>
+        <Badge variant="info">{requirements.length}개</Badge>
+      </div>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+        {requirements.map((requirement) => (
+          <li key={requirement.key} className="rounded-md border bg-background px-3 py-2 text-sm">
+            {requirement.label}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -358,14 +447,14 @@ function ExpenseEvidencePanel({
   uploadMutation,
 }: {
   deleteMutation: EvidenceMutation<string, unknown>;
-  documentOptions: EvidenceDocumentOption[];
+  documentOptions: DetailEvidenceDocumentOption[];
   evidenceQuery: ReturnType<typeof useExpenseEvidenceQuery>;
   fieldId: string;
   signedUrlMutation: EvidenceMutation<string, { signedUrl?: string }>;
   uploadMutation: EvidenceMutation<{ documentKey: string; file: File; requirementKey?: string | null }, unknown>;
 }) {
   const { toast } = useToast();
-  const [documentKey, setDocumentKey] = useState<EvidenceDocumentOption["key"]>(documentOptions[0]?.key ?? "etc");
+  const [documentKey, setDocumentKey] = useState(documentOptions[0]?.key ?? "etc");
   const [openingId, setOpeningId] = useState<string | null>(null);
   const visibleDocumentKeys = useMemo<Set<string>>(() => new Set(documentOptions.map((option) => option.key)), [documentOptions]);
   const files = evidenceQuery.data?.files.filter((file) => visibleDocumentKeys.has(file.documentKey)) ?? [];
@@ -521,6 +610,7 @@ function StageSection({
   form,
   isCurrent,
   isEditable,
+  policyDocumentOptions,
   signedUrlMutation,
   stageKey,
   stageLabel,
@@ -532,13 +622,17 @@ function StageSection({
   form: ReturnType<typeof useForm<FormValues>>;
   isCurrent: boolean;
   isEditable: boolean;
+  policyDocumentOptions: DetailEvidenceDocumentOption[];
   signedUrlMutation: EvidenceMutation<string, { signedUrl?: string }>;
   stageKey: ExpenseStageKey;
   stageLabel: string;
   uploadMutation: EvidenceMutation<{ documentKey: string; file: File; requirementKey?: string | null }, unknown>;
 }) {
   const copy = expenseStageDetailCopy[stageKey];
-  const documentOptions = useMemo(() => evidenceOptionsForStage(stageKey), [stageKey]);
+  const documentOptions = useMemo<DetailEvidenceDocumentOption[]>(
+    () => policyDocumentOptions.length > 0 ? policyDocumentOptions : evidenceOptionsForStage(stageKey),
+    [policyDocumentOptions, stageKey],
+  );
 
   return (
     <section className={cn("rounded-md border p-4", isCurrent ? "border-primary/40 bg-primary/5" : "bg-background")} aria-labelledby={`stage-${stageKey}`}>

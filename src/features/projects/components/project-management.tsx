@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { extractApiErrorCode, extractApiErrorMessage } from "@/lib/remote/api-client";
 import { useCompaniesQuery } from "@/features/company/hooks/use-companies-query";
+import { ProgramPolicyPanel } from "@/features/program-evidence-policy/components/program-policy-panel";
 import { ProjectDocuments } from "./project-documents";
 import { ProjectForm, projectToInput } from "./project-form";
 import { useProjectMutations, useProjectQuery } from "../hooks/use-projects";
@@ -36,5 +37,6 @@ export function ProjectManagement({ projectId }: { projectId: string }) {
       }} submitLabel="사업 정보 수정" />
       <ProjectDocuments projectId={projectId} />
     </CardContent></Card>
+    <ProgramPolicyPanel projectId={projectId} />
   </>;
 }

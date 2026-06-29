@@ -24,3 +24,8 @@
   - evidence-policy.md
     - 증빙 파일 종류, 업로드, 중복 감지, 필수/조건부/선택 증빙 상태
     - 관련 기능: 지출 상세 증빙 영역, 파일 업로드, Supabase Storage
+## Program Evidence Policy Index Addition (2026-06-29)
+
+- program-evidence-policy.md
+  - 사업별 집행 증빙서류 PDF를 기준으로 비목, 하위 유형, 증빙 요구사항을 생성하는 정책
+  - 관련 기능: 사업 등록 정책 파일, 정책 초안 검수/확정, 지출 카드 사업별 증빙 자동 세팅

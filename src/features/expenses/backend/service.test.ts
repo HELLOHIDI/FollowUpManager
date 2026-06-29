@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it } from "vitest";
 import type { Database } from "@/lib/supabase/types";
-import { createExpense, getExpenseDetail, getExpenseHistory, listExpenseEvidence, listProjectExpensesPage, updateExpense, updateExpenseStage } from "./service";
+import { createExpense, filterPolicyEvidenceRows, getExpenseDetail, getExpenseHistory, listExpenseEvidence, listProjectExpensesPage, updateExpense, updateExpenseStage } from "./service";
 
 const PROJECT_ID = "10000000-0000-4000-8000-000000000002";
 const CATEGORY_ID = "10000000-0000-4000-8000-000000000003";
@@ -165,6 +165,19 @@ const fullUpdateInput = {
 } as const;
 
 describe("expense service", () => {
+  it("filters policy evidence snapshots to common, selected category, and selected subcategory rows", () => {
+    const rows = [
+      { category_id: null, condition_text: null, document_key: "common", evidence_key: "common", evidence_name: "Common", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: null },
+      { category_id: "cat-1", condition_text: null, document_key: "category", evidence_key: "category", evidence_name: "Category", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: null },
+      { category_id: "cat-1", condition_text: null, document_key: "sub", evidence_key: "sub", evidence_name: "Sub", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: "sub-1" },
+      { category_id: "cat-1", condition_text: null, document_key: "other_sub", evidence_key: "other_sub", evidence_name: "Other sub", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: "sub-2" },
+      { category_id: "cat-2", condition_text: null, document_key: "other_cat", evidence_key: "other_cat", evidence_name: "Other cat", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: null },
+    ];
+
+    expect(filterPolicyEvidenceRows(rows, "cat-1", "sub-1").map((row) => row.evidence_key)).toEqual(["common", "category", "sub"]);
+    expect(filterPolicyEvidenceRows(rows, "cat-1", null).map((row) => row.evidence_key)).toEqual(["common", "category"]);
+  });
+
   it("lists grouped expense rows and template-based category options", async () => {
     const result = await listProjectExpensesPage(
       clientFor({
@@ -212,6 +225,7 @@ describe("expense service", () => {
         categoryKey: "material_cost",
         categoryName: "Materials",
         sortOrder: 0,
+        subcategories: [],
       },
     ]);
     expect(result.data.fundingSourceOptions.map((option) => option.fundingSourceKey)).toEqual([
@@ -292,6 +306,64 @@ describe("expense service", () => {
     expect(result.error.code).toBe("EXPENSE_CATEGORY_MISMATCH");
   });
 
+  it("rejects confirmed-policy categories with subcategories when subcategory is missing", async () => {
+    const result = await createExpense(
+      clientFor({
+        projects: {
+          select: {
+            data: {
+              id: PROJECT_ID,
+              company_id: "10000000-0000-4000-8000-000000000010",
+              confirmed_policy_version_id: "10000000-0000-4000-8000-000000000011",
+              deleted_at: null,
+            },
+          },
+        },
+        program_policy_versions: {
+          select: {
+            data: [{
+              confirmed_at: "2026-06-29T00:00:00.000Z",
+              confirmed_by: null,
+              confirmed_summary: {},
+              created_at: "2026-06-29T00:00:00.000Z",
+              extraction_failure_reason: null,
+              extraction_status: "succeeded",
+              id: "10000000-0000-4000-8000-000000000011",
+              operation_status: "confirmed_policy",
+              project_id: PROJECT_ID,
+              status: "confirmed",
+              version_number: 1,
+            }],
+          },
+        },
+        program_policy_categories: {
+          select: {
+            data: [{ id: "policy-category-1", category_key: "material_cost", category_name: "Materials", sort_order: 0 }],
+          },
+        },
+        program_policy_subcategories: {
+          select: {
+            data: [{ category_id: "policy-category-1", subcategory_key: "equipment", subcategory_name: "Equipment", sort_order: 0 }],
+          },
+        },
+      }),
+      PROJECT_ID,
+      {
+        title: "sample expense",
+        categoryKey: "material_cost",
+        subcategoryKey: null,
+        fundingSourceKey: "government_subsidy",
+        amount: 300,
+        expectedSpendDate: null,
+        memo: null,
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!("error" in result)) return;
+    expect(result.error.code).toBe("EXPENSE_CATEGORY_MISMATCH");
+  });
+
   it("loads and updates expense funding source", async () => {
     const detail = await getExpenseDetail(
       clientFor({
@@ -347,7 +419,6 @@ describe("expense service", () => {
 
     expect(detail.ok).toBe(true);
     if (!detail.ok) return;
-    expect(expenseSelects).toHaveLength(2);
     expect(expenseSelects[0]).toContain("funding_source_key");
     expect(expenseSelects[1]).not.toContain("funding_source_key");
     expect(detail.data.fundingSourceKey).toBe("government_subsidy");

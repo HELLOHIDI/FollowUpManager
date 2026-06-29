@@ -210,3 +210,55 @@ Included now: `/projects/:projectId/expenses` quick-registration page, top-level
 Decision locked for this slice: the create flow uses canonical `expenses.amount` and creates a new expense in `budget_registration`; stage movement stays deferred to the kanban slice.
 
 Deferred: stage changes, drag-and-drop, detailed editing, evidence, history automation, search/filters, export, and live refresh.
+
+## Program Evidence Policy boundary (2026-06-29)
+
+Included later: upload a program evidence PDF during project registration, extract a policy draft, review and edit categories/subcategories/evidence requirements, confirm an immutable policy version, and apply the confirmed policy to expense category selection and evidence requirement display.
+
+Scope locked for phase 1: customize only program categories, optional subcategories, evidence requirements, dashboard category grouping, and filters. Keep dashboard grouping at the top-level category; show subcategories as row/card labels and filter options. Keep CSV export policy integration, common KPI formulas, kanban stages, stage movement rules, and expense card structure unchanged.
+
+Policy upload lifecycle: allow optional upload during project registration and later upload of new policy PDF versions from the project management screen. New uploads create draft versions and never mutate an existing confirmed policy or existing expense snapshots automatically.
+
+Policy document scope: each policy version has exactly one primary PDF for automatic extraction. Additional PDFs are reference documents only; they can support manual review but are not auto-merged into the draft in phase 1.
+
+Phase 1 admin review scope: allow editing category/subcategory/evidence display names and stable keys, requirement type, fulfillment type, condition text, source mapping, and review status. Do not implement executable conditional rules yet; keep conditional requirements as reviewable guidance text.
+
+Stable key rule: generate category, subcategory, and evidence keys automatically from display names as ASCII slugs. Admins may edit keys only before confirmation; confirmed keys are immutable. Validate slug format and uniqueness, preserve the original Korean/source labels separately, and use confirmed keys for snapshots, dashboard grouping, and filters.
+
+Confirmation scope: the current authenticated internal user can confirm a reviewed policy in phase 1. Before confirmation, show a checklist and confirmation modal. Store confirmed_by, confirmed_at, and summary counts for categories, subcategories, and evidence requirements. Do not build a role-based approval workflow yet.
+
+Expense policy snapshot rule: on expense creation or category/subcategory change, store the confirmed policy version id, selected category/subcategory keys and labels, and an evidence requirements snapshot. Render evidence requirements from the snapshot, while using the policy version id for source traceability.
+
+Evidence fulfillment display: in phase 1, loosely match uploaded evidence files to policy requirements by document key and show only not_uploaded, uploaded, or waived statuses. Display required, conditional, and optional as badges/guidance, preserve conditional text, handle any_of/all_of for status display, allow waived only as a manual admin state, and never block expense save or stage movement because evidence is missing.
+
+Pre-MVP data reset allowance: during the phase 1 policy migration, existing expenses, legacy project categories, and expense evidence links/metadata may be reset. Preserve company records, project records, uploaded policy PDFs, policy versions, confirmed policies, and source references. This destructive allowance expires once real production data exists.
+
+Fallback locked: when no policy PDF is uploaded, or when an uploaded policy is not confirmed yet, keep the existing category selection and expense card/detail layout.
+
+Unconfirmed policy UX: on expense create/detail screens, show only a low-severity banner explaining that the project is still using the existing category flow until policy review is complete. Provide a CTA to project management/policy review, do not open policy editing inside expense screens, and show "reupload needed" only when extraction failed.
+
+Legacy category boundary: keep the existing default category set only as a legacy fallback category set. Use it only for projects without a confirmed policy, and never merge it into confirmed policy projects or use it as the seed/default for extracted policy drafts.
+
+Extraction failure fallback: when the primary PDF cannot produce a usable draft, preserve the PDF and keep the project on the existing category selection and expense card/detail layout. Do not provide from-scratch manual policy creation in phase 1.
+
+Usable draft gate: treat an extracted policy draft as usable only when it has at least one top-level category, each extracted top-level category can receive a display name and stable key, and at least one evidence requirement is connected to either a category or common evidence. If this gate fails, preserve the PDF and extraction failure details, then keep the project on the existing category selection and expense card/detail layout until a policy is confirmed.
+
+Preview scope: before confirmation, show a policy application summary only: expense category options, subcategory-bearing categories, evidence requirement counts, dashboard group order, and filter options. Do not render the full dashboard, full expense card UI, CSV file, or CSV column preview in phase 1.
+
+Admin review UI: use row-based table editing for top-level categories, subcategories, and evidence requirements. Allow row-level add/edit/delete, connect rows by stable keys, and defer complex tree drag editing or embedded policy editing inside expense screens.
+
+Source evidence display: show original file name, page, table/row position, and raw source text for each extracted item. Provide PDF open/download only in phase 1; do not build an embedded PDF viewer.
+
+Confirmation blocking errors: block confirmation only for missing/duplicate stable keys, missing display names, missing evidence requirement type or fulfillment type, missing source references, and remaining needs_admin_review/manual_required items. Do not block confirmation because conditional text semantics are not machine-interpretable.
+
+Project policy operation status: show a project-level status badge for legacy_fallback, draft_needs_review, confirmed_policy, or extraction_failed. Use this status to drive low-severity expense-screen banners and project-management review/reupload actions.
+
+Existing expense handling: never auto-update existing expenses when a policy is confirmed or a new version is confirmed. Keep their snapshots as-is, show a low-severity "created under previous/legacy policy" notice where relevant, and defer bulk reapply.
+
+Policy version list: in phase 1, show only version/status/primary PDF/confirmed metadata/summary counts. Defer version diff comparison.
+
+Extraction failure actions: limit actions to primary PDF reupload, source PDF view/download, and continuing with the existing category flow. Do not provide empty manual policy creation in phase 1.
+
+Phase 1 completion gate: PDF upload -> draft or failure fallback -> row-based review/edit -> confirmation -> policy category/subcategory/evidence display on new expense creation -> dashboard top-level category grouping and filters reflect the confirmed policy.
+
+Deferred: automatic policy confirmation, manual policy creation from an empty draft after extraction failure, multi-PDF policy auto-merge, OCR-only image PDF support, CSV export policy integration, custom KPI formulas, custom kanban stages, custom stage movement rules, evidence authenticity verification, external institution integration, and blocking expense save/stage movement based on missing evidence.
