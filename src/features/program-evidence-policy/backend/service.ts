@@ -276,6 +276,27 @@ const parseTextDraft = (text: string, fileName: string): PolicyDraftUpdateInput 
 };
 
 export const validateDraftBlockingErrors = (draft: Pick<PolicyDraftUpdateInput, "categories" | "subcategories" | "evidenceRequirements">) => {
+  const errors = validateDraftStructuralErrors(draft);
+
+  for (const category of draft.categories) {
+    if (category.reviewStatus !== "auto_confident") errors.push(`Category requires admin review: ${category.categoryKey}`);
+    if (!hasSourceReference(category.sourceReference)) errors.push(`Category source reference is required: ${category.categoryKey}`);
+  }
+
+  for (const subcategory of draft.subcategories) {
+    if (subcategory.reviewStatus !== "auto_confident") errors.push(`Subcategory requires admin review: ${subcategory.subcategoryKey}`);
+    if (!hasSourceReference(subcategory.sourceReference)) errors.push(`Subcategory source reference is required: ${subcategory.subcategoryKey}`);
+  }
+
+  for (const evidence of draft.evidenceRequirements) {
+    if (evidence.reviewStatus !== "auto_confident") errors.push(`Evidence requires admin review: ${evidence.evidenceKey}`);
+    if (!hasSourceReference(evidence.sourceReference)) errors.push(`Evidence source reference is required: ${evidence.evidenceKey}`);
+  }
+
+  return [...new Set(errors)];
+};
+
+export const validateDraftStructuralErrors = (draft: Pick<PolicyDraftUpdateInput, "categories" | "subcategories" | "evidenceRequirements">) => {
   const errors: string[] = [];
   const categoryKeys = new Set<string>();
   const subcategoryKeysByCategory = new Map<string, Set<string>>();
@@ -288,8 +309,6 @@ export const validateDraftBlockingErrors = (draft: Pick<PolicyDraftUpdateInput, 
     if (!category.categoryName.trim()) errors.push("Category display name is required.");
     if (categoryKeys.has(category.categoryKey)) errors.push(`Duplicate category key: ${category.categoryKey}`);
     categoryKeys.add(category.categoryKey);
-    if (category.reviewStatus !== "auto_confident") errors.push(`Category requires admin review: ${category.categoryKey}`);
-    if (!hasSourceReference(category.sourceReference)) errors.push(`Category source reference is required: ${category.categoryKey}`);
   }
 
   for (const subcategory of draft.subcategories) {
@@ -299,78 +318,29 @@ export const validateDraftBlockingErrors = (draft: Pick<PolicyDraftUpdateInput, 
     if (keySet.has(subcategory.subcategoryKey)) errors.push(`Duplicate subcategory key: ${subcategory.categoryKey}/${subcategory.subcategoryKey}`);
     keySet.add(subcategory.subcategoryKey);
     subcategoryKeysByCategory.set(subcategory.categoryKey, keySet);
-    if (subcategory.reviewStatus !== "auto_confident") errors.push(`Subcategory requires admin review: ${subcategory.subcategoryKey}`);
-    if (!hasSourceReference(subcategory.sourceReference)) errors.push(`Subcategory source reference is required: ${subcategory.subcategoryKey}`);
   }
 
   for (const evidence of draft.evidenceRequirements) {
     if (evidenceKeys.has(evidence.evidenceKey)) errors.push(`Duplicate evidence key: ${evidence.evidenceKey}`);
     evidenceKeys.add(evidence.evidenceKey);
     if (!evidence.evidenceName.trim()) errors.push("Evidence display name is required.");
-    if (evidence.reviewStatus !== "auto_confident") errors.push(`Evidence requires admin review: ${evidence.evidenceKey}`);
     if (evidence.categoryKey && !categoryKeys.has(evidence.categoryKey)) errors.push(`Evidence category is missing: ${evidence.categoryKey}`);
     if (evidence.subcategoryKey && !evidence.categoryKey) errors.push(`Evidence subcategory requires a category: ${evidence.evidenceKey}`);
     if (evidence.subcategoryKey && evidence.categoryKey && !subcategoryKeysByCategory.get(evidence.categoryKey)?.has(evidence.subcategoryKey)) {
       errors.push(`Evidence subcategory is missing: ${evidence.categoryKey}/${evidence.subcategoryKey}`);
     }
-    if (!hasSourceReference(evidence.sourceReference)) errors.push(`Evidence source reference is required: ${evidence.evidenceKey}`);
   }
 
   return [...new Set(errors)];
 };
 
 const writeDraftRows = async (client: Client, policyVersionId: string, draft: PolicyDraftUpdateInput) => {
-  await client.from("program_policy_evidence_requirements").delete().eq("policy_version_id", policyVersionId);
-  await client.from("program_policy_subcategories").delete().eq("policy_version_id", policyVersionId);
-  await client.from("program_policy_categories").delete().eq("policy_version_id", policyVersionId);
-
-  const { data: categoryRows, error: categoryError } = await client
-    .from("program_policy_categories")
-    .insert(draft.categories.map((category) => ({
-      category_key: category.categoryKey,
-      category_name: category.categoryName,
-      policy_version_id: policyVersionId,
-      raw_category_name: category.rawCategoryName ?? null,
-      review_status: category.reviewStatus,
-      sort_order: category.sortOrder,
-      source_reference: category.sourceReference,
-    })))
-    .select("id, category_key");
-  if (categoryError || !categoryRows) return { error: categoryError ?? new Error("categories insert failed") };
-
-  const categoryIdByKey = new Map(categoryRows.map((row: AnyRow) => [row.category_key, row.id]));
-  const subcategoryRows = draft.subcategories.length
-    ? await client
-        .from("program_policy_subcategories")
-        .insert(draft.subcategories.map((subcategory) => ({
-          category_id: categoryIdByKey.get(subcategory.categoryKey),
-          policy_version_id: policyVersionId,
-          raw_subcategory_name: subcategory.rawSubcategoryName ?? null,
-          review_status: subcategory.reviewStatus,
-          sort_order: subcategory.sortOrder,
-          source_reference: subcategory.sourceReference,
-          subcategory_key: subcategory.subcategoryKey,
-          subcategory_name: subcategory.subcategoryName,
-        })))
-        .select("id, subcategory_key")
-    : { data: [], error: null };
-  if (subcategoryRows.error) return { error: subcategoryRows.error };
-
-  const subcategoryIdByKey = new Map((subcategoryRows.data ?? []).map((row: AnyRow) => [row.subcategory_key, row.id]));
-  const evidenceRows = draft.evidenceRequirements.map((evidence) => ({
-    category_id: evidence.categoryKey ? categoryIdByKey.get(evidence.categoryKey) ?? null : null,
-    condition_text: evidence.conditionText ?? null,
-    document_key: evidence.documentKey ?? evidence.evidenceKey,
-    evidence_key: evidence.evidenceKey,
-    evidence_name: evidence.evidenceName,
-    fulfillment_type: evidence.fulfillmentType,
-    policy_version_id: policyVersionId,
-    requirement_type: evidence.requirementType,
-    review_status: evidence.reviewStatus,
-    source_reference: evidence.sourceReference,
-    subcategory_id: evidence.subcategoryKey ? subcategoryIdByKey.get(evidence.subcategoryKey) ?? null : null,
-  }));
-  const { error } = await client.from("program_policy_evidence_requirements").insert(evidenceRows);
+  const { error } = await client.rpc("replace_program_policy_draft", {
+    p_categories: draft.categories,
+    p_evidence_requirements: draft.evidenceRequirements,
+    p_policy_version_id: policyVersionId,
+    p_subcategories: draft.subcategories,
+  });
   return { error };
 };
 
@@ -404,6 +374,19 @@ export const triggerDraftExtraction = async (
       .eq("id", policyVersionId);
     return failure(409, programEvidencePolicyErrorCodes.extractionFailed, reason);
   }
+  const structuralErrors = validateDraftStructuralErrors(draft);
+  if (structuralErrors.length > 0) {
+    await client
+      .from("program_policy_versions")
+      .update({
+        extraction_failure_reason: structuralErrors.join("\n"),
+        extraction_status: "failed",
+        operation_status: "extraction_failed",
+        status: "needs_review",
+      })
+      .eq("id", policyVersionId);
+    return failure(409, programEvidencePolicyErrorCodes.extractionFailed, "Extracted policy draft has structural errors.", structuralErrors);
+  }
 
   const write = await writeDraftRows(client, policyVersionId, draft);
   if (write.error) return failure(500, programEvidencePolicyErrorCodes.writeError, "Failed to save extracted draft.");
@@ -430,6 +413,11 @@ export const updatePolicyDraft = async (
   }
   if (version.data.operation_status === "extraction_failed" || version.data.extraction_status === "failed") {
     return failure(409, programEvidencePolicyErrorCodes.documentStateConflict, "Extraction failed policies cannot be manually converted into a draft.");
+  }
+
+  const structuralErrors = validateDraftStructuralErrors(input);
+  if (structuralErrors.length > 0) {
+    return failure(400, programEvidencePolicyErrorCodes.validation, "Policy draft has structural errors.", structuralErrors);
   }
 
   const write = await writeDraftRows(client, policyVersionId, input);

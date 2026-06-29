@@ -306,6 +306,64 @@ describe("expense service", () => {
     expect(result.error.code).toBe("EXPENSE_CATEGORY_MISMATCH");
   });
 
+  it("rejects confirmed-policy categories with subcategories when subcategory is missing", async () => {
+    const result = await createExpense(
+      clientFor({
+        projects: {
+          select: {
+            data: {
+              id: PROJECT_ID,
+              company_id: "10000000-0000-4000-8000-000000000010",
+              confirmed_policy_version_id: "10000000-0000-4000-8000-000000000011",
+              deleted_at: null,
+            },
+          },
+        },
+        program_policy_versions: {
+          select: {
+            data: [{
+              confirmed_at: "2026-06-29T00:00:00.000Z",
+              confirmed_by: null,
+              confirmed_summary: {},
+              created_at: "2026-06-29T00:00:00.000Z",
+              extraction_failure_reason: null,
+              extraction_status: "succeeded",
+              id: "10000000-0000-4000-8000-000000000011",
+              operation_status: "confirmed_policy",
+              project_id: PROJECT_ID,
+              status: "confirmed",
+              version_number: 1,
+            }],
+          },
+        },
+        program_policy_categories: {
+          select: {
+            data: [{ id: "policy-category-1", category_key: "material_cost", category_name: "Materials", sort_order: 0 }],
+          },
+        },
+        program_policy_subcategories: {
+          select: {
+            data: [{ category_id: "policy-category-1", subcategory_key: "equipment", subcategory_name: "Equipment", sort_order: 0 }],
+          },
+        },
+      }),
+      PROJECT_ID,
+      {
+        title: "sample expense",
+        categoryKey: "material_cost",
+        subcategoryKey: null,
+        fundingSourceKey: "government_subsidy",
+        amount: 300,
+        expectedSpendDate: null,
+        memo: null,
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!("error" in result)) return;
+    expect(result.error.code).toBe("EXPENSE_CATEGORY_MISMATCH");
+  });
+
   it("loads and updates expense funding source", async () => {
     const detail = await getExpenseDetail(
       clientFor({

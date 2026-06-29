@@ -9,6 +9,7 @@ import {
   type ExpenseStageKey,
 } from "@/features/domain/contracts";
 import { resolvePolicyCategories } from "@/features/program-evidence-policy/backend/service";
+import { requiresSubcategorySelection } from "@/features/expenses/lib/policy-category-options";
 import { expenseErrorCodes } from "./error";
 import {
   ExpenseCreateInputSchema,
@@ -285,6 +286,9 @@ const resolveExpenseCategory = async (
       ? category.subcategories.find((option) => option.subcategoryKey === subcategoryKey)
       : null;
     if (subcategoryKey && !subcategory) {
+      return { kind: "unavailable" };
+    }
+    if (requiresSubcategorySelection(category) && !subcategory) {
       return { kind: "unavailable" };
     }
 

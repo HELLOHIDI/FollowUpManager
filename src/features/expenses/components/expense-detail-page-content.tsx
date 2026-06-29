@@ -39,6 +39,7 @@ import {
   expenseStageFieldLabels,
   preApprovalStatuses,
 } from "../lib/expense-detail-policy";
+import { requiresSubcategorySelection } from "../lib/policy-category-options";
 
 type FormValues = ExpenseUpdateInput;
 type DetailEvidenceDocumentOption = { key: string; label: string };
@@ -135,6 +136,13 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   const policyDocumentOptions = policyEvidenceOptionsFromSnapshot(query.data.policySnapshot);
 
   const handleSave = form.handleSubmit(async (values) => {
+    const selectedCategory = query.data.categoryOptions.find((option) => option.categoryKey === values.categoryKey);
+    if (requiresSubcategorySelection(selectedCategory) && !values.subcategoryKey) {
+      form.setError("subcategoryKey", { message: "하위비목을 선택해 주세요.", type: "required" });
+      toast({ title: "저장할 수 없습니다.", description: "선택한 비목의 하위비목을 선택해 주세요.", variant: "destructive" });
+      return;
+    }
+    form.clearErrors("subcategoryKey");
     try {
       await updateMutation.mutateAsync(values);
       toast({ title: "저장했습니다", description: "지출 상세 정보가 반영되었습니다." });
@@ -291,9 +299,12 @@ function BasicInfoFields({
                   </SelectContent>
                 </Select>
               )}
-            />
-          </Field>
-        ) : null}
+          />
+          {form.formState.errors.subcategoryKey?.message ? (
+            <p className="text-sm text-destructive">{form.formState.errors.subcategoryKey.message}</p>
+          ) : null}
+        </Field>
+      ) : null}
         <Field id="expense-amount" label="금액">
           <Input id="expense-amount" type="number" min={0} {...form.register("amount", { valueAsNumber: true })} />
         </Field>

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { requiresSubcategorySelection } from "../lib/policy-category-options";
 import type { ExpenseCreateInput } from "../backend/schema";
 
 type CategoryOption = {
@@ -96,6 +97,11 @@ export function ExpenseQuickCreateSheet({
         <form
           className="mt-6 grid gap-4"
           onSubmit={form.handleSubmit(async (values) => {
+            if (requiresSubcategorySelection(selectedCategory) && !values.subcategoryKey) {
+              form.setError("subcategoryKey", { message: "하위비목을 선택해 주세요.", type: "required" });
+              return;
+            }
+            form.clearErrors("subcategoryKey");
             await onSubmit({
               ...values,
               amount: Number(values.amount),
@@ -130,6 +136,9 @@ export function ExpenseQuickCreateSheet({
                   </Select>
                 )}
               />
+              {form.formState.errors.subcategoryKey?.message ? (
+                <p className="text-sm text-destructive">{form.formState.errors.subcategoryKey.message}</p>
+              ) : null}
             </div>
           ) : null}
           <div className="grid gap-2">

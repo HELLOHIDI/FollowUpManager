@@ -1,6 +1,6 @@
 begin;
 
-select plan(8);
+select plan(10);
 
 select ok(
   exists(select 1 from storage.buckets where id = 'program-policy-documents' and public = false),
@@ -170,6 +170,58 @@ select ok(
       and column_name = 'confirmed_policy_version_id'
   ),
   'projects reference the confirmed policy version'
+);
+
+insert into public.program_policy_versions (
+  id,
+  project_id,
+  version_number,
+  status,
+  operation_status,
+  extraction_status
+) values (
+  '30000000-0000-0000-0000-000000000002',
+  '20000000-0000-0000-0000-000000000001',
+  2,
+  'needs_review',
+  'draft_needs_review',
+  'succeeded'
+);
+
+insert into public.program_policy_categories (
+  policy_version_id,
+  category_key,
+  category_name,
+  review_status
+) values (
+  '30000000-0000-0000-0000-000000000002',
+  'original_category',
+  'Original category',
+  'auto_confident'
+);
+
+select throws_ok(
+  $$
+  select public.replace_program_policy_draft(
+    '30000000-0000-0000-0000-000000000002',
+    '[{"categoryKey":"duplicate","categoryName":"Duplicate","reviewStatus":"auto_confident","sortOrder":0,"sourceReference":{"page":1}},{"categoryKey":"duplicate","categoryName":"Duplicate again","reviewStatus":"auto_confident","sortOrder":1,"sourceReference":{"page":1}}]'::jsonb,
+    '[]'::jsonb,
+    '[{"categoryKey":"duplicate","documentKey":"receipt","evidenceKey":"receipt","evidenceName":"Receipt","requirementType":"required","fulfillmentType":"single","reviewStatus":"auto_confident","sourceReference":{"page":1}}]'::jsonb
+  )
+  $$,
+  '23505',
+  'duplicate key value violates unique constraint "program_policy_categories_key_unique"',
+  'invalid draft replacement is rolled back by Postgres'
+);
+
+select ok(
+  exists (
+    select 1
+    from public.program_policy_categories
+    where policy_version_id = '30000000-0000-0000-0000-000000000002'
+      and category_key = 'original_category'
+  ),
+  'failed draft replacement preserves the previous draft rows'
 );
 
 select * from finish();

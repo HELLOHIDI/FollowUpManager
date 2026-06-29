@@ -1301,6 +1301,15 @@ export type Database = {
         Args: { project_id: string }
         Returns: Json
       }
+      replace_program_policy_draft: {
+        Args: {
+          p_categories: Json
+          p_evidence_requirements: Json
+          p_policy_version_id: string
+          p_subcategories: Json
+        }
+        Returns: undefined
+      }
       seed_project_budget_categories: {
         Args: { target_project_id: string }
         Returns: undefined
@@ -1587,4 +1596,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

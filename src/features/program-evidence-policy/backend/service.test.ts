@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toStablePolicyKey, validateDraftBlockingErrors } from "./service";
+import { toStablePolicyKey, validateDraftBlockingErrors, validateDraftStructuralErrors } from "./service";
 
 describe("program evidence policy service helpers", () => {
   it("creates deterministic ASCII fallback keys for Korean labels", () => {
@@ -30,6 +30,40 @@ describe("program evidence policy service helpers", () => {
     });
 
     expect(errors).toContain("Category requires admin review: material_cost");
+  });
+
+  it("separates structural draft errors from review-readiness errors before saving", () => {
+    const errors = validateDraftStructuralErrors({
+      categories: [
+        {
+          categoryKey: "material_cost",
+          categoryName: "Material cost",
+          reviewStatus: "needs_admin_review",
+          sortOrder: 0,
+          sourceReference: { page: 1 },
+        },
+        {
+          categoryKey: "material_cost",
+          categoryName: "Duplicate",
+          reviewStatus: "auto_confident",
+          sortOrder: 1,
+          sourceReference: { page: 1 },
+        },
+      ],
+      evidenceRequirements: [{
+        categoryKey: "material_cost",
+        documentKey: "receipt",
+        evidenceKey: "receipt",
+        evidenceName: "Receipt",
+        fulfillmentType: "single",
+        requirementType: "required",
+        reviewStatus: "needs_admin_review",
+        sourceReference: { page: 1 },
+      }],
+      subcategories: [],
+    });
+
+    expect(errors).toEqual(["Duplicate category key: material_cost"]);
   });
 
   it("allows common evidence requirements without category linkage", () => {
