@@ -147,6 +147,20 @@ describe("program evidence policy service helpers", () => {
     expect(draft?.categories.some((category) => category.categoryName.includes("tech transfer"))).toBe(false);
   });
 
+  it("keeps unnumbered wrapped evidence text with the previous numbered item", () => {
+    const draft = parseTextDraft(
+      [
+        "budget_item\tevidence_documents",
+        "material_cost\t1. Payment request |LINE| statement continuation |LINE| 2. Tax invoice",
+        "outsourcing\t1. Contract |LINE| 2. Quote",
+      ].join("\n"),
+      "policy.pdf",
+    );
+
+    expect(draft?.evidenceRequirements.map((evidence) => evidence.evidenceName)).toContain("Payment request (statement continuation)");
+    expect(draft?.evidenceRequirements.map((evidence) => evidence.evidenceName)).toContain("Tax invoice");
+  });
+
   it("merges split category labels when a continued table row starts from the second evidence item", () => {
     const draft = parseTextDraft(
       [

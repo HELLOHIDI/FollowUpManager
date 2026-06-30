@@ -92,7 +92,7 @@ const splitEvidenceLines = (value: string) => {
     }
 
     if (evidenceLines.length > 0) {
-      evidenceLines[evidenceLines.length - 1] = `${evidenceLines[evidenceLines.length - 1]} ${cleaned}`.slice(0, 180);
+      evidenceLines[evidenceLines.length - 1] = `${evidenceLines[evidenceLines.length - 1]} (${cleaned})`.slice(0, 180);
     }
   }
 

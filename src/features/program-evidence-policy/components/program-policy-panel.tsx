@@ -27,6 +27,29 @@ const createEmptyDraft = (): PolicyDraftUpdateInput => ({
   subcategories: [],
 });
 
+const formatBlockingError = (error: string, draft: PolicyDraftUpdateInput) => {
+  const categoryReviewPrefix = "Category requires admin review: ";
+  if (error.startsWith(categoryReviewPrefix)) {
+    const categoryKey = error.slice(categoryReviewPrefix.length);
+    const categoryName = draft.categories.find((category) => category.categoryKey === categoryKey)?.categoryName;
+    return `비목 검토가 필요합니다: ${categoryName || "이름 없는 비목"}`;
+  }
+
+  const evidenceReviewPrefix = "Evidence requires admin review: ";
+  if (error.startsWith(evidenceReviewPrefix)) {
+    const evidenceKey = error.slice(evidenceReviewPrefix.length);
+    const evidenceName = draft.evidenceRequirements.find((evidence) => evidence.evidenceKey === evidenceKey)?.evidenceName;
+    return `증빙서류 검토가 필요합니다: ${evidenceName || "이름 없는 증빙서류"}`;
+  }
+
+  const subcategoryReviewPrefix = "Subcategory requires admin review: ";
+  if (error.startsWith(subcategoryReviewPrefix)) {
+    return "세부항목 검토가 필요합니다.";
+  }
+
+  return error.replace(/\b(?:category|evidence|document)_[a-z0-9_]+\b/g, "내부 항목");
+};
+
 export function ProgramPolicyPanel({
   projectId,
   redirectOnConfirm = false,
@@ -82,7 +105,7 @@ export function ProgramPolicyPanel({
     });
   }, [draftQuery.data]);
 
-  const blockingErrors = draftQuery.data?.blockingErrors ?? [];
+  const blockingErrors = useMemo(() => draftQuery.data?.blockingErrors ?? [], [draftQuery.data?.blockingErrors]);
   const canEditDraft = draftQuery.data
     ? draftQuery.data.version.status !== "confirmed"
       && draftQuery.data.version.status !== "archived"
@@ -96,6 +119,10 @@ export function ProgramPolicyPanel({
     evidence: draft.evidenceRequirements.length,
     subcategories: draft.subcategories.length,
   }), [draft]);
+  const displayBlockingErrors = useMemo(
+    () => blockingErrors.map((error) => formatBlockingError(error, draft)),
+    [blockingErrors, draft],
+  );
 
   const onUpload = async (file: File | undefined) => {
     if (!file) return;
@@ -211,7 +238,7 @@ export function ProgramPolicyPanel({
 
             {blockingErrors.length > 0 ? (
               <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                {blockingErrors.slice(0, 5).map((error) => <p key={error}>{error}</p>)}
+                {displayBlockingErrors.slice(0, 5).map((error, index) => <p key={`${error}-${index}`}>{error}</p>)}
               </div>
             ) : null}
 
@@ -249,11 +276,21 @@ function PolicyRowEditor({
   draft: PolicyDraftUpdateInput;
   onChange: (draft: PolicyDraftUpdateInput) => void;
 }) {
-  const updateCategory = (index: number, key: "categoryKey" | "categoryName", value: string) => {
+  const updateCategoryName = (index: number, value: string) => {
     const categories = draft.categories.map((category, current) =>
-      current === index ? { ...category, [key]: value, reviewStatus: "auto_confident" as const } : category,
+      current === index ? { ...category, categoryName: value, reviewStatus: "auto_confident" as const } : category,
     );
     onChange({ ...draft, categories });
+  };
+
+  const createInternalKey = (prefix: string, existingKeys: Set<string>) => {
+    let index = existingKeys.size + 1;
+    let candidate = `${prefix}_${index}`;
+    while (existingKeys.has(candidate)) {
+      index += 1;
+      candidate = `${prefix}_${index}`;
+    }
+    return candidate;
   };
 
   const deleteCategory = (index: number) => {
@@ -268,7 +305,7 @@ function PolicyRowEditor({
 
   const updateEvidence = (
     index: number,
-    key: "categoryKey" | "evidenceKey" | "evidenceName" | "requirementType",
+    key: "evidenceName" | "requirementType",
     value: string,
   ) => {
     const evidenceRequirements = draft.evidenceRequirements.map((evidence, current) =>
@@ -284,39 +321,126 @@ function PolicyRowEditor({
     });
   };
 
+  const addCategory = () => {
+    const existingCategoryKeys = new Set(draft.categories.map((category) => category.categoryKey));
+    onChange({
+      ...draft,
+      categories: [...draft.categories, {
+        categoryKey: createInternalKey("category_manual", existingCategoryKeys),
+        categoryName: "",
+        reviewStatus: "auto_confident",
+        sortOrder: draft.categories.length,
+        sourceReference: {},
+      }],
+    });
+  };
+
+  const addEvidence = (categoryKey: string | null) => {
+    const existingEvidenceKeys = new Set(draft.evidenceRequirements.map((evidence) => evidence.evidenceKey));
+    const existingDocumentKeys = new Set(draft.evidenceRequirements.map((evidence) => evidence.documentKey).filter(Boolean) as string[]);
+    const nextEvidenceKey = createInternalKey("evidence_manual", existingEvidenceKeys);
+    onChange({
+      ...draft,
+      evidenceRequirements: [...draft.evidenceRequirements, {
+        categoryKey,
+        documentKey: createInternalKey("document_manual", existingDocumentKeys),
+        evidenceKey: nextEvidenceKey,
+        evidenceName: "",
+        fulfillmentType: "single",
+        requirementType: "required",
+        reviewStatus: "auto_confident",
+        sourceReference: {},
+      }],
+    });
+  };
+
+  const groupedEvidence = draft.categories.map((category, categoryIndex) => ({
+    category,
+    categoryIndex,
+    evidenceItems: draft.evidenceRequirements
+      .map((evidence, evidenceIndex) => ({ evidence, evidenceIndex }))
+      .filter(({ evidence }) => evidence.categoryKey === category.categoryKey),
+  }));
+  const commonEvidence = draft.evidenceRequirements
+    .map((evidence, evidenceIndex) => ({ evidence, evidenceIndex }))
+    .filter(({ evidence }) => !evidence.categoryKey);
+
   return (
     <div className="grid gap-4">
-      <div className="grid gap-2">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">Categories</p>
-          <Button
-            onClick={() => onChange({
-              ...draft,
-              categories: [...draft.categories, {
-                categoryKey: `category_${draft.categories.length + 1}`,
-                categoryName: "",
-                reviewStatus: "auto_confident",
-                sortOrder: draft.categories.length,
-                sourceReference: {},
-              }],
-            })}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <Plus className="mr-2 size-4" />
-            Add category
-          </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">비목별 집행 증빙서류</p>
+          <p className="text-xs text-muted-foreground">PDF 표처럼 왼쪽 비목과 오른쪽 증빙서류 목록을 맞춰 검토합니다.</p>
         </div>
-        {draft.categories.map((category, index) => (
-          <div key={`${category.id ?? "new"}-${index}`} className="grid gap-2 rounded-md border p-3">
-            <div className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
-              <Input value={category.categoryKey} onChange={(event) => updateCategory(index, "categoryKey", event.target.value)} />
-              <Input value={category.categoryName} onChange={(event) => updateCategory(index, "categoryName", event.target.value)} />
-              <div className="flex items-center justify-end gap-2">
-                <Badge variant={category.reviewStatus === "auto_confident" ? "default" : "secondary"}>{category.reviewStatus}</Badge>
-                <Button aria-label="Delete category" onClick={() => deleteCategory(index)} size="icon" type="button" variant="ghost">
+        <Button onClick={addCategory} size="sm" type="button" variant="outline">
+          <Plus className="mr-2 size-4" />
+          비목 추가
+        </Button>
+      </div>
+
+      <div className="overflow-hidden rounded-md border">
+        <div className="hidden grid-cols-[minmax(180px,0.9fr)_minmax(0,2fr)] border-b bg-muted/50 text-xs font-medium text-muted-foreground md:grid">
+          <div className="border-r px-3 py-2">비목</div>
+          <div className="px-3 py-2">집행 증빙서류</div>
+        </div>
+
+        {groupedEvidence.map(({ category, categoryIndex, evidenceItems }) => (
+          <div
+            key={`${category.id ?? category.categoryKey}-${categoryIndex}`}
+            className="grid gap-0 border-b last:border-b-0 md:grid-cols-[minmax(180px,0.9fr)_minmax(0,2fr)]"
+          >
+            <div className="grid content-start gap-2 border-b bg-muted/20 p-3 md:border-b-0 md:border-r">
+              <div className="flex items-start gap-2">
+                <Input
+                  aria-label="비목명"
+                  className="bg-background"
+                  value={category.categoryName}
+                  onChange={(event) => updateCategoryName(categoryIndex, event.target.value)}
+                />
+                <Button aria-label="비목 삭제" onClick={() => deleteCategory(categoryIndex)} size="icon" type="button" variant="ghost">
                   <Trash2 className="size-4" />
+                </Button>
+              </div>
+              <Badge className="w-fit" variant={category.reviewStatus === "auto_confident" ? "default" : "secondary"}>
+                {category.reviewStatus === "auto_confident" ? "검토 완료" : "검토 필요"}
+              </Badge>
+            </div>
+
+            <div className="grid gap-2 p-3">
+              {evidenceItems.length === 0 ? (
+                <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">연결된 증빙서류가 없습니다.</p>
+              ) : null}
+
+              {evidenceItems.map(({ evidence, evidenceIndex }, rowIndex) => (
+                <div key={`${evidence.id ?? evidence.evidenceKey}-${evidenceIndex}`} className="grid gap-2 md:grid-cols-[2rem_minmax(0,1fr)_9rem_2.5rem]">
+                  <div className="flex h-10 items-center justify-center rounded-md bg-muted text-sm font-medium text-muted-foreground">
+                    {rowIndex + 1}
+                  </div>
+                  <Input
+                    aria-label={`${category.categoryName || "비목"} 증빙서류 ${rowIndex + 1}`}
+                    value={evidence.evidenceName}
+                    onChange={(event) => updateEvidence(evidenceIndex, "evidenceName", event.target.value)}
+                  />
+                  <select
+                    aria-label="증빙 필수 여부"
+                    className="h-10 rounded-md border bg-background px-3 text-sm"
+                    value={evidence.requirementType}
+                    onChange={(event) => updateEvidence(evidenceIndex, "requirementType", event.target.value)}
+                  >
+                    <option value="required">필수</option>
+                    <option value="conditional">조건부</option>
+                    <option value="optional">선택</option>
+                  </select>
+                  <Button aria-label="증빙서류 삭제" onClick={() => deleteEvidence(evidenceIndex)} size="icon" type="button" variant="ghost">
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              ))}
+
+              <div>
+                <Button onClick={() => addEvidence(category.categoryKey)} size="sm" type="button" variant="outline">
+                  <FileUp className="mr-2 size-4" />
+                  증빙서류 추가
                 </Button>
               </div>
             </div>
@@ -324,55 +448,42 @@ function PolicyRowEditor({
         ))}
       </div>
 
-      <div className="grid gap-2">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">Evidence requirements</p>
-          <Button
-            onClick={() => onChange({
-              ...draft,
-              evidenceRequirements: [...draft.evidenceRequirements, {
-                categoryKey: draft.categories[0]?.categoryKey ?? null,
-                documentKey: `document_${draft.evidenceRequirements.length + 1}`,
-                evidenceKey: `evidence_${draft.evidenceRequirements.length + 1}`,
-                evidenceName: "",
-                fulfillmentType: "single",
-                requirementType: "required",
-                reviewStatus: "auto_confident",
-                sourceReference: {},
-              }],
-            })}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <FileUp className="mr-2 size-4" />
-            Add evidence
-          </Button>
-        </div>
-        {draft.evidenceRequirements.map((evidence, index) => (
-          <div key={`${evidence.id ?? "new"}-${index}`} className="grid gap-2 rounded-md border p-3">
-            <div className="grid gap-2 md:grid-cols-[1fr_1fr_2fr_auto]">
-              <Input value={evidence.categoryKey ?? ""} onChange={(event) => updateEvidence(index, "categoryKey", event.target.value)} />
-              <Input value={evidence.evidenceKey} onChange={(event) => updateEvidence(index, "evidenceKey", event.target.value)} />
-              <Input value={evidence.evidenceName} onChange={(event) => updateEvidence(index, "evidenceName", event.target.value)} />
-              <div className="flex items-center justify-end gap-2">
-                <select
-                  className="h-10 rounded-md border bg-background px-3 text-sm"
-                  value={evidence.requirementType}
-                  onChange={(event) => updateEvidence(index, "requirementType", event.target.value)}
-                >
-                  <option value="required">required</option>
-                  <option value="conditional">conditional</option>
-                  <option value="optional">optional</option>
-                </select>
-                <Button aria-label="Delete evidence" onClick={() => deleteEvidence(index)} size="icon" type="button" variant="ghost">
-                  <Trash2 className="size-4" />
-                </Button>
+      {commonEvidence.length > 0 ? (
+        <div className="grid gap-2 rounded-md border p-3">
+          <p className="text-sm font-medium">공통 증빙서류</p>
+          {commonEvidence.map(({ evidence, evidenceIndex }, rowIndex) => (
+            <div key={`${evidence.id ?? evidence.evidenceKey}-${evidenceIndex}`} className="grid gap-2 md:grid-cols-[2rem_minmax(0,1fr)_9rem_2.5rem]">
+              <div className="flex h-10 items-center justify-center rounded-md bg-muted text-sm font-medium text-muted-foreground">
+                {rowIndex + 1}
               </div>
+              <Input
+                aria-label={`공통 증빙서류 ${rowIndex + 1}`}
+                value={evidence.evidenceName}
+                onChange={(event) => updateEvidence(evidenceIndex, "evidenceName", event.target.value)}
+              />
+              <select
+                aria-label="증빙 필수 여부"
+                className="h-10 rounded-md border bg-background px-3 text-sm"
+                value={evidence.requirementType}
+                onChange={(event) => updateEvidence(evidenceIndex, "requirementType", event.target.value)}
+              >
+                <option value="required">필수</option>
+                <option value="conditional">조건부</option>
+                <option value="optional">선택</option>
+              </select>
+              <Button aria-label="증빙서류 삭제" onClick={() => deleteEvidence(evidenceIndex)} size="icon" type="button" variant="ghost">
+                <Trash2 className="size-4" />
+              </Button>
             </div>
+          ))}
+          <div>
+            <Button onClick={() => addEvidence(null)} size="sm" type="button" variant="outline">
+              <FileUp className="mr-2 size-4" />
+              공통 증빙서류 추가
+            </Button>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
