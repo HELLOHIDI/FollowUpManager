@@ -360,7 +360,7 @@ export function CompanySettings() {
       });
       setIsProjectDirty(false);
       void prefetchDashboard(project.id);
-      router.push(routes.projectManagement(project.id));
+      router.push(routes.projectSetup(project.id));
     } catch (error) {
       if (extractApiErrorCode(error) === "PROJECT_ASSIGNMENT_NUMBER_CONFLICT") {
         setProjectAssignmentError("같은 기업에 이미 등록된 과제번호입니다.");

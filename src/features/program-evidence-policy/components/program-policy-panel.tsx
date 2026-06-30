@@ -15,10 +15,10 @@ import type { PolicyDraftUpdateInput } from "../backend/schema";
 import { usePolicyDraftDetailQuery, useProgramPolicyMutations, useProjectPolicyStatusQuery } from "../hooks/use-program-policy";
 
 const statusLabel = {
-  confirmed_policy: "Confirmed policy",
-  draft_needs_review: "Draft needs review",
-  extraction_failed: "Extraction failed",
-  legacy_fallback: "Legacy fallback",
+  confirmed_policy: "정책 확정",
+  draft_needs_review: "검토 필요",
+  extraction_failed: "추출 실패",
+  legacy_fallback: "기본 비목",
 } as const;
 
 const createEmptyDraft = (): PolicyDraftUpdateInput => ({
@@ -27,7 +27,13 @@ const createEmptyDraft = (): PolicyDraftUpdateInput => ({
   subcategories: [],
 });
 
-export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
+export function ProgramPolicyPanel({
+  projectId,
+  redirectOnConfirm = false,
+}: {
+  projectId: string;
+  redirectOnConfirm?: boolean;
+}) {
   const { toast } = useToast();
   const router = useRouter();
   const statusQuery = useProjectPolicyStatusQuery(projectId);
@@ -95,29 +101,32 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
     if (!file) return;
     try {
       const intent = await mutations.uploadMutation.mutateAsync(file);
-      toast({ title: "Policy PDF uploaded", description: "A draft policy version was created." });
+      toast({ title: "정책 PDF를 등록했습니다.", description: "비목/증빙서류 초안 버전이 생성되었습니다." });
       try {
         await mutations.extractMutation.mutateAsync({ extractedText: null, versionId: intent.policyVersionId });
-        toast({ title: "Policy draft extracted", description: "Review the extracted categories and evidence requirements." });
+        toast({ title: "정책 초안을 추출했습니다.", description: "추출된 비목과 증빙서류를 검토해 주세요." });
       } catch (error) {
         toast({
-          title: "Policy extraction needs review",
+          title: "정책 추출에 실패했습니다.",
           description: extractApiErrorMessage(error, "기본 비목으로 시작하거나 텍스트를 붙여넣어 다시 시도해 주세요."),
           variant: "destructive",
         });
       }
     } catch (error) {
-      toast({ title: "Policy PDF upload failed", description: extractApiErrorMessage(error), variant: "destructive" });
+      toast({ title: "정책 PDF를 등록하지 못했습니다.", description: extractApiErrorMessage(error), variant: "destructive" });
     }
   };
 
   const onConfirmPolicy = async () => {
     try {
       await mutations.confirmMutation.mutateAsync();
-      toast({ title: "Policy confirmed", description: "Expense categories now follow this policy." });
+      toast({ title: "정책을 확정했습니다.", description: "이제 지출 비목과 증빙서류가 확정한 정책을 따릅니다." });
+      if (redirectOnConfirm) {
+        router.push(routes.project(projectId));
+      }
     } catch (error) {
       toast({
-        title: "Policy confirmation failed",
+        title: "정책을 확정하지 못했습니다.",
         description: extractApiErrorMessage(error, "정책을 확정하지 못했습니다. 현재 비목으로 계속 진행해 주세요."),
         variant: "destructive",
       });
@@ -125,10 +134,10 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
   };
 
   return (
-    <Card className="mt-6 shadow-none">
+    <Card className="shadow-none">
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle className="text-lg">Program evidence policy</CardTitle>
+          <CardTitle className="text-lg">정책 PDF 및 비목/증빙서류 세팅</CardTitle>
           <Badge variant={latestStatus === "confirmed_policy" ? "default" : "secondary"}>
             {statusLabel[latestStatus]}
           </Badge>
@@ -151,24 +160,24 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
               variant="outline"
             >
               <RefreshCcw className="mr-2 size-4" />
-              Extract draft
+              초안 추출
             </Button>
             <Button type="button" variant="secondary" onClick={() => router.push(routes.project(projectId))}>
-              Start with default categories
+              기본 비목으로 시작
             </Button>
           </div>
           <Textarea
-            placeholder="Optional extracted text for phase-1 parser verification."
+            placeholder="PDF 텍스트 추출이 실패했을 때만 추출된 텍스트를 붙여넣어 다시 시도합니다."
             value={extractedText}
             onChange={(event) => setExtractedText(event.target.value)}
           />
           {latestStatus === "legacy_fallback" ? (
-            <p className="text-sm text-muted-foreground">No confirmed policy is active. Existing categories and expense layout stay unchanged.</p>
+            <p className="text-sm text-muted-foreground">확정된 정책이 아직 없습니다. 세팅하지 않으면 기존 비목과 지출카드 레이아웃을 그대로 사용합니다.</p>
           ) : null}
           {latestStatus === "extraction_failed" ? (
             <p className="flex items-center gap-2 text-sm text-amber-700">
               <AlertCircle className="size-4" />
-              Extraction failed. The existing category flow remains active until a draft is confirmed.
+              추출에 실패했습니다. 정책을 확정하기 전까지는 기존 비목 흐름을 계속 사용합니다.
             </p>
           ) : null}
         </div>
@@ -177,7 +186,7 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
           <div className="grid gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm text-muted-foreground">
-                {summary.categories} categories / {summary.subcategories} subcategories / {summary.evidence} evidence requirements
+                비목 {summary.categories}개 / 세부항목 {summary.subcategories}개 / 증빙서류 {summary.evidence}개
               </div>
               <div className="flex gap-2">
                 <Button
@@ -187,7 +196,7 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
                   variant="outline"
                 >
                   <Save className="mr-2 size-4" />
-                  Save rows
+                  검토 내용 저장
                 </Button>
                 <Button
                   disabled={!canConfirm || mutations.confirmMutation.isPending}
@@ -195,7 +204,7 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
                   type="button"
                 >
                   <CheckCircle2 className="mr-2 size-4" />
-                  Confirm policy
+                  정책 확정
                 </Button>
               </div>
             </div>

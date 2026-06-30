@@ -37,6 +37,8 @@ export function ProjectManagement({ projectId }: { projectId: string }) {
       }} submitLabel="사업 정보 수정" />
       <ProjectDocuments projectId={projectId} />
     </CardContent></Card>
-    <ProjectPolicySetup projectId={projectId} />
+    <div className="mt-6">
+      <ProjectPolicySetup projectId={projectId} />
+    </div>
   </>;
 }
