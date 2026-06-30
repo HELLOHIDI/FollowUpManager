@@ -2,11 +2,12 @@ import "server-only";
 import { PDFParse } from "pdf-parse";
 
 export const TEXT_EXTRACTION_INSUFFICIENT = "TEXT_EXTRACTION_INSUFFICIENT" as const;
+export const POLICY_PDF_TEXT_EXTRACTION_FAILED = "POLICY_PDF_TEXT_EXTRACTION_FAILED" as const;
 export const MIN_USABLE_POLICY_TEXT_LENGTH = 80;
 
 export type PolicyPdfTextExtractionResult =
   | { ok: true; text: string }
-  | { ok: false; reason: typeof TEXT_EXTRACTION_INSUFFICIENT; error?: string };
+  | { ok: false; reason: typeof TEXT_EXTRACTION_INSUFFICIENT | typeof POLICY_PDF_TEXT_EXTRACTION_FAILED; error?: string };
 
 const normalizeExtractedText = (text: string) =>
   text
@@ -31,7 +32,7 @@ export const extractPolicyPdfText = async (data: ArrayBuffer | Uint8Array): Prom
     return {
       error: error instanceof Error ? error.message : String(error),
       ok: false,
-      reason: TEXT_EXTRACTION_INSUFFICIENT,
+      reason: POLICY_PDF_TEXT_EXTRACTION_FAILED,
     };
   } finally {
     await parser.destroy().catch(() => undefined);

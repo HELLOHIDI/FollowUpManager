@@ -33,6 +33,11 @@ const DOCUMENT_SELECT = "id, policy_version_id, project_id, role, original_file_
 const POLICY_EXTRACTION_FAILED_MESSAGE =
   "이 PDF에서는 자동 추출할 수 있는 텍스트를 충분히 찾지 못했어요. 기본 비목으로 시작하거나, 텍스트를 붙여넣어 다시 시도할 수 있어요.";
 const DRAFT_THRESHOLD_NOT_MET = "DRAFT_THRESHOLD_NOT_MET";
+const POLICY_DOCUMENT_NOT_READY = "POLICY_DOCUMENT_NOT_READY";
+const POLICY_STORAGE_DOWNLOAD_FAILED = "POLICY_STORAGE_DOWNLOAD_FAILED";
+
+const formatFailureReason = (reason: string, error?: string) =>
+  error ? `${reason}: ${error}` : reason;
 
 export { toStablePolicyKey } from "./policy-text-parser";
 
@@ -305,33 +310,36 @@ export const triggerDraftExtraction = async (
 
   if (!policyText) {
     if (!document?.storage_path) {
+      const reason = POLICY_DOCUMENT_NOT_READY;
       await client
         .from("program_policy_versions")
         .update({
-          extraction_failure_reason: TEXT_EXTRACTION_INSUFFICIENT,
+          extraction_failure_reason: reason,
           extraction_status: "failed",
           operation_status: "extraction_failed",
           status: "needs_review",
         })
         .eq("id", policyVersionId);
       return failure(409, programEvidencePolicyErrorCodes.extractionFailed, POLICY_EXTRACTION_FAILED_MESSAGE, {
-        reason: TEXT_EXTRACTION_INSUFFICIENT,
+        reason,
       });
     }
 
     const download = await client.storage.from(PROGRAM_POLICY_DOCUMENT_BUCKET).download(document.storage_path);
     if (download.error || !download.data) {
+      const reason = POLICY_STORAGE_DOWNLOAD_FAILED;
       await client
         .from("program_policy_versions")
         .update({
-          extraction_failure_reason: TEXT_EXTRACTION_INSUFFICIENT,
+          extraction_failure_reason: formatFailureReason(reason, download.error?.message),
           extraction_status: "failed",
           operation_status: "extraction_failed",
           status: "needs_review",
         })
         .eq("id", policyVersionId);
       return failure(409, programEvidencePolicyErrorCodes.extractionFailed, POLICY_EXTRACTION_FAILED_MESSAGE, {
-        reason: TEXT_EXTRACTION_INSUFFICIENT,
+        error: download.error?.message,
+        reason,
       });
     }
 
@@ -340,7 +348,7 @@ export const triggerDraftExtraction = async (
       await client
         .from("program_policy_versions")
         .update({
-          extraction_failure_reason: extracted.reason,
+          extraction_failure_reason: formatFailureReason(extracted.reason, extracted.error),
           extraction_status: "failed",
           operation_status: "extraction_failed",
           status: "needs_review",

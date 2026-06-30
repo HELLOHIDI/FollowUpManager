@@ -19,6 +19,7 @@ vi.mock("pdf-parse", () => ({
 import {
   extractPolicyPdfText,
   isUsablePolicyText,
+  POLICY_PDF_TEXT_EXTRACTION_FAILED,
   TEXT_EXTRACTION_INSUFFICIENT,
 } from "./pdf-text-extraction";
 
@@ -54,19 +55,22 @@ describe("program policy PDF text extraction", () => {
     expect(pdfParseMocks.destroy).toHaveBeenCalled();
   });
 
-  it("returns an insufficient-text failure for image-only or parser-failed PDFs", async () => {
+  it("returns an insufficient-text failure for image-only PDFs", async () => {
     pdfParseMocks.getText.mockResolvedValueOnce({ text: " " });
     await expect(extractPolicyPdfText(new Uint8Array([1]))).resolves.toEqual({
       ok: false,
       reason: TEXT_EXTRACTION_INSUFFICIENT,
     });
+    expect(pdfParseMocks.destroy).toHaveBeenCalledTimes(1);
+  });
 
+  it("returns a distinct failure when the PDF parser throws", async () => {
     pdfParseMocks.getText.mockRejectedValueOnce(new Error("encrypted"));
     await expect(extractPolicyPdfText(new Uint8Array([2]))).resolves.toEqual({
       error: "encrypted",
       ok: false,
-      reason: TEXT_EXTRACTION_INSUFFICIENT,
+      reason: POLICY_PDF_TEXT_EXTRACTION_FAILED,
     });
-    expect(pdfParseMocks.destroy).toHaveBeenCalledTimes(2);
+    expect(pdfParseMocks.destroy).toHaveBeenCalledTimes(1);
   });
 });
