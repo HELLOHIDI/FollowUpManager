@@ -253,7 +253,7 @@ describe("CompanySettings", () => {
       });
     });
     expect(projectApi.uploadProjectDocuments).not.toHaveBeenCalled();
-    expect(router.push).toHaveBeenCalledWith(`/settings/company/projects/${createdProject.id}`);
+    expect(router.push).toHaveBeenCalledWith(`/settings/company/projects/${createdProject.id}/setup`);
     expect(router.push).toHaveBeenCalledTimes(1);
     expect(router.push).not.toHaveBeenCalledWith("/projects");
   });
