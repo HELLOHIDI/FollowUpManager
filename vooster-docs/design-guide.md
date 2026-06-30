@@ -13,36 +13,38 @@
 - Name: Linear
 - Description: 이슈/프로젝트 트래킹 도구
 - Design Mood: 미니멀, 차분한 모노톤 기반, 절제된 액센트 블루와 정교한 인터랙션
-- Primary Color: #5E6AD2
+- Primary Color: #3182F6
 - Secondary Color: #0B0F19
 
 ## 3. Color & Gradient (색상 & 그라데이션)
-- Palette Mood: 쿨(Cool), 중저채도(Low–Medium), 텍스트/데이터 대비 강화
-- Primary Color: Indigo Blue #5E6AD2 (주요 액션, 링크/강조, 활성 포커스)
-- Secondary/Navi: Navy Slate #0F172A (헤더/내비게이션, 강조 타이포)
-- Accent — Success: #16A34A
-- Accent — Warning: #F59E0B
-- Accent — Error: #DC2626
-- Accent — Info: #06B6D4
+- Palette Mood: Toss-inspired clear blue, soft neutral surfaces, strong numeric contrast
+- Primary Color: Toss Blue #3182F6 (주요 액션, 링크/강조, 활성 포커스)
+- Primary Strong: #2272EB (작은 CTA, hover/pressed, 대비 보강)
+- Secondary/Navi: Toss Gray #191F28 / #333D4B (헤더/내비게이션, 강조 타이포)
+- Accent — Success: #03B26C
+- Accent — Warning: #FE9800
+- Accent — Error: #F04452
+- Accent — Info: #18A5A5
 - Grayscale
-  - G-900 #0B1220
-  - G-800 #1F2937
-  - G-700 #374151
-  - G-600 #4B5563
-  - G-500 #6B7280
-  - G-400 #9CA3AF
-  - G-300 #D1D5DB
-  - G-200 #E5E7EB
-  - G-100 #F3F4F6
+  - G-900 #191F28
+  - G-800 #333D4B
+  - G-700 #4E5968
+  - G-600 #6B7684
+  - G-500 #8B95A1
+  - G-400 #B0B8C1
+  - G-300 #D1D6DB
+  - G-200 #E5E8EB
+  - G-100 #F2F4F6
   - G-50  #F9FAFB
-- Chart Palette(비목 구분 예시 6색): #5E6AD2, #4F46E5, #14B8A6, #7C3AED, #0EA5E9, #10B981
+- Chart Palette(비목 구분 예시 6색): #3182F6, #18A5A5, #03B26C, #FE9800, #F04452, #A234C7
 - Color Usage(우선순위별)
   - 배경: G-50/G-100, 카드/표는 G-100/G-200
   - 본문 텍스트: G-800, 보조 텍스트: G-600
-  - 인터랙션: Primary(#5E6AD2) — 핵심 CTA/링크/포커스 링
+  - 인터랙션: Primary(#3182F6) — 핵심 CTA/링크/포커스 링
   - 경계선/디바이더: 1px G-200, Hover 시 G-100로 미세 음영
-  - 상태/알림/배지: Success/Warning/Error/Info를 색+아이콘 병행 표시
+  - 상태/알림/배지: Success/Warning/Error/Info를 weak/fill 배지와 명확한 텍스트로 표시. 아이콘은 꼭 필요한 액션에만 제한
 - 접근성: 본문 대비 AA 4.5:1 이상, 버튼 레이블 AA 3:1 이상
+- 접근성 추가 기준: 핵심 숫자/금액/비율은 AA보다 강한 대비를 우선하고, 작은 CTA/텍스트 링크는 Primary Strong(#2272EB)을 사용합니다.
 
 ## 4. Typography & Font (타이포그래피 & 폰트)
 - Primary Font: Pretendard(한글/영문 겸용), system-ui 폴백
@@ -51,7 +53,7 @@
   - H1: 28px / 700
   - H2: 22px / 600
   - H3: 18px / 600
-  - Body: 14px / 500
+  - Body: 14px / 400
   - Small: 12px / 500
   - Caption: 11px / 500
 - 원칙
@@ -79,8 +81,8 @@
   - 모바일은 현황 조회·간단 입력 위주(첨부는 기기 파일/카메라 허용)
 
 ## 6. Visual Style (비주얼 스타일)
-- 아이콘: 라인 아이콘 1.5~2px 스트로크, 단색 사용(Primary는 활성 상태에만)
-- 이미지/일러스트: 업무툴 특성상 최소화, 빈 상태/튜토리얼에 간결한 아이콘+텍스트
+- 아이콘: 기본 UI에서는 최소화하고, 뒤로가기·검색·파일 첨부·더보기·닫기·삭제처럼 의미 전달에 필요한 액션에만 사용
+- 이미지/일러스트: 업무툴 특성상 최소화, 빈 상태/튜토리얼에서도 장식보다 명확한 텍스트와 단일 CTA 우선
 - 차트: 모노톤 베이스, 선택/하이라이트만 컬러. 범례는 12px Small, 툴팁은 숫자 정렬 우선
 - 로딩/상태: Skeleton + 미세한 Shimmer, 토스트는 우상단 3초(오류는 수동 닫기)
 - 포커스: 2px 외곽선 Primary 40% 투명, 키보드 내비 명확 표기
@@ -134,15 +136,19 @@
 
 ## 9. UI Component Guide (UI 컴포넌트 가이드)
 - 버튼
-  - Primary(Solid): 배경 #5E6AD2, 텍스트 #FFFFFF, Hover: #4E5FC7, Disabled: 투명도 40%
-  - Secondary(Ghost): 텍스트 #0F172A, Hover: G-100 배경
-  - Danger(Solid): 배경 #DC2626, 텍스트 #FFFFFF
-  - Link: 텍스트 #5E6AD2, 밑줄 Hover
-  - 크기: L(40px), M(36px), S(32px), 모서리 8px
+  - Fill Primary: 배경 #3182F6, 텍스트 #FFFFFF, Hover/Pressed: #2272EB, 핵심 CTA
+  - Fill Dark: 배경 #4E5968, 텍스트 #FFFFFF, 강한 중립 액션
+  - Fill Danger: 배경 #F04452, 텍스트 #FFFFFF, 파괴적 확인
+  - Weak Primary: 배경 #E8F3FF, 텍스트 #2272EB, 보조 CTA
+  - Weak Neutral: 배경 #F2F4F6, 텍스트 #4E5968, 취소/닫기/초기화
+  - Weak Danger: 연한 Red 배경, 진한 Red 텍스트, 약한 위험 액션
+  - 크기: 기본 40px, S 32px, 강조 CTA 48px, 단일 주요 CTA는 최대 52px. 모서리는 기본 10px, 강조 12px
 - 입력 필드
-  - 기본: 높이 36px, 테두리 G-300, 포커스 Primary 1px + 외곽선 2px
-  - 에러: 테두리 #DC2626 + 에러 메시지 12px
-  - 숫자/금액: 오른쪽 정렬, 천단위 구분 자동
+  - 기본 Box: 높이 44px, G-50 배경, G-200 테두리, 10px 모서리, Focus Toss Blue 2px 외곽선
+  - Amount: 오른쪽 정렬, tabular 숫자, 금액/KPI 입력에 사용
+  - Search: 40px 높이, 검색/필터에 사용
+  - Compact: 32px 높이, 테이블/목록 인라인 편집에만 사용
+  - 에러: Red #F04452 테두리 + 구체적인 해결 문구
 - 셀렉트/칩 필터
   - 태그형 칩: 선택 시 배경 G-200, 활성은 Primary 테두리
 - 날짜 선택
@@ -150,8 +156,9 @@
 - 파일 업로더
   - 드롭존: 점선 G-300, Hover G-200, 진행률 바 Primary
 - 카드
-  - KPI 카드: 아이콘(선택), 수치 대(22~28px), 라벨 소(12px)
-  - 비목 카드: 이름/예산액/남은액, 합계 바 포함
+  - 기본: 흰 배경, 12px 모서리, 20~24px padding, 아주 약한 shadow
+  - KPI 카드: 아이콘보다 숫자 우선, 수치 대(22~28px), 라벨 소(12px), tabular 숫자
+  - 비목 카드: 이름/예산액/남은액, 합계 바 포함. 색상 장식은 상태/진행 의미가 있을 때만 사용
 - 테이블
   - 고정 헤더, 열 정렬/필터, 행 Hover G-50
   - 인라인 편집: Enter 확정, Esc 취소
@@ -169,7 +176,9 @@
   - LocalNavPills: 개요, 비목별 지출, 지출 칸반 섹션을 앵커로 이동하며 현재 섹션은 Primary 상태로 표시합니다.
   - 좌측 고정 사이드바는 MVP 이후 다중 제품/조직 단위 확장이 필요할 때만 재검토합니다.
 - 토스트/배지
-  - 우상단 3초, 오류는 수동 닫기. 배지는 색+아이콘 병행
+  - 일반 저장은 inline 또는 짧은 토스트, 오류는 수동 닫기
+  - 배지는 기본 weak, 오류·차단·완료처럼 강한 의미에만 fill 사용
+  - 배지 문구는 색 없이도 의미가 전달되도록 `검토 필요`, `증빙 누락`, `완료`, `초과`처럼 구체적으로 작성
 
 ## 10. 데이터·검증·접근성 메모
 - 상태(status): 사업비 등록, 사전 승인, 집행 수행, 집행 요청, 집행 완료
