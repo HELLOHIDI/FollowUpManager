@@ -147,6 +147,91 @@ describe("program evidence policy service helpers", () => {
     expect(draft?.categories.some((category) => category.categoryName.includes("tech transfer"))).toBe(false);
   });
 
+  it("extracts bullet evidence groups as common evidence and one-level subcategories", () => {
+    const draft = parseTextDraft(
+      [
+        "budget_item\tevidence_documents",
+        [
+          "fees\t",
+          "\u2022\uACF5\uD1B5(\uD544\uC218)",
+          " |LINE| \u2460 Payment request",
+          " |LINE| \u2461 Tax invoice",
+          " |LINE| \u2022Tech transfer",
+          " |LINE| \u2460 Tech summary",
+          " |LINE| \u2461 Transfer contract",
+        ].join(""),
+        "payroll\t1. Payroll ledger |LINE| 2. Transfer confirmation",
+      ].join("\n"),
+      "policy.pdf",
+    );
+
+    const fees = draft?.categories.find((category) => category.categoryName === "fees");
+    const techTransfer = draft?.subcategories.find((subcategory) => subcategory.subcategoryName === "Tech transfer");
+    const feesEvidence = draft?.evidenceRequirements.filter((evidence) => evidence.categoryKey === fees?.categoryKey);
+
+    expect(draft?.categories.map((category) => category.categoryName)).toEqual(["fees", "payroll"]);
+    expect(techTransfer?.categoryKey).toBe(fees?.categoryKey);
+    expect(feesEvidence?.filter((evidence) => evidence.subcategoryKey === null).map((evidence) => evidence.evidenceName)).toEqual([
+      "Payment request",
+      "Tax invoice",
+    ]);
+    expect(feesEvidence?.filter((evidence) => evidence.subcategoryKey === techTransfer?.subcategoryKey).map((evidence) => evidence.evidenceName)).toEqual([
+      "Tech summary",
+      "Transfer contract",
+    ]);
+  });
+
+  it("extracts table section labels as common evidence and one-level subcategories", () => {
+    const draft = parseTextDraft(
+      [
+        "budget_item\tevidence_documents",
+        [
+          "fees\t",
+          "\uACF5\uD1B5\uC81C\uCD9C\uC11C\uB958",
+          " |LINE| (\uD544\uC218)",
+          " |LINE| \u2460 Payment request",
+          " |LINE| \u2461 Tax invoice",
+          " |LINE| \uBE44\uBAA9 \uC99D\uBE59\uC11C\uB958",
+          " |LINE| Tech",
+          " |LINE| transfer fee",
+          " |LINE| \u2460 Tech summary",
+          " |LINE| \u2461 Transfer contract",
+          " |LINE| Seminar",
+          " |LINE| fee",
+          " |LINE| \u2460 Seminar catalog",
+          " |LINE| Insurance fee \u2460 Insurance policy",
+        ].join(""),
+        "payroll\t1. Payroll ledger |LINE| 2. Transfer confirmation",
+      ].join("\n"),
+      "policy.pdf",
+    );
+
+    const fees = draft?.categories.find((category) => category.categoryName === "fees");
+    const techTransfer = draft?.subcategories.find((subcategory) => subcategory.subcategoryName === "Tech transfer fee");
+    const seminar = draft?.subcategories.find((subcategory) => subcategory.subcategoryName === "Seminar fee");
+    const insurance = draft?.subcategories.find((subcategory) => subcategory.subcategoryName === "Insurance fee");
+    const feesEvidence = draft?.evidenceRequirements.filter((evidence) => evidence.categoryKey === fees?.categoryKey);
+
+    expect(draft?.subcategories.map((subcategory) => subcategory.subcategoryName)).toEqual(["Tech transfer fee", "Seminar fee", "Insurance fee"]);
+    expect(techTransfer?.categoryKey).toBe(fees?.categoryKey);
+    expect(seminar?.categoryKey).toBe(fees?.categoryKey);
+    expect(insurance?.categoryKey).toBe(fees?.categoryKey);
+    expect(feesEvidence?.filter((evidence) => evidence.subcategoryKey === null).map((evidence) => evidence.evidenceName)).toEqual([
+      "Payment request",
+      "Tax invoice",
+    ]);
+    expect(feesEvidence?.filter((evidence) => evidence.subcategoryKey === techTransfer?.subcategoryKey).map((evidence) => evidence.evidenceName)).toEqual([
+      "Tech summary",
+      "Transfer contract",
+    ]);
+    expect(feesEvidence?.filter((evidence) => evidence.subcategoryKey === seminar?.subcategoryKey).map((evidence) => evidence.evidenceName)).toEqual([
+      "Seminar catalog",
+    ]);
+    expect(feesEvidence?.filter((evidence) => evidence.subcategoryKey === insurance?.subcategoryKey).map((evidence) => evidence.evidenceName)).toEqual([
+      "Insurance policy",
+    ]);
+  });
+
   it("keeps unnumbered wrapped evidence text with the previous numbered item", () => {
     const draft = parseTextDraft(
       [

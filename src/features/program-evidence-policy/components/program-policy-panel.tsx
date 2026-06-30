@@ -44,10 +44,12 @@ const formatBlockingError = (error: string, draft: PolicyDraftUpdateInput) => {
 
   const subcategoryReviewPrefix = "Subcategory requires admin review: ";
   if (error.startsWith(subcategoryReviewPrefix)) {
-    return "세부항목 검토가 필요합니다.";
+    const subcategoryKey = error.slice(subcategoryReviewPrefix.length);
+    const subcategoryName = draft.subcategories.find((subcategory) => subcategory.subcategoryKey === subcategoryKey)?.subcategoryName;
+    return `하위항목 검토가 필요합니다: ${subcategoryName || "이름 없는 하위항목"}`;
   }
 
-  return error.replace(/\b(?:category|evidence|document)_[a-z0-9_]+\b/g, "내부 항목");
+  return error.replace(/\b(?:category|subcategory|evidence|document)_[a-z0-9_]+\b/g, "내부 항목");
 };
 
 export function ProgramPolicyPanel({
@@ -128,14 +130,14 @@ export function ProgramPolicyPanel({
     if (!file) return;
     try {
       const intent = await mutations.uploadMutation.mutateAsync(file);
-      toast({ title: "정책 PDF를 등록했습니다.", description: "비목/증빙서류 초안 버전이 생성되었습니다." });
+      toast({ title: "정책 PDF를 등록했습니다.", description: "비목/증빙서류 초안 버전을 생성했습니다." });
       try {
         await mutations.extractMutation.mutateAsync({ extractedText: null, versionId: intent.policyVersionId });
         toast({ title: "정책 초안을 추출했습니다.", description: "추출된 비목과 증빙서류를 검토해 주세요." });
       } catch (error) {
         toast({
           title: "정책 추출에 실패했습니다.",
-          description: extractApiErrorMessage(error, "기본 비목으로 시작하거나 텍스트를 붙여넣어 다시 시도해 주세요."),
+          description: extractApiErrorMessage(error, "기본 비목으로 시작하거나 텍스트를 붙여 넣어 다시 시도해 주세요."),
           variant: "destructive",
         });
       }
@@ -147,7 +149,7 @@ export function ProgramPolicyPanel({
   const onConfirmPolicy = async () => {
     try {
       await mutations.confirmMutation.mutateAsync();
-      toast({ title: "정책을 확정했습니다.", description: "이제 지출 비목과 증빙서류가 확정한 정책을 따릅니다." });
+      toast({ title: "정책을 확정했습니다.", description: "이제 지출 비목과 증빙서류가 확정된 정책을 따릅니다." });
       if (redirectOnConfirm) {
         router.push(routes.project(projectId));
       }
@@ -194,7 +196,7 @@ export function ProgramPolicyPanel({
             </Button>
           </div>
           <Textarea
-            placeholder="PDF 텍스트 추출이 실패했을 때만 추출된 텍스트를 붙여넣어 다시 시도합니다."
+            placeholder="PDF 텍스트 추출이 실패했을 때만 추출된 텍스트를 붙여 넣어 다시 시도합니다."
             value={extractedText}
             onChange={(event) => setExtractedText(event.target.value)}
           />
@@ -213,7 +215,7 @@ export function ProgramPolicyPanel({
           <div className="grid gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm text-muted-foreground">
-                비목 {summary.categories}개 / 세부항목 {summary.subcategories}개 / 증빙서류 {summary.evidence}개
+                비목 {summary.categories}개 / 하위항목 {summary.subcategories}개 / 증빙서류 {summary.evidence}개
               </div>
               <div className="flex gap-2">
                 <Button
@@ -246,16 +248,16 @@ export function ProgramPolicyPanel({
               <PolicyRowEditor draft={draft} onChange={setDraft} />
             ) : (
               <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-                This policy version is read-only. Upload another PDF to create a new draft.
+                이 정책 버전은 읽기 전용입니다. 다른 PDF를 업로드하면 새 초안을 만들 수 있습니다.
               </p>
             )}
           </div>
         ) : null}
 
         <div className="grid gap-2">
-          <p className="text-sm font-medium">Versions</p>
+          <p className="text-sm font-medium">버전</p>
           <div className="grid gap-2">
-            {versionRows.length === 0 ? <p className="text-sm text-muted-foreground">No policy versions yet.</p> : null}
+            {versionRows.length === 0 ? <p className="text-sm text-muted-foreground">아직 정책 버전이 없습니다.</p> : null}
             {versionRows.map((version) => (
               <div key={version.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
                 <span>v{version.versionNumber} · {version.status}</span>
@@ -283,6 +285,13 @@ function PolicyRowEditor({
     onChange({ ...draft, categories });
   };
 
+  const updateSubcategoryName = (index: number, value: string) => {
+    const subcategories = draft.subcategories.map((subcategory, current) =>
+      current === index ? { ...subcategory, subcategoryName: value, reviewStatus: "auto_confident" as const } : subcategory,
+    );
+    onChange({ ...draft, subcategories });
+  };
+
   const createInternalKey = (prefix: string, existingKeys: Set<string>) => {
     let index = existingKeys.size + 1;
     let candidate = `${prefix}_${index}`;
@@ -300,6 +309,15 @@ function PolicyRowEditor({
       categories: draft.categories.filter((_, current) => current !== index).map((category, current) => ({ ...category, sortOrder: current })),
       evidenceRequirements: draft.evidenceRequirements.filter((evidence) => evidence.categoryKey !== categoryKey),
       subcategories: draft.subcategories.filter((subcategory) => subcategory.categoryKey !== categoryKey),
+    });
+  };
+
+  const deleteSubcategory = (index: number) => {
+    const subcategoryKey = draft.subcategories[index]?.subcategoryKey;
+    onChange({
+      ...draft,
+      evidenceRequirements: draft.evidenceRequirements.filter((evidence) => evidence.subcategoryKey !== subcategoryKey),
+      subcategories: draft.subcategories.filter((_, current) => current !== index),
     });
   };
 
@@ -335,7 +353,23 @@ function PolicyRowEditor({
     });
   };
 
-  const addEvidence = (categoryKey: string | null) => {
+  const addSubcategory = (categoryKey: string) => {
+    const existingSubcategoryKeys = new Set(draft.subcategories.map((subcategory) => subcategory.subcategoryKey));
+    const nextSubcategoryKey = createInternalKey("subcategory_manual", existingSubcategoryKeys);
+    onChange({
+      ...draft,
+      subcategories: [...draft.subcategories, {
+        categoryKey,
+        reviewStatus: "auto_confident",
+        sortOrder: draft.subcategories.filter((subcategory) => subcategory.categoryKey === categoryKey).length,
+        sourceReference: {},
+        subcategoryKey: nextSubcategoryKey,
+        subcategoryName: "",
+      }],
+    });
+  };
+
+  const addEvidence = (categoryKey: string | null, subcategoryKey: string | null = null) => {
     const existingEvidenceKeys = new Set(draft.evidenceRequirements.map((evidence) => evidence.evidenceKey));
     const existingDocumentKeys = new Set(draft.evidenceRequirements.map((evidence) => evidence.documentKey).filter(Boolean) as string[]);
     const nextEvidenceKey = createInternalKey("evidence_manual", existingEvidenceKeys);
@@ -350,17 +384,45 @@ function PolicyRowEditor({
         requirementType: "required",
         reviewStatus: "auto_confident",
         sourceReference: {},
+        subcategoryKey,
       }],
     });
   };
 
-  const groupedEvidence = draft.categories.map((category, categoryIndex) => ({
-    category,
-    categoryIndex,
-    evidenceItems: draft.evidenceRequirements
+  const groupedRows = draft.categories.map((category, categoryIndex) => {
+    const categorySubcategories = draft.subcategories
+      .map((subcategory, subcategoryIndex) => ({ subcategory, subcategoryIndex }))
+      .filter(({ subcategory }) => subcategory.categoryKey === category.categoryKey);
+    const categoryCommonEvidence = draft.evidenceRequirements
       .map((evidence, evidenceIndex) => ({ evidence, evidenceIndex }))
-      .filter(({ evidence }) => evidence.categoryKey === category.categoryKey),
-  }));
+      .filter(({ evidence }) => evidence.categoryKey === category.categoryKey && !evidence.subcategoryKey);
+    const subcategoryRows = categorySubcategories.map(({ subcategory, subcategoryIndex }) => ({
+      evidenceItems: draft.evidenceRequirements
+        .map((evidence, evidenceIndex) => ({ evidence, evidenceIndex }))
+        .filter(({ evidence }) => evidence.categoryKey === category.categoryKey && evidence.subcategoryKey === subcategory.subcategoryKey),
+      kind: "subcategory" as const,
+      label: subcategory.subcategoryName,
+      subcategory,
+      subcategoryIndex,
+    }));
+
+    return {
+      category,
+      categoryIndex,
+      rows: [
+        ...(categoryCommonEvidence.length > 0 || categorySubcategories.length === 0
+          ? [{
+              evidenceItems: categoryCommonEvidence,
+              kind: "common" as const,
+              label: categorySubcategories.length > 0 ? "공통(자동 포함)" : "비목 공통",
+              subcategory: null,
+              subcategoryIndex: -1,
+            }]
+          : []),
+        ...subcategoryRows,
+      ],
+    };
+  });
   const commonEvidence = draft.evidenceRequirements
     .map((evidence, evidenceIndex) => ({ evidence, evidenceIndex }))
     .filter(({ evidence }) => !evidence.categoryKey);
@@ -370,7 +432,7 @@ function PolicyRowEditor({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium">비목별 집행 증빙서류</p>
-          <p className="text-xs text-muted-foreground">PDF 표처럼 왼쪽 비목과 오른쪽 증빙서류 목록을 맞춰 검토합니다.</p>
+          <p className="text-xs text-muted-foreground">PDF 표처럼 비목, 하위항목, 집행 증빙서류를 나란히 검토합니다.</p>
         </div>
         <Button onClick={addCategory} size="sm" type="button" variant="outline">
           <Plus className="mr-2 size-4" />
@@ -379,111 +441,154 @@ function PolicyRowEditor({
       </div>
 
       <div className="overflow-hidden rounded-md border">
-        <div className="hidden grid-cols-[minmax(180px,0.9fr)_minmax(0,2fr)] border-b bg-muted/50 text-xs font-medium text-muted-foreground md:grid">
+        <div className="hidden grid-cols-[minmax(170px,0.8fr)_minmax(160px,0.8fr)_minmax(0,2fr)] border-b bg-muted/50 text-xs font-medium text-muted-foreground md:grid">
           <div className="border-r px-3 py-2">비목</div>
+          <div className="border-r px-3 py-2">하위항목</div>
           <div className="px-3 py-2">집행 증빙서류</div>
         </div>
 
-        {groupedEvidence.map(({ category, categoryIndex, evidenceItems }) => (
-          <div
-            key={`${category.id ?? category.categoryKey}-${categoryIndex}`}
-            className="grid gap-0 border-b last:border-b-0 md:grid-cols-[minmax(180px,0.9fr)_minmax(0,2fr)]"
-          >
-            <div className="grid content-start gap-2 border-b bg-muted/20 p-3 md:border-b-0 md:border-r">
-              <div className="flex items-start gap-2">
-                <Input
-                  aria-label="비목명"
-                  className="bg-background"
-                  value={category.categoryName}
-                  onChange={(event) => updateCategoryName(categoryIndex, event.target.value)}
-                />
-                <Button aria-label="비목 삭제" onClick={() => deleteCategory(categoryIndex)} size="icon" type="button" variant="ghost">
-                  <Trash2 className="size-4" />
-                </Button>
-              </div>
-              <Badge className="w-fit" variant={category.reviewStatus === "auto_confident" ? "default" : "secondary"}>
-                {category.reviewStatus === "auto_confident" ? "검토 완료" : "검토 필요"}
-              </Badge>
-            </div>
-
-            <div className="grid gap-2 p-3">
-              {evidenceItems.length === 0 ? (
-                <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">연결된 증빙서류가 없습니다.</p>
-              ) : null}
-
-              {evidenceItems.map(({ evidence, evidenceIndex }, rowIndex) => (
-                <div key={`${evidence.id ?? evidence.evidenceKey}-${evidenceIndex}`} className="grid gap-2 md:grid-cols-[2rem_minmax(0,1fr)_9rem_2.5rem]">
-                  <div className="flex h-10 items-center justify-center rounded-md bg-muted text-sm font-medium text-muted-foreground">
-                    {rowIndex + 1}
-                  </div>
-                  <Input
-                    aria-label={`${category.categoryName || "비목"} 증빙서류 ${rowIndex + 1}`}
-                    value={evidence.evidenceName}
-                    onChange={(event) => updateEvidence(evidenceIndex, "evidenceName", event.target.value)}
-                  />
-                  <select
-                    aria-label="증빙 필수 여부"
-                    className="h-10 rounded-md border bg-background px-3 text-sm"
-                    value={evidence.requirementType}
-                    onChange={(event) => updateEvidence(evidenceIndex, "requirementType", event.target.value)}
-                  >
-                    <option value="required">필수</option>
-                    <option value="conditional">조건부</option>
-                    <option value="optional">선택</option>
-                  </select>
-                  <Button aria-label="증빙서류 삭제" onClick={() => deleteEvidence(evidenceIndex)} size="icon" type="button" variant="ghost">
-                    <Trash2 className="size-4" />
-                  </Button>
+        {groupedRows.map(({ category, categoryIndex, rows }) => (
+          <div key={`${category.id ?? category.categoryKey}-${categoryIndex}`} className="border-b last:border-b-0">
+            {rows.map((row, rowIndex) => (
+              <div
+                key={`${category.categoryKey}-${row.kind}-${row.subcategory?.subcategoryKey ?? "common"}`}
+                className="grid gap-0 border-b last:border-b-0 md:grid-cols-[minmax(170px,0.8fr)_minmax(160px,0.8fr)_minmax(0,2fr)]"
+              >
+                <div className="grid content-start gap-2 border-b bg-muted/20 p-3 md:border-b-0 md:border-r">
+                  {rowIndex === 0 ? (
+                    <>
+                      <div className="flex items-start gap-2">
+                        <Input
+                          aria-label="비목명"
+                          className="bg-background"
+                          value={category.categoryName}
+                          onChange={(event) => updateCategoryName(categoryIndex, event.target.value)}
+                        />
+                        <Button aria-label="비목 삭제" onClick={() => deleteCategory(categoryIndex)} size="icon" type="button" variant="ghost">
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                      <Badge className="w-fit" variant={category.reviewStatus === "auto_confident" ? "default" : "secondary"}>
+                        {category.reviewStatus === "auto_confident" ? "검토 완료" : "검토 필요"}
+                      </Badge>
+                      <Button onClick={() => addSubcategory(category.categoryKey)} size="sm" type="button" variant="outline">
+                        <Plus className="mr-2 size-4" />
+                        하위항목 추가
+                      </Button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-muted-foreground md:sr-only">{category.categoryName}</span>
+                  )}
                 </div>
-              ))}
 
-              <div>
-                <Button onClick={() => addEvidence(category.categoryKey)} size="sm" type="button" variant="outline">
-                  <FileUp className="mr-2 size-4" />
-                  증빙서류 추가
-                </Button>
+                <div className="grid content-start gap-2 border-b p-3 md:border-b-0 md:border-r">
+                  {row.kind === "subcategory" ? (
+                    <>
+                      <div className="flex items-start gap-2">
+                        <Input
+                          aria-label={`${category.categoryName || "비목"} 하위항목`}
+                          value={row.label}
+                          onChange={(event) => updateSubcategoryName(row.subcategoryIndex, event.target.value)}
+                        />
+                        <Button aria-label="하위항목 삭제" onClick={() => deleteSubcategory(row.subcategoryIndex)} size="icon" type="button" variant="ghost">
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                      <Badge className="w-fit" variant={row.subcategory?.reviewStatus === "auto_confident" ? "default" : "secondary"}>
+                        {row.subcategory?.reviewStatus === "auto_confident" ? "검토 완료" : "검토 필요"}
+                      </Badge>
+                    </>
+                  ) : (
+                    <div className="rounded-md bg-muted px-3 py-2 text-sm font-medium text-muted-foreground">
+                      {row.label}
+                    </div>
+                  )}
+                </div>
+
+                <EvidenceList
+                  addLabel="증빙서류 추가"
+                  evidenceItems={row.evidenceItems}
+                  onAdd={() => addEvidence(category.categoryKey, row.subcategory?.subcategoryKey ?? null)}
+                  onDelete={deleteEvidence}
+                  onUpdate={updateEvidence}
+                  ownerLabel={row.kind === "subcategory" ? row.label : category.categoryName}
+                />
               </div>
-            </div>
+            ))}
           </div>
         ))}
       </div>
 
       {commonEvidence.length > 0 ? (
         <div className="grid gap-2 rounded-md border p-3">
-          <p className="text-sm font-medium">공통 증빙서류</p>
-          {commonEvidence.map(({ evidence, evidenceIndex }, rowIndex) => (
-            <div key={`${evidence.id ?? evidence.evidenceKey}-${evidenceIndex}`} className="grid gap-2 md:grid-cols-[2rem_minmax(0,1fr)_9rem_2.5rem]">
-              <div className="flex h-10 items-center justify-center rounded-md bg-muted text-sm font-medium text-muted-foreground">
-                {rowIndex + 1}
-              </div>
-              <Input
-                aria-label={`공통 증빙서류 ${rowIndex + 1}`}
-                value={evidence.evidenceName}
-                onChange={(event) => updateEvidence(evidenceIndex, "evidenceName", event.target.value)}
-              />
-              <select
-                aria-label="증빙 필수 여부"
-                className="h-10 rounded-md border bg-background px-3 text-sm"
-                value={evidence.requirementType}
-                onChange={(event) => updateEvidence(evidenceIndex, "requirementType", event.target.value)}
-              >
-                <option value="required">필수</option>
-                <option value="conditional">조건부</option>
-                <option value="optional">선택</option>
-              </select>
-              <Button aria-label="증빙서류 삭제" onClick={() => deleteEvidence(evidenceIndex)} size="icon" type="button" variant="ghost">
-                <Trash2 className="size-4" />
-              </Button>
-            </div>
-          ))}
-          <div>
-            <Button onClick={() => addEvidence(null)} size="sm" type="button" variant="outline">
-              <FileUp className="mr-2 size-4" />
-              공통 증빙서류 추가
-            </Button>
-          </div>
+          <p className="text-sm font-medium">전체 공통 증빙서류</p>
+          <EvidenceList
+            addLabel="공통 증빙서류 추가"
+            evidenceItems={commonEvidence}
+            onAdd={() => addEvidence(null)}
+            onDelete={deleteEvidence}
+            onUpdate={updateEvidence}
+            ownerLabel="공통"
+          />
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function EvidenceList({
+  addLabel,
+  evidenceItems,
+  onAdd,
+  onDelete,
+  onUpdate,
+  ownerLabel,
+}: {
+  addLabel: string;
+  evidenceItems: Array<{ evidence: PolicyDraftUpdateInput["evidenceRequirements"][number]; evidenceIndex: number }>;
+  onAdd: () => void;
+  onDelete: (index: number) => void;
+  onUpdate: (index: number, key: "evidenceName" | "requirementType", value: string) => void;
+  ownerLabel: string;
+}) {
+  return (
+    <div className="grid gap-2 p-3">
+      {evidenceItems.length === 0 ? (
+        <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">연결된 증빙서류가 없습니다.</p>
+      ) : null}
+
+      {evidenceItems.map(({ evidence, evidenceIndex }, rowIndex) => (
+        <div key={`${evidence.id ?? evidence.evidenceKey}-${evidenceIndex}`} className="grid gap-2 md:grid-cols-[2rem_minmax(0,1fr)_9rem_2.5rem]">
+          <div className="flex h-10 items-center justify-center rounded-md bg-muted text-sm font-medium text-muted-foreground">
+            {rowIndex + 1}
+          </div>
+          <Input
+            aria-label={`${ownerLabel || "항목"} 증빙서류 ${rowIndex + 1}`}
+            value={evidence.evidenceName}
+            onChange={(event) => onUpdate(evidenceIndex, "evidenceName", event.target.value)}
+          />
+          <select
+            aria-label="증빙 필수 여부"
+            className="h-10 rounded-md border bg-background px-3 text-sm"
+            value={evidence.requirementType}
+            onChange={(event) => onUpdate(evidenceIndex, "requirementType", event.target.value)}
+          >
+            <option value="required">필수</option>
+            <option value="conditional">조건부</option>
+            <option value="optional">선택</option>
+          </select>
+          <Button aria-label="증빙서류 삭제" onClick={() => onDelete(evidenceIndex)} size="icon" type="button" variant="ghost">
+            <Trash2 className="size-4" />
+          </Button>
+        </div>
+      ))}
+
+      <div>
+        <Button onClick={onAdd} size="sm" type="button" variant="outline">
+          <FileUp className="mr-2 size-4" />
+          {addLabel}
+        </Button>
+      </div>
     </div>
   );
 }

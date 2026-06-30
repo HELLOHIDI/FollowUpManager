@@ -46,7 +46,10 @@ const setupLoadedDraft = () => {
   });
   hookMocks.usePolicyDraftDetailQuery.mockReturnValue({
     data: {
-      blockingErrors: ["Category requires admin review: category_ec9eaceb"],
+      blockingErrors: [
+        "Category requires admin review: category_ec9eaceb",
+        "Subcategory requires admin review: subcategory_abcd1234",
+      ],
       categories: [{
         categoryKey: "category_ec9eaceb",
         categoryName: "Materials",
@@ -57,22 +60,49 @@ const setupLoadedDraft = () => {
         sourceReference: {},
       }],
       documents: [],
-      evidenceRequirements: [{
+      evidenceRequirements: [
+        {
+          categoryId: "33333333-3333-4333-8333-333333333333",
+          categoryKey: "category_ec9eaceb",
+          conditionText: null,
+          documentKey: "document_abcd1234",
+          evidenceKey: "evidence_abcd1234",
+          evidenceName: "Payment request (statement continuation)",
+          fulfillmentType: "single",
+          id: "44444444-4444-4444-8444-444444444444",
+          requirementType: "required",
+          reviewStatus: "needs_admin_review",
+          sourceReference: {},
+          subcategoryId: null,
+          subcategoryKey: null,
+        },
+        {
+          categoryId: "33333333-3333-4333-8333-333333333333",
+          categoryKey: "category_ec9eaceb",
+          conditionText: null,
+          documentKey: "document_sub1234",
+          evidenceKey: "evidence_sub1234",
+          evidenceName: "Tech transfer contract",
+          fulfillmentType: "single",
+          id: "66666666-6666-4666-8666-666666666666",
+          requirementType: "required",
+          reviewStatus: "needs_admin_review",
+          sourceReference: {},
+          subcategoryId: "55555555-5555-4555-8555-555555555555",
+          subcategoryKey: "subcategory_abcd1234",
+        },
+      ],
+      subcategories: [{
         categoryId: "33333333-3333-4333-8333-333333333333",
         categoryKey: "category_ec9eaceb",
-        conditionText: null,
-        documentKey: "document_abcd1234",
-        evidenceKey: "evidence_abcd1234",
-        evidenceName: "Payment request (statement continuation)",
-        fulfillmentType: "single",
-        id: "44444444-4444-4444-8444-444444444444",
-        requirementType: "required",
+        id: "55555555-5555-4555-8555-555555555555",
+        rawSubcategoryName: "Tech transfer",
         reviewStatus: "needs_admin_review",
+        sortOrder: 0,
         sourceReference: {},
-        subcategoryId: null,
-        subcategoryKey: null,
+        subcategoryKey: "subcategory_abcd1234",
+        subcategoryName: "Tech transfer",
       }],
-      subcategories: [],
       version: {
         confirmedAt: null,
         confirmedBy: null,
@@ -98,17 +128,23 @@ const setupLoadedDraft = () => {
 };
 
 describe("ProgramPolicyPanel", () => {
-  it("renders policy draft rows as category-to-evidence table without internal keys", () => {
+  it("renders policy draft rows as category-subcategory-evidence table without internal keys", () => {
     setupLoadedDraft();
 
     render(<ProgramPolicyPanel projectId={projectId} />);
 
     expect(screen.getByText("비목별 집행 증빙서류")).toBeInTheDocument();
+    expect(screen.getByText("하위항목")).toBeInTheDocument();
     expect(screen.getByText("집행 증빙서류")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Materials")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Tech transfer")).toBeInTheDocument();
+    expect(screen.getByText("공통(자동 포함)")).toBeInTheDocument();
     expect(screen.getByText("비목 검토가 필요합니다: Materials")).toBeInTheDocument();
+    expect(screen.getByText("하위항목 검토가 필요합니다: Tech transfer")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Payment request (statement continuation)")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Tech transfer contract")).toBeInTheDocument();
     expect(screen.queryByText("category_ec9eaceb")).not.toBeInTheDocument();
+    expect(screen.queryByText("subcategory_abcd1234")).not.toBeInTheDocument();
     expect(screen.queryByText("evidence_abcd1234")).not.toBeInTheDocument();
     expect(screen.queryByText("document_abcd1234")).not.toBeInTheDocument();
   });
