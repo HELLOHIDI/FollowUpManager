@@ -461,6 +461,32 @@ const isStaleStageError = (error: unknown) => {
   return candidate.code === "P0002" && `${message} ${details}`.includes("EXPENSE_NOT_FOUND_OR_STALE_STAGE");
 };
 
+const isProjectNotFoundRpcError = (error: unknown) => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; details?: unknown; message?: unknown };
+  const text = [candidate.details, candidate.message]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ");
+
+  return candidate.code === "P0002" && text.includes("PROJECT_NOT_FOUND");
+};
+
+const isCategoryUnavailableRpcError = (error: unknown) => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { details?: unknown; message?: unknown };
+  const text = [candidate.details, candidate.message]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ");
+
+  return text.includes("EXPENSE_CATEGORY_UNAVAILABLE");
+};
+
 const sanitizeStoredFileName = (fileName: string) => {
   const trimmed = fileName.trim();
   const extension = trimmed.split(".").pop()?.toLowerCase() ?? "file";
@@ -681,53 +707,27 @@ export const createExpense = async (
     return failure(400, expenseErrorCodes.invalidBody, "지출 입력값을 확인해 주세요.", parsed.error.flatten());
   }
 
-  const { data: projectRow, error: projectError } = await client
-    .from("projects")
-    .select("id, deleted_at")
-    .eq("id", projectId)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const { data, error } = await (client as SupabaseClient<any>).rpc("create_expense_with_policy_lock", {
+    p_amount: parsed.data.amount,
+    p_category_key: parsed.data.categoryKey,
+    p_expected_spend_date: parsed.data.expectedSpendDate ?? null,
+    p_funding_source_key: parsed.data.fundingSourceKey,
+    p_memo: parsed.data.memo ?? null,
+    p_project_id: projectId,
+    p_subcategory_key: parsed.data.subcategoryKey ?? null,
+    p_title: parsed.data.title,
+  });
 
-  if (projectError) {
-    return failure(500, expenseErrorCodes.fetchError, "지출을 등록하지 못했습니다.");
+  if (isProjectNotFoundRpcError(error)) {
+    return failure(404, expenseErrorCodes.notFound, "Project was not found.");
   }
 
-  if (!projectRow) {
-    return failure(404, expenseErrorCodes.notFound, "프로젝트를 찾을 수 없습니다.");
+  if (isCategoryUnavailableRpcError(error)) {
+    return failure(409, expenseErrorCodes.categoryMismatch, "Selected category is not available.");
   }
-
-  const resolvedCategory = await resolveExpenseCategory(client, projectId, parsed.data.categoryKey, parsed.data.subcategoryKey);
-  if (resolvedCategory.kind === "error") {
-    return failure(500, expenseErrorCodes.fetchError, "지출을 등록하지 못했습니다.");
-  }
-
-  if (resolvedCategory.kind === "unavailable") {
-    return failure(409, expenseErrorCodes.categoryMismatch, "선택한 비목을 사용할 수 없습니다.");
-  }
-
-  const { data, error } = await (client as SupabaseClient<any>)
-    .from("expenses")
-    .insert({
-      project_id: projectId,
-      project_budget_category_id: resolvedCategory.projectBudgetCategoryId,
-      category_key: resolvedCategory.categoryKey,
-      policy_snapshot: resolvedCategory.policySnapshot,
-      policy_version_id: resolvedCategory.policyVersionId,
-      subcategory_key: resolvedCategory.subcategoryKey,
-      subcategory_name: resolvedCategory.subcategoryName,
-      funding_source_key: parsed.data.fundingSourceKey,
-      stage_fields: {},
-      title: parsed.data.title,
-      amount: parsed.data.amount,
-      stage_key: "budget_registration" as ExpenseStageKey,
-      expected_spend_date: parsed.data.expectedSpendDate ?? null,
-      memo: parsed.data.memo ?? null,
-    })
-    .select(selectExpenseDetailColumns)
-    .single();
 
   if (error || !data) {
-    return failure(500, expenseErrorCodes.fetchError, "지출을 등록하지 못했습니다.");
+    return failure(500, expenseErrorCodes.fetchError, "Failed to create expense.");
   }
 
   const response = mapExpenseResponse(data);

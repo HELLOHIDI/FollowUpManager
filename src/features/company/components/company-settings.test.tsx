@@ -196,7 +196,7 @@ describe("CompanySettings", () => {
     expect(router.push).toHaveBeenCalledWith("/projects");
   });
 
-  it("opens a focused project-create flow and navigates to the new dashboard", async () => {
+  it("opens a focused project-create flow and navigates to project setup", async () => {
     const existingCompany = company();
     const createdProject = project;
     navigationState.searchParams = new URLSearchParams(
@@ -205,7 +205,6 @@ describe("CompanySettings", () => {
     api.fetchCompanies.mockResolvedValue([existingCompany]);
     projectApi.fetchCompanyProjects.mockResolvedValue([]);
     projectApi.createProjectRequest.mockResolvedValue(createdProject);
-    projectApi.uploadProjectDocuments.mockResolvedValue({ failed: 0 });
     dashboardApi.fetchProjectDashboard.mockResolvedValue({
       categories: [],
       kpis: {
@@ -253,7 +252,10 @@ describe("CompanySettings", () => {
         }),
       });
     });
-    expect(router.push).toHaveBeenCalledWith(`/projects/${createdProject.id}`);
+    expect(projectApi.uploadProjectDocuments).not.toHaveBeenCalled();
+    expect(router.push).toHaveBeenCalledWith(`/settings/company/projects/${createdProject.id}`);
+    expect(router.push).toHaveBeenCalledTimes(1);
+    expect(router.push).not.toHaveBeenCalledWith("/projects");
   });
 
   it("requires the 13-digit corporate number only for corporations and creates a company", async () => {

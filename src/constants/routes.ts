@@ -12,6 +12,8 @@ export const routes = {
     `/projects/${encodeURIComponent(projectId)}/expenses`,
   projectManagement: (projectId: string) =>
     `/settings/company/projects/${encodeURIComponent(projectId)}`,
+  projectSetup: (projectId: string) =>
+    `/settings/company/projects/${encodeURIComponent(projectId)}/setup`,
   expense: (projectId: string, expenseId: string) =>
     `/projects/${encodeURIComponent(projectId)}/expenses/${encodeURIComponent(expenseId)}`,
   projectExport: (projectId: string) =>
