@@ -10,6 +10,14 @@ function extractBlock(selector: string) {
 }
 
 describe("design token contracts", () => {
+  it("keeps the light primary token at exact Toss Blue", () => {
+    const rootTokens = extractBlock(":root");
+
+    expect(rootTokens).toContain("--primary: 215.33 91.63% 57.84%;");
+    expect(rootTokens).toContain("--ring: 215.33 91.63% 57.84%;");
+    expect(rootTokens).toContain("--chart-1: 215.33 91.63% 57.84%;");
+  });
+
   it("keeps light and dark chart token families symmetric", () => {
     const rootTokens = extractBlock(":root");
     const darkTokens = extractBlock(".dark");

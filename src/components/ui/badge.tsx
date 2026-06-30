@@ -4,25 +4,43 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold tracking-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
   {
     variants: {
       variant: {
+        "fill-primary":
+          "border-transparent bg-primary text-primary-foreground hover:bg-[#2272eb]",
+        "fill-green":
+          "border-transparent bg-success text-success-foreground hover:bg-success/90",
+        "fill-red":
+          "border-transparent bg-destructive text-destructive-foreground hover:bg-[#e42939]",
+        "fill-yellow":
+          "border-transparent bg-warning text-warning-foreground hover:bg-warning/90",
+        "weak-primary":
+          "border-transparent bg-[#e8f3ff] text-[#2272eb] hover:bg-[#d7eaff]",
+        "weak-green":
+          "border-transparent bg-[#e6f8f1] text-[#008f5a] hover:bg-[#d7f3e8]",
+        "weak-red":
+          "border-transparent bg-[#ffe7e9] text-[#e42939] hover:bg-[#ffd8dc]",
+        "weak-yellow":
+          "border-transparent bg-[#fff4d6] text-[#a15c00] hover:bg-[#ffedbd]",
+        "weak-gray":
+          "border-transparent bg-[#f2f4f6] text-[#4e5968] hover:bg-[#e5e8eb]",
         default:
-          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+          "border-transparent bg-[#e8f3ff] text-[#2272eb] hover:bg-[#d7eaff]",
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "border-transparent bg-[#f2f4f6] text-[#4e5968] hover:bg-[#e5e8eb]",
         destructive:
-          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+          "border-transparent bg-[#ffe7e9] text-[#e42939] hover:bg-[#ffd8dc]",
         success:
-          "border-transparent bg-success/10 text-success hover:bg-success/15",
+          "border-transparent bg-[#e6f8f1] text-[#008f5a] hover:bg-[#d7f3e8]",
         warning:
-          "border-transparent bg-warning/15 text-warning-foreground hover:bg-warning/20",
+          "border-transparent bg-[#fff4d6] text-[#a15c00] hover:bg-[#ffedbd]",
         info:
-          "border-transparent bg-info/10 text-info hover:bg-info/15",
+          "border-transparent bg-[#e8f3ff] text-[#2272eb] hover:bg-[#d7eaff]",
         neutral:
-          "border-transparent bg-muted text-muted-foreground hover:bg-muted/80",
-        outline: "text-foreground",
+          "border-transparent bg-[#f2f4f6] text-[#4e5968] hover:bg-[#e5e8eb]",
+        outline: "border-[#e5e8eb] text-[#4e5968]",
       },
     },
     defaultVariants: {

@@ -10,16 +10,22 @@ import {
   CardHeader,
   CardTitle,
 } from "./card";
-import { Input } from "./input";
+import { Input, inputVariants } from "./input";
 
 describe("design system component contracts", () => {
-  it("keeps button density and primary token defaults stable", () => {
-    expect(buttonVariants({ size: "default" })).toContain("h-9");
+  it("keeps Toss-style fill and weak button contracts stable", () => {
+    expect(buttonVariants({ size: "default" })).toContain("h-10");
     expect(buttonVariants({ size: "sm" })).toContain("h-8");
     expect(buttonVariants({ size: "sm" })).toContain("text-xs");
-    expect(buttonVariants({ size: "lg" })).toContain("h-10");
-    expect(buttonVariants({ size: "icon" })).toContain("h-9");
-    expect(buttonVariants({ size: "icon" })).toContain("w-9");
+    expect(buttonVariants({ size: "lg" })).toContain("h-12");
+    expect(buttonVariants({ size: "icon" })).toContain("h-10");
+    expect(buttonVariants({ size: "icon" })).toContain("w-10");
+    expect(buttonVariants({ variant: "fill-primary" })).toContain(
+      "bg-primary",
+    );
+    expect(buttonVariants({ variant: "weak-primary" })).toContain(
+      "bg-[#e8f3ff]",
+    );
     expect(buttonVariants({ variant: "default" })).toContain("bg-primary");
 
     render(<Button disabled>Save</Button>);
@@ -27,28 +33,51 @@ describe("design system component contracts", () => {
     expect(screen.getByRole("button", { name: "Save" })).toHaveClass(
       "disabled:opacity-40",
     );
+
+    render(<Button variant="link">Details</Button>);
+
+    expect(screen.getByRole("button", { name: "Details" })).toHaveClass(
+      "h-auto",
+      "px-0",
+      "py-0",
+    );
   });
 
-  it("keeps input sizing, border, and focus token contracts stable", () => {
-    render(<Input aria-label="Amount" disabled />);
+  it("keeps Toss-style input variants stable", () => {
+    expect(inputVariants({ variant: "box" })).toContain("h-11");
+    expect(inputVariants({ variant: "box" })).toContain("bg-[#f9fafb]");
+    expect(inputVariants({ variant: "amount" })).toContain("text-right");
+    expect(inputVariants({ variant: "amount" })).toContain("tabular-nums");
+    expect(inputVariants({ variant: "compact" })).toContain("h-8");
+
+    render(<Input aria-label="Amount" disabled variant="amount" />);
 
     expect(screen.getByLabelText("Amount")).toHaveClass(
-      "h-9",
-      "border-input",
+      "h-11",
+      "text-right",
+      "tabular-nums",
       "focus-visible:ring-2",
       "focus-visible:ring-ring",
       "disabled:opacity-40",
     );
   });
 
-  it("keeps semantic badge variants tokenized", () => {
-    expect(badgeVariants({ variant: "success" })).toContain("bg-success/10");
-    expect(badgeVariants({ variant: "success" })).toContain("text-success");
-    expect(badgeVariants({ variant: "warning" })).toContain("bg-warning/15");
-    expect(badgeVariants({ variant: "info" })).toContain("bg-info/10");
-    expect(badgeVariants({ variant: "neutral" })).toContain("bg-muted");
+  it("keeps Toss-style weak and fill badge variants stable", () => {
+    expect(badgeVariants({ variant: "weak-primary" })).toContain(
+      "bg-[#e8f3ff]",
+    );
+    expect(badgeVariants({ variant: "weak-green" })).toContain(
+      "bg-[#e6f8f1]",
+    );
+    expect(badgeVariants({ variant: "weak-yellow" })).toContain(
+      "bg-[#fff4d6]",
+    );
+    expect(badgeVariants({ variant: "weak-gray" })).toContain("bg-[#f2f4f6]");
+    expect(badgeVariants({ variant: "fill-red" })).toContain(
+      "bg-destructive",
+    );
 
-    render(<Badge variant="destructive">Rejected</Badge>);
+    render(<Badge variant="fill-red">Rejected</Badge>);
 
     expect(screen.getByText("Rejected")).toHaveClass(
       "bg-destructive",
@@ -56,7 +85,7 @@ describe("design system component contracts", () => {
     );
   });
 
-  it("keeps card surfaces compact and border-first", () => {
+  it("keeps Toss-style card surfaces stable", () => {
     render(
       <Card>
         <CardHeader>
@@ -67,16 +96,17 @@ describe("design system component contracts", () => {
       </Card>,
     );
 
-    expect(screen.getByText("Summary").closest(".rounded-md")).toHaveClass(
-      "border",
+    expect(screen.getByText("Summary").closest(".rounded-xl")).toHaveClass(
+      "border-0",
       "bg-card",
-      "shadow-xs",
+      "shadow-[0_1px_3px_rgba(0,0,0,0.06)]",
     );
     expect(screen.getByText("Summary")).toHaveClass(
       "text-lg",
+      "font-bold",
       "tracking-normal",
     );
-    expect(screen.getByText("Body")).toHaveClass("p-5", "pt-0");
-    expect(screen.getByText("Actions")).toHaveClass("p-5", "pt-0");
+    expect(screen.getByText("Body")).toHaveClass("p-6", "pt-0");
+    expect(screen.getByText("Actions")).toHaveClass("p-6", "pt-0");
   });
 });
