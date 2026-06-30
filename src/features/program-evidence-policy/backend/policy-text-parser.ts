@@ -9,25 +9,44 @@ export type PolicyParser = {
   parse: (text: string, context: PolicyParserContext) => PolicyDraftUpdateInput | null;
 };
 
-const categoryKeywordPattern =
-  /비목|항목|집행항목|사업비\s*항목|인건비|재료비|외주|용역|기자재|장비|교육|훈련|마케팅|홍보|회의|출장|여비|수수료|임차|관리비|개발비|특허|인증|시제품|소모품|사업화|category/i;
-const categoryEvidenceExclusionPattern = /증빙서류|제출서류|영수증|세금계산서|계산서|거래명세서|계약서|견적서|검수|납품/i;
-const evidenceKeywordPattern =
-  /증빙|증빙서류|제출서류|영수증|세금계산서|계산서|카드매출전표|거래명세서|계약서|견적서|비교견적|검수|납품|결과보고|신청서|청구서|통장|사업자등록증|invoice|receipt|contract|quote|document/i;
-const conditionalKeywordPattern = /경우|해당 시|필요 시|when|if/i;
+type ParsedCategory = PolicyDraftUpdateInput["categories"][number] & {
+  evidenceLines: string[];
+};
 
-const cleanCandidateName = (line: string, maxLength: number) =>
-  line
+const circledNumberPattern = "[\\u2460-\\u2473]";
+const numberedEvidencePattern = new RegExp(`^(${circledNumberPattern}|\\d+[.)]|\\?)\\s*`);
+const firstEvidencePattern = new RegExp(`^([\\u2460]|1[.)]|\\?)\\s*`);
+const noteOrSectionPattern = /^[*•※-]/u;
+const conditionalKeywordPattern = /when|if|case|optional|required if|over|exceed/i;
+
+const normalizeCellText = (value: string) =>
+  value
+    .replace(/\s+\|LINE\|\s+/g, "\n")
+    .replace(/\t+/g, " ")
+    .replace(/[ \u00a0]+/g, " ")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
+
+const stripEvidenceMarker = (value: string) =>
+  value
     .replace(/^\d+[\s.)-]+/, "")
-    .replace(/^[\s\-*.:)]+/, "")
+    .replace(new RegExp(`^${circledNumberPattern}\\s*`, "u"), "")
+    .replace(/^\?\s*/, "");
+
+const cleanDisplayText = (value: string, maxLength: number) =>
+  stripEvidenceMarker(normalizeCellText(value))
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
 
-const isLikelyCategoryLine = (line: string) =>
-  categoryKeywordPattern.test(line)
-  && !categoryEvidenceExclusionPattern.test(line)
-  && !/^(사업비\s*)?(비목|항목|집행항목|사업비\s*항목)$/i.test(line.trim());
+const isUsableCategoryName = (value: string) => {
+  const normalized = cleanDisplayText(value, 120);
+  if (!normalized || normalized.length > 100) return false;
+  if (noteOrSectionPattern.test(normalized)) return false;
+  return true;
+};
 
 export const toStablePolicyKey = (value: string, fallbackPrefix: string) => {
   const ascii = value
@@ -53,47 +72,119 @@ const uniqueKey = (candidate: string, used: Set<string>) => {
   return key;
 };
 
-export const heuristicPolicyParser: PolicyParser = {
-  id: "heuristic-v1",
+const splitEvidenceLines = (value: string) => {
+  const lines = normalizeCellText(value).split("\n").filter(Boolean);
+  const evidenceLines: string[] = [];
+
+  for (const line of lines) {
+    if (noteOrSectionPattern.test(line)) {
+      continue;
+    }
+
+    const cleaned = cleanDisplayText(line, 140);
+    if (!cleaned) {
+      continue;
+    }
+
+    if (numberedEvidencePattern.test(line)) {
+      evidenceLines.push(line);
+      continue;
+    }
+
+    if (evidenceLines.length > 0) {
+      evidenceLines[evidenceLines.length - 1] = `${evidenceLines[evidenceLines.length - 1]} ${cleaned}`.slice(0, 180);
+    }
+  }
+
+  return evidenceLines;
+};
+
+const mergeOrCreateCategory = (
+  categories: ParsedCategory[],
+  categoryName: string,
+  evidenceLines: string[],
+) => {
+  const previous = categories[categories.length - 1];
+  const startsAfterFirstEvidence = Boolean(evidenceLines[0]) && !firstEvidencePattern.test(evidenceLines[0] ?? "");
+
+  if (previous && startsAfterFirstEvidence) {
+    previous.categoryName = `${previous.categoryName} ${categoryName}`.replace(/\s+/g, " ").trim();
+    previous.rawCategoryName = `${previous.rawCategoryName ?? previous.categoryName}\n${categoryName}`;
+    previous.evidenceLines.push(...evidenceLines);
+    return;
+  }
+
+  categories.push({
+    categoryKey: "",
+    categoryName,
+    evidenceLines,
+    rawCategoryName: categoryName,
+    reviewStatus: "needs_admin_review",
+    sortOrder: categories.length,
+    sourceReference: {},
+  });
+};
+
+export const tablePolicyParser: PolicyParser = {
+  id: "table-v1",
   parse: (text) => {
-    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length >= 2);
+    const parsedCategories: ParsedCategory[] = [];
+
+    for (const rawLine of text.split(/\r?\n/)) {
+      const [rawCategoryCell, ...rawEvidenceCells] = rawLine.split("\t");
+      if (!rawCategoryCell || rawEvidenceCells.length === 0) {
+        continue;
+      }
+
+      const categoryName = cleanDisplayText(rawCategoryCell, 100);
+      if (!isUsableCategoryName(categoryName)) {
+        continue;
+      }
+
+      const evidenceLines = splitEvidenceLines(rawEvidenceCells.join("\n"));
+      if (evidenceLines.length === 0) {
+        continue;
+      }
+
+      mergeOrCreateCategory(parsedCategories, categoryName, evidenceLines);
+    }
+
+    if (parsedCategories.length < 2) {
+      return null;
+    }
+
     const categoryKeys = new Set<string>();
     const evidenceKeys = new Set<string>();
     const documentKeys = new Set<string>();
     const categories: PolicyDraftUpdateInput["categories"] = [];
     const evidenceRequirements: PolicyDraftUpdateInput["evidenceRequirements"] = [];
-    let currentCategoryKey: string | null = null;
 
-    for (const line of lines) {
-      if (categories.length < 40 && isLikelyCategoryLine(line)) {
-        const name = cleanCandidateName(line, 80);
-        if (name && !categories.some((category) => category.rawCategoryName === line || category.categoryName === name)) {
-          const categoryKey = uniqueKey(toStablePolicyKey(name, "category"), categoryKeys);
-          categories.push({
-            categoryKey,
-            categoryName: name,
-            rawCategoryName: line,
-            reviewStatus: "needs_admin_review",
-            sortOrder: categories.length,
-            sourceReference: {},
-          });
-          currentCategoryKey = categoryKey;
+    for (const parsedCategory of parsedCategories.slice(0, 60)) {
+      const categoryKey = uniqueKey(toStablePolicyKey(parsedCategory.categoryName, "category"), categoryKeys);
+      categories.push({
+        categoryKey,
+        categoryName: parsedCategory.categoryName,
+        rawCategoryName: parsedCategory.rawCategoryName,
+        reviewStatus: "needs_admin_review",
+        sortOrder: categories.length,
+        sourceReference: {},
+      });
+
+      for (const evidenceLine of parsedCategory.evidenceLines.slice(0, 80)) {
+        const evidenceName = cleanDisplayText(evidenceLine, 140);
+        if (!evidenceName) {
+          continue;
         }
-        continue;
-      }
 
-      if (evidenceRequirements.length < 120 && evidenceKeywordPattern.test(line)) {
-        const name = cleanCandidateName(line, 100);
-        if (!name) continue;
-        const categoryKey = currentCategoryKey ?? categories[categories.length - 1]?.categoryKey ?? null;
+        const evidenceKeyBase = toStablePolicyKey(`${parsedCategory.categoryName}_${evidenceName}`, "evidence");
         evidenceRequirements.push({
           categoryKey,
-          conditionText: conditionalKeywordPattern.test(line) ? line : null,
-          documentKey: uniqueKey(toStablePolicyKey(name, "document"), documentKeys),
-          evidenceKey: uniqueKey(toStablePolicyKey(name, "evidence"), evidenceKeys),
-          evidenceName: name,
+          conditionText: conditionalKeywordPattern.test(evidenceLine) ? evidenceLine : null,
+          documentKey: uniqueKey(toStablePolicyKey(evidenceName, "document"), documentKeys),
+          evidenceKey: uniqueKey(evidenceKeyBase, evidenceKeys),
+          evidenceName,
           fulfillmentType: "single",
-          requirementType: conditionalKeywordPattern.test(line) ? "conditional" : "required",
+          requirementType: conditionalKeywordPattern.test(evidenceLine) ? "conditional" : "required",
           reviewStatus: "needs_admin_review",
           sourceReference: {},
           subcategoryKey: null,
@@ -101,16 +192,13 @@ export const heuristicPolicyParser: PolicyParser = {
       }
     }
 
-    const hasLinkedEvidence = evidenceRequirements.some((evidence) => Boolean(evidence.categoryKey));
-    if (categories.length < 2 || !hasLinkedEvidence) {
-      return null;
-    }
-
-    return { categories, evidenceRequirements, subcategories: [] };
+    return evidenceRequirements.length > 0
+      ? { categories, evidenceRequirements, subcategories: [] }
+      : null;
   },
 };
 
-const policyParsers: PolicyParser[] = [heuristicPolicyParser];
+const policyParsers: PolicyParser[] = [tablePolicyParser];
 
 export const parsePolicyTextDraft = (text: string, context: PolicyParserContext) => {
   for (const parser of policyParsers) {

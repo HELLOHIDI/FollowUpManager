@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { parseTextDraft, toStablePolicyKey, validateDraftBlockingErrors, validateDraftStructuralErrors } from "./service";
 
 describe("program evidence policy service helpers", () => {
-  it("creates deterministic ASCII fallback keys for Korean labels", () => {
-    expect(toStablePolicyKey("재료비", "category")).toMatch(/^category_[a-f0-9]{8}$/);
+  it("creates deterministic ASCII fallback keys for non-ASCII labels", () => {
+    expect(toStablePolicyKey("材料費", "category")).toMatch(/^category_[a-f0-9]{8}$/);
     expect(toStablePolicyKey("Material Cost", "category")).toBe("material_cost");
   });
 
@@ -127,27 +127,43 @@ describe("program evidence policy service helpers", () => {
     expect(errors).not.toContain("Evidence source reference is required: receipt");
   });
 
-  it("creates a conservative draft from text-layer policy text", () => {
+  it("creates a draft from policy table rows without subcategories", () => {
     const draft = parseTextDraft(
       [
-        "사업비 비목",
-        "1. 재료비",
-        "증빙서류: 세금계산서, 거래명세서, 검수확인서",
-        "2. 외주용역비",
-        "증빙서류: 계약서, 견적서, 결과보고서",
+        "budget_item\tevidence_documents",
+        "material_cost\t1. Payment request |LINE| 2. Tax invoice |LINE| 3. Transaction statement",
+        "outsourcing\t1. Payment request |LINE| 2. Contract |LINE| 3. Quote",
+        "fees\t- common required |LINE| 1. Payment request |LINE| 2. Tax invoice |LINE| - tech transfer |LINE| 1. Tech transfer contract",
       ].join("\n"),
       "policy.pdf",
     );
 
-    expect(draft?.categories).toHaveLength(2);
-    expect(draft?.evidenceRequirements.length).toBeGreaterThanOrEqual(2);
+    expect(draft?.categories.map((category) => category.categoryName)).toEqual(["material_cost", "outsourcing", "fees"]);
+    expect(draft?.subcategories).toEqual([]);
+    expect(draft?.evidenceRequirements.length).toBe(9);
     expect(draft?.categories[0]?.reviewStatus).toBe("needs_admin_review");
     expect(draft?.categories[0]?.sourceReference).toEqual({});
     expect(draft?.evidenceRequirements[0]?.categoryKey).toBe(draft?.categories[0]?.categoryKey);
+    expect(draft?.categories.some((category) => category.categoryName.includes("tech transfer"))).toBe(false);
   });
 
-  it("rejects text that does not meet the V1 draft threshold", () => {
-    const draft = parseTextDraft("재료비\n증빙서류: 영수증", "policy.pdf");
+  it("merges split category labels when a continued table row starts from the second evidence item", () => {
+    const draft = parseTextDraft(
+      [
+        "budget_item\tevidence_documents",
+        "intellectual_property\t1. Tax invoice",
+        "asset_acquisition\t2. Transaction statement |LINE| 3. Contract",
+        "payroll\t1. Payroll ledger |LINE| 2. Transfer confirmation",
+      ].join("\n"),
+      "policy.pdf",
+    );
+
+    expect(draft?.categories.map((category) => category.categoryName)).toEqual(["intellectual_property asset_acquisition", "payroll"]);
+    expect(draft?.evidenceRequirements.filter((evidence) => evidence.categoryKey === draft?.categories[0]?.categoryKey)).toHaveLength(3);
+  });
+
+  it("rejects text that does not have policy table rows", () => {
+    const draft = parseTextDraft("material_cost\nevidence: receipt", "policy.pdf");
 
     expect(draft).toBeNull();
   });
