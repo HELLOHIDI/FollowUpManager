@@ -388,7 +388,12 @@ export const triggerDraftExtraction = async (
   }
 
   const write = await writeDraftRows(client, policyVersionId, draft);
-  if (write.error) return failure(500, programEvidencePolicyErrorCodes.writeError, "Failed to save extracted draft.");
+  if (write.error) {
+    return failure(500, programEvidencePolicyErrorCodes.writeError, "Failed to save extracted draft.", {
+      code: write.error.code,
+      message: write.error.message,
+    });
+  }
 
   await client
     .from("program_policy_versions")
@@ -420,7 +425,12 @@ export const updatePolicyDraft = async (
   }
 
   const write = await writeDraftRows(client, policyVersionId, input);
-  if (write.error) return failure(500, programEvidencePolicyErrorCodes.writeError, "Failed to update policy draft.");
+  if (write.error) {
+    return failure(500, programEvidencePolicyErrorCodes.writeError, "Failed to update policy draft.", {
+      code: write.error.code,
+      message: write.error.message,
+    });
+  }
   const blockingErrors = validateDraftBlockingErrors(input);
   await client.from("program_policy_versions").update({ status: blockingErrors.length ? "needs_review" : "ready_to_confirm" }).eq("id", policyVersionId);
   return getPolicyDraftDetail(client, projectId, policyVersionId);

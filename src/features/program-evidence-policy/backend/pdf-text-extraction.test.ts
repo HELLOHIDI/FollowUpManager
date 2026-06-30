@@ -4,17 +4,21 @@ const pdfParseMocks = vi.hoisted(() => ({
   construct: vi.fn(),
   destroy: vi.fn(),
   getText: vi.fn(),
+  setWorker: vi.fn(),
 }));
 
-vi.mock("pdf-parse", () => ({
-  PDFParse: vi.fn().mockImplementation((options) => {
+vi.mock("pdf-parse", () => {
+  const PDFParse = vi.fn().mockImplementation((options) => {
     pdfParseMocks.construct(options);
     return {
       destroy: pdfParseMocks.destroy,
       getText: pdfParseMocks.getText,
     };
-  }),
-}));
+  }) as ReturnType<typeof vi.fn> & { setWorker: typeof pdfParseMocks.setWorker };
+  PDFParse.setWorker = pdfParseMocks.setWorker;
+
+  return { PDFParse };
+});
 
 import {
   extractPolicyPdfText,
@@ -28,6 +32,7 @@ describe("program policy PDF text extraction", () => {
     pdfParseMocks.construct.mockReset();
     pdfParseMocks.destroy.mockReset().mockResolvedValue(undefined);
     pdfParseMocks.getText.mockReset();
+    pdfParseMocks.setWorker.mockClear();
   });
 
   it("classifies usable text conservatively", () => {
@@ -52,6 +57,7 @@ describe("program policy PDF text extraction", () => {
     }
     expect(pdfParseMocks.construct).toHaveBeenCalledWith({ data: expect.any(Uint8Array) });
     expect(pdfParseMocks.getText).toHaveBeenCalledWith({ lineEnforce: true, pageJoiner: "\n" });
+    expect(pdfParseMocks.setWorker).toHaveBeenCalledWith(expect.stringContaining("pdf.worker.mjs"));
     expect(pdfParseMocks.destroy).toHaveBeenCalled();
   });
 

@@ -1,4 +1,6 @@
 import "server-only";
+import path from "path";
+import { pathToFileURL } from "url";
 import { PDFParse } from "pdf-parse";
 
 export const TEXT_EXTRACTION_INSUFFICIENT = "TEXT_EXTRACTION_INSUFFICIENT" as const;
@@ -19,7 +21,21 @@ const normalizeExtractedText = (text: string) =>
 export const isUsablePolicyText = (text: string) =>
   normalizeExtractedText(text).replace(/\s/g, "").length >= MIN_USABLE_POLICY_TEXT_LENGTH;
 
+let isPdfWorkerConfigured = false;
+
+const configurePdfWorker = () => {
+  if (isPdfWorkerConfigured) {
+    return;
+  }
+
+  const workerPath = path.join(process.cwd(), "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs");
+  PDFParse.setWorker(pathToFileURL(workerPath).href);
+  isPdfWorkerConfigured = true;
+};
+
 export const extractPolicyPdfText = async (data: ArrayBuffer | Uint8Array): Promise<PolicyPdfTextExtractionResult> => {
+  configurePdfWorker();
+
   const parser = new PDFParse({ data: data instanceof Uint8Array ? data : new Uint8Array(data) });
 
   try {
