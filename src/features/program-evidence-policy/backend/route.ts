@@ -31,11 +31,16 @@ export const registerProgramEvidencePolicyRoutes = (app: Hono<AppEnv>) => {
   const log = (
     context: Parameters<typeof respond>[0],
     route: string,
-    result: { ok: boolean; error?: { code: string } },
+    result: { ok: boolean; error?: { code: string; details?: unknown } },
     ids: Record<string, string> = {},
   ) => {
     if (!result.ok && result.error) {
-      getLogger(context).error("Program evidence policy API request failed", { code: result.error.code, route, ...ids });
+      getLogger(context).error("Program evidence policy API request failed", {
+        code: result.error.code,
+        details: result.error.details,
+        route,
+        ...ids,
+      });
     }
   };
 
