@@ -21,7 +21,6 @@ import {
   extractApiErrorCode,
   extractApiErrorMessage,
 } from "@/lib/remote/api-client";
-import { uploadProjectDocuments } from "@/features/projects/api";
 import { ProjectForm } from "@/features/projects/components/project-form";
 import {
   useCompanyProjectsQuery,
@@ -344,7 +343,7 @@ export function CompanySettings() {
     }
   });
 
-  const submitProject = async (input: ProjectInput, files: File[]) => {
+  const submitProject = async (input: ProjectInput) => {
     if (!projectCompany) {
       return;
     }
@@ -355,19 +354,13 @@ export function CompanySettings() {
         companyId: projectCompany.id,
         input,
       });
-      const result = await uploadProjectDocuments(project.id, files);
       toast({
-        title: "사업을 등록했습니다.",
-        description: result.failed
-          ? `${result.failed}개 파일은 업로드하지 못했습니다. 관리 화면에서 다시 시도해 주세요.`
-          : `${project.projectName} 등록이 완료되었습니다.`,
+        title: "Project registered.",
+        description: `${project.projectName} project setup was created.`,
       });
-      if (result.failed) {
-        await new Promise((resolve) => window.setTimeout(resolve, 1_000));
-      }
       setIsProjectDirty(false);
       void prefetchDashboard(project.id);
-      router.push(routes.project(project.id));
+      router.push(routes.projectManagement(project.id));
     } catch (error) {
       if (extractApiErrorCode(error) === "PROJECT_ASSIGNMENT_NUMBER_CONFLICT") {
         setProjectAssignmentError("같은 기업에 이미 등록된 과제번호입니다.");
@@ -461,7 +454,6 @@ export function CompanySettings() {
                 onDirtyChange={setIsProjectDirty}
                 onSubmit={submitProject}
                 projects={projectsQuery.data ?? []}
-                showAttachments
               />
             </CardContent>
           </Card>

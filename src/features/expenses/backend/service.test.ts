@@ -241,39 +241,30 @@ describe("expense service", () => {
     });
   });
 
-  it("creates an expense and auto-seeds the project category when missing", async () => {
-    const result = await createExpense(
-      clientFor({
-        projects: {
-          select: { data: { id: PROJECT_ID, deleted_at: null } },
-        },
-        project_budget_categories: {
-          select: { data: null },
-          insert: { data: { id: CATEGORY_ID } },
-        },
-        budget_category_policy_templates: {
-          select: {
-            data: { category_key: "material_cost", is_active: true },
-          },
-        },
-        expenses: {
-          insert: {
-            data: baseExpenseRow(),
-          },
-        },
-      }),
-      PROJECT_ID,
-      {
-        title: "sample expense",
-        categoryKey: "material_cost",
-        fundingSourceKey: "government_subsidy",
-        amount: 300,
-        expectedSpendDate: null,
-        memo: null,
-      },
-    );
+  it("creates an expense through the policy-locked RPC", async () => {
+    const { client, rpcCalls } = clientForWithCalls({}, {
+      create_expense_with_policy_lock: { data: baseExpenseRow() },
+    });
+
+    const result = await createExpense(client, PROJECT_ID, {
+      title: "sample expense",
+      categoryKey: "material_cost",
+      fundingSourceKey: "government_subsidy",
+      amount: 300,
+      expectedSpendDate: null,
+      memo: null,
+    });
 
     expect(result.ok).toBe(true);
+    expect(rpcCalls[0]).toEqual({
+      name: "create_expense_with_policy_lock",
+      args: expect.objectContaining({
+        p_amount: 300,
+        p_category_key: "material_cost",
+        p_project_id: PROJECT_ID,
+        p_subcategory_key: null,
+      }),
+    });
     if (!result.ok) return;
     expect(result.data.stageKey).toBe("budget_registration");
     expect(result.data.projectBudgetCategoryId).toBe(CATEGORY_ID);
@@ -283,11 +274,10 @@ describe("expense service", () => {
   it("rejects unavailable category keys", async () => {
     const result = await createExpense(
       clientFor({
-        projects: {
-          select: { data: { id: PROJECT_ID, deleted_at: null } },
-        },
-        budget_category_policy_templates: {
-          select: { data: null },
+        "rpc:create_expense_with_policy_lock": {
+          select: {
+            error: { code: "P0001", message: "EXPENSE_CATEGORY_UNAVAILABLE" },
+          },
         },
       }),
       PROJECT_ID,
@@ -309,41 +299,9 @@ describe("expense service", () => {
   it("rejects confirmed-policy categories with subcategories when subcategory is missing", async () => {
     const result = await createExpense(
       clientFor({
-        projects: {
+        "rpc:create_expense_with_policy_lock": {
           select: {
-            data: {
-              id: PROJECT_ID,
-              company_id: "10000000-0000-4000-8000-000000000010",
-              confirmed_policy_version_id: "10000000-0000-4000-8000-000000000011",
-              deleted_at: null,
-            },
-          },
-        },
-        program_policy_versions: {
-          select: {
-            data: [{
-              confirmed_at: "2026-06-29T00:00:00.000Z",
-              confirmed_by: null,
-              confirmed_summary: {},
-              created_at: "2026-06-29T00:00:00.000Z",
-              extraction_failure_reason: null,
-              extraction_status: "succeeded",
-              id: "10000000-0000-4000-8000-000000000011",
-              operation_status: "confirmed_policy",
-              project_id: PROJECT_ID,
-              status: "confirmed",
-              version_number: 1,
-            }],
-          },
-        },
-        program_policy_categories: {
-          select: {
-            data: [{ id: "policy-category-1", category_key: "material_cost", category_name: "Materials", sort_order: 0 }],
-          },
-        },
-        program_policy_subcategories: {
-          select: {
-            data: [{ category_id: "policy-category-1", subcategory_key: "equipment", subcategory_name: "Equipment", sort_order: 0 }],
+            error: { code: "P0001", message: "EXPENSE_CATEGORY_UNAVAILABLE" },
           },
         },
       }),

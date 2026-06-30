@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, FileUp, RefreshCcw, Save } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileUp, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { routes } from "@/constants/routes";
 import { useToast } from "@/hooks/use-toast";
 import { extractApiErrorMessage } from "@/lib/remote/api-client";
 import type { PolicyDraftUpdateInput } from "../backend/schema";
@@ -27,6 +29,7 @@ const createEmptyDraft = (): PolicyDraftUpdateInput => ({
 
 export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
   const { toast } = useToast();
+  const router = useRouter();
   const statusQuery = useProjectPolicyStatusQuery(projectId);
   const latestVersionId = statusQuery.data?.latestPolicyVersion?.id ?? null;
   const draftQuery = usePolicyDraftDetailQuery(projectId, latestVersionId);
@@ -93,9 +96,31 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
     try {
       const intent = await mutations.uploadMutation.mutateAsync(file);
       toast({ title: "Policy PDF uploaded", description: "A draft policy version was created." });
-      await mutations.extractMutation.mutateAsync({ extractedText: null, versionId: intent.policyVersionId }).catch(() => undefined);
+      try {
+        await mutations.extractMutation.mutateAsync({ extractedText: null, versionId: intent.policyVersionId });
+        toast({ title: "Policy draft extracted", description: "Review the extracted categories and evidence requirements." });
+      } catch (error) {
+        toast({
+          title: "Policy extraction needs review",
+          description: extractApiErrorMessage(error, "기본 비목으로 시작하거나 텍스트를 붙여넣어 다시 시도해 주세요."),
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({ title: "Policy PDF upload failed", description: extractApiErrorMessage(error), variant: "destructive" });
+    }
+  };
+
+  const onConfirmPolicy = async () => {
+    try {
+      await mutations.confirmMutation.mutateAsync();
+      toast({ title: "Policy confirmed", description: "Expense categories now follow this policy." });
+    } catch (error) {
+      toast({
+        title: "Policy confirmation failed",
+        description: extractApiErrorMessage(error, "정책을 확정하지 못했습니다. 현재 비목으로 계속 진행해 주세요."),
+        variant: "destructive",
+      });
     }
   };
 
@@ -127,6 +152,9 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
             >
               <RefreshCcw className="mr-2 size-4" />
               Extract draft
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => router.push(routes.project(projectId))}>
+              Start with default categories
             </Button>
           </div>
           <Textarea
@@ -163,7 +191,7 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
                 </Button>
                 <Button
                   disabled={!canConfirm || mutations.confirmMutation.isPending}
-                  onClick={() => mutations.confirmMutation.mutate()}
+                  onClick={() => void onConfirmPolicy()}
                   type="button"
                 >
                   <CheckCircle2 className="mr-2 size-4" />
@@ -219,20 +247,32 @@ function PolicyRowEditor({
     onChange({ ...draft, categories });
   };
 
-  const updateEvidence = (index: number, key: "categoryKey" | "evidenceKey" | "evidenceName", value: string) => {
+  const deleteCategory = (index: number) => {
+    const categoryKey = draft.categories[index]?.categoryKey;
+    onChange({
+      ...draft,
+      categories: draft.categories.filter((_, current) => current !== index).map((category, current) => ({ ...category, sortOrder: current })),
+      evidenceRequirements: draft.evidenceRequirements.filter((evidence) => evidence.categoryKey !== categoryKey),
+      subcategories: draft.subcategories.filter((subcategory) => subcategory.categoryKey !== categoryKey),
+    });
+  };
+
+  const updateEvidence = (
+    index: number,
+    key: "categoryKey" | "evidenceKey" | "evidenceName" | "requirementType",
+    value: string,
+  ) => {
     const evidenceRequirements = draft.evidenceRequirements.map((evidence, current) =>
       current === index ? { ...evidence, [key]: value, reviewStatus: "auto_confident" as const } : evidence,
     );
     onChange({ ...draft, evidenceRequirements });
   };
 
-  const formatSourceReference = (sourceReference: Record<string, unknown>) => {
-    const parts = [
-      typeof sourceReference.fileName === "string" ? sourceReference.fileName : null,
-      typeof sourceReference.page === "number" ? `p.${sourceReference.page}` : null,
-      typeof sourceReference.position === "string" ? sourceReference.position : null,
-    ].filter(Boolean);
-    return parts.length ? parts.join(" / ") : "No PDF source reference";
+  const deleteEvidence = (index: number) => {
+    onChange({
+      ...draft,
+      evidenceRequirements: draft.evidenceRequirements.filter((_, current) => current !== index),
+    });
   };
 
   return (
@@ -255,6 +295,7 @@ function PolicyRowEditor({
             type="button"
             variant="outline"
           >
+            <Plus className="mr-2 size-4" />
             Add category
           </Button>
         </div>
@@ -263,9 +304,13 @@ function PolicyRowEditor({
             <div className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
               <Input value={category.categoryKey} onChange={(event) => updateCategory(index, "categoryKey", event.target.value)} />
               <Input value={category.categoryName} onChange={(event) => updateCategory(index, "categoryName", event.target.value)} />
-              <Badge variant={category.reviewStatus === "auto_confident" ? "default" : "secondary"}>{category.reviewStatus}</Badge>
+              <div className="flex items-center justify-end gap-2">
+                <Badge variant={category.reviewStatus === "auto_confident" ? "default" : "secondary"}>{category.reviewStatus}</Badge>
+                <Button aria-label="Delete category" onClick={() => deleteCategory(index)} size="icon" type="button" variant="ghost">
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">{formatSourceReference(category.sourceReference)}</p>
           </div>
         ))}
       </div>
@@ -301,9 +346,21 @@ function PolicyRowEditor({
               <Input value={evidence.categoryKey ?? ""} onChange={(event) => updateEvidence(index, "categoryKey", event.target.value)} />
               <Input value={evidence.evidenceKey} onChange={(event) => updateEvidence(index, "evidenceKey", event.target.value)} />
               <Input value={evidence.evidenceName} onChange={(event) => updateEvidence(index, "evidenceName", event.target.value)} />
-              <Badge variant={evidence.reviewStatus === "auto_confident" ? "default" : "secondary"}>{evidence.requirementType}</Badge>
+              <div className="flex items-center justify-end gap-2">
+                <select
+                  className="h-10 rounded-md border bg-background px-3 text-sm"
+                  value={evidence.requirementType}
+                  onChange={(event) => updateEvidence(index, "requirementType", event.target.value)}
+                >
+                  <option value="required">required</option>
+                  <option value="conditional">conditional</option>
+                  <option value="optional">optional</option>
+                </select>
+                <Button aria-label="Delete evidence" onClick={() => deleteEvidence(index)} size="icon" type="button" variant="ghost">
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">{formatSourceReference(evidence.sourceReference)}</p>
           </div>
         ))}
       </div>

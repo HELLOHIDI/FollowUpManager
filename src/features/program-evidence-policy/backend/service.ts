@@ -21,6 +21,8 @@ import {
   type PolicyUploadIntentInput,
   type ProjectPolicyStatusResponse,
 } from "./schema";
+import { extractPolicyPdfText, TEXT_EXTRACTION_INSUFFICIENT } from "./pdf-text-extraction";
+import { parsePolicyTextDraft } from "./policy-text-parser";
 
 type Client = SupabaseClient<Database> & SupabaseClient<any>;
 type Result<T> = HandlerResult<T, ProgramEvidencePolicyServiceError, unknown>;
@@ -28,33 +30,11 @@ type AnyRow = Record<string, any>;
 
 const VERSION_SELECT = "id, project_id, version_number, status, operation_status, extraction_status, extraction_failure_reason, confirmed_at, confirmed_by, confirmed_summary, created_at";
 const DOCUMENT_SELECT = "id, policy_version_id, project_id, role, original_file_name, file_size, mime_type, upload_status, created_at";
+const POLICY_EXTRACTION_FAILED_MESSAGE =
+  "이 PDF에서는 자동 추출할 수 있는 텍스트를 충분히 찾지 못했어요. 기본 비목으로 시작하거나, 텍스트를 붙여넣어 다시 시도할 수 있어요.";
+const DRAFT_THRESHOLD_NOT_MET = "DRAFT_THRESHOLD_NOT_MET";
 
-export const toStablePolicyKey = (value: string, fallbackPrefix: string) => {
-  const ascii = value
-    .normalize("NFKD")
-    .replace(/[^\w\s-]/g, "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-  return ascii || `${fallbackPrefix}_${Buffer.from(value).toString("hex").slice(0, 8)}`;
-};
-
-const uniqueKey = (base: string, used: Set<string>) => {
-  let next = base;
-  let suffix = 2;
-  while (used.has(next)) {
-    next = `${base}_${suffix}`;
-    suffix += 1;
-  }
-  used.add(next);
-  return next;
-};
-
-const hasSourceReference = (value: unknown) =>
-  Boolean(value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0);
+export { toStablePolicyKey } from "./policy-text-parser";
 
 const mapVersion = (row: AnyRow) =>
   PolicyVersionSummarySchema.parse({
@@ -228,51 +208,8 @@ export const completePolicyUpload = async (client: Client, projectId: string, po
   return success(mapDocument(updated));
 };
 
-const parseTextDraft = (text: string, fileName: string): PolicyDraftUpdateInput | null => {
-  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const categoryCandidates = lines
-    .filter((line) => /비목|사업비|category/i.test(line))
-    .slice(0, 20);
-  const evidenceCandidates = lines
-    .filter((line) => /증빙|서류|영수증|계약서|견적서|invoice|receipt|document/i.test(line))
-    .slice(0, 80);
-
-  if (categoryCandidates.length === 0 || evidenceCandidates.length === 0) {
-    return null;
-  }
-
-  const categoryKeys = new Set<string>();
-  const evidenceKeys = new Set<string>();
-  const categories = categoryCandidates.map((line, index) => {
-    const name = line.replace(/^[-*\d.\s]+/, "").slice(0, 80);
-    return {
-      categoryKey: uniqueKey(toStablePolicyKey(name, "category"), categoryKeys),
-      categoryName: name,
-      rawCategoryName: line,
-      reviewStatus: "needs_admin_review" as const,
-      sortOrder: index,
-      sourceReference: { fileName, position: `line:${index + 1}`, rawText: line },
-    };
-  });
-
-  const documentKeys = new Set<string>();
-  const evidenceRequirements = evidenceCandidates.map((line, index) => {
-    const name = line.replace(/^[-*\d.\s]+/, "").slice(0, 100);
-    return {
-      categoryKey: categories[Math.min(index, categories.length - 1)].categoryKey,
-      conditionText: /경우|시|when|if/i.test(line) ? line : null,
-      documentKey: uniqueKey(toStablePolicyKey(name, "document"), documentKeys),
-      evidenceKey: uniqueKey(toStablePolicyKey(name, "evidence"), evidenceKeys),
-      evidenceName: name,
-      fulfillmentType: "single" as const,
-      requirementType: /경우|시|when|if/i.test(line) ? "conditional" as const : "required" as const,
-      reviewStatus: "needs_admin_review" as const,
-      sourceReference: { fileName, position: `line:${index + 1}`, rawText: line },
-      subcategoryKey: null,
-    };
-  });
-
-  return { categories, evidenceRequirements, subcategories: [] };
+export const parseTextDraft = (text: string, fileName: string): PolicyDraftUpdateInput | null => {
+  return parsePolicyTextDraft(text, { fileName });
 };
 
 export const validateDraftBlockingErrors = (draft: Pick<PolicyDraftUpdateInput, "categories" | "subcategories" | "evidenceRequirements">) => {
@@ -280,17 +217,14 @@ export const validateDraftBlockingErrors = (draft: Pick<PolicyDraftUpdateInput, 
 
   for (const category of draft.categories) {
     if (category.reviewStatus !== "auto_confident") errors.push(`Category requires admin review: ${category.categoryKey}`);
-    if (!hasSourceReference(category.sourceReference)) errors.push(`Category source reference is required: ${category.categoryKey}`);
   }
 
   for (const subcategory of draft.subcategories) {
     if (subcategory.reviewStatus !== "auto_confident") errors.push(`Subcategory requires admin review: ${subcategory.subcategoryKey}`);
-    if (!hasSourceReference(subcategory.sourceReference)) errors.push(`Subcategory source reference is required: ${subcategory.subcategoryKey}`);
   }
 
   for (const evidence of draft.evidenceRequirements) {
     if (evidence.reviewStatus !== "auto_confident") errors.push(`Evidence requires admin review: ${evidence.evidenceKey}`);
-    if (!hasSourceReference(evidence.sourceReference)) errors.push(`Evidence source reference is required: ${evidence.evidenceKey}`);
   }
 
   return [...new Set(errors)];
@@ -357,22 +291,79 @@ export const triggerDraftExtraction = async (
     return failure(409, programEvidencePolicyErrorCodes.documentStateConflict, "Confirmed or archived policy cannot be extracted again.");
   }
 
-  const { data: document } = await client
+  const { data: document, error: documentError } = await client
     .from("program_policy_documents")
-    .select("original_file_name")
+    .select("original_file_name, storage_path")
     .eq("policy_version_id", policyVersionId)
     .eq("role", "primary")
     .eq("upload_status", "ready")
     .maybeSingle();
+  if (documentError) return failure(500, programEvidencePolicyErrorCodes.fetchError, "Failed to load policy document.");
 
-  const draft = input.extractedText ? parseTextDraft(input.extractedText, document?.original_file_name ?? "policy.pdf") : null;
+  let policyText = input.extractedText?.trim() ?? "";
+  const failureReason = DRAFT_THRESHOLD_NOT_MET;
+
+  if (!policyText) {
+    if (!document?.storage_path) {
+      await client
+        .from("program_policy_versions")
+        .update({
+          extraction_failure_reason: TEXT_EXTRACTION_INSUFFICIENT,
+          extraction_status: "failed",
+          operation_status: "extraction_failed",
+          status: "needs_review",
+        })
+        .eq("id", policyVersionId);
+      return failure(409, programEvidencePolicyErrorCodes.extractionFailed, POLICY_EXTRACTION_FAILED_MESSAGE, {
+        reason: TEXT_EXTRACTION_INSUFFICIENT,
+      });
+    }
+
+    const download = await client.storage.from(PROGRAM_POLICY_DOCUMENT_BUCKET).download(document.storage_path);
+    if (download.error || !download.data) {
+      await client
+        .from("program_policy_versions")
+        .update({
+          extraction_failure_reason: TEXT_EXTRACTION_INSUFFICIENT,
+          extraction_status: "failed",
+          operation_status: "extraction_failed",
+          status: "needs_review",
+        })
+        .eq("id", policyVersionId);
+      return failure(409, programEvidencePolicyErrorCodes.extractionFailed, POLICY_EXTRACTION_FAILED_MESSAGE, {
+        reason: TEXT_EXTRACTION_INSUFFICIENT,
+      });
+    }
+
+    const extracted = await extractPolicyPdfText(await download.data.arrayBuffer());
+    if (extracted.ok === false) {
+      await client
+        .from("program_policy_versions")
+        .update({
+          extraction_failure_reason: extracted.reason,
+          extraction_status: "failed",
+          operation_status: "extraction_failed",
+          status: "needs_review",
+        })
+        .eq("id", policyVersionId);
+      return failure(409, programEvidencePolicyErrorCodes.extractionFailed, POLICY_EXTRACTION_FAILED_MESSAGE, {
+        error: extracted.error,
+        reason: extracted.reason,
+      });
+    }
+
+    policyText = extracted.text;
+  }
+
+  const draft = parseTextDraft(policyText, document?.original_file_name ?? "policy.pdf");
   if (!draft) {
-    const reason = input.extractedText ? "Policy text did not pass the usable draft gate." : "PDF text extraction is not available for this document yet.";
     await client
       .from("program_policy_versions")
-      .update({ extraction_failure_reason: reason, extraction_status: "failed", operation_status: "extraction_failed", status: "needs_review" })
+      .update({ extraction_failure_reason: failureReason, extraction_status: "failed", operation_status: "extraction_failed", status: "needs_review" })
       .eq("id", policyVersionId);
-    return failure(409, programEvidencePolicyErrorCodes.extractionFailed, reason);
+    return failure(409, programEvidencePolicyErrorCodes.extractionFailed, POLICY_EXTRACTION_FAILED_MESSAGE, {
+      reason: failureReason,
+    });
   }
   const structuralErrors = validateDraftStructuralErrors(draft);
   if (structuralErrors.length > 0) {
@@ -520,6 +511,13 @@ export const confirmPolicy = async (client: Client, projectId: string, policyVer
     p_policy_version_id: policyVersionId,
     p_project_id: projectId,
   });
+  if (error?.message?.includes("POLICY_REPLACEMENT_BLOCKED_ACTIVE_EXPENSES")) {
+    return failure(
+      409,
+      programEvidencePolicyErrorCodes.documentStateConflict,
+      "이미 등록된 지출내역이 있어 비목 정책을 교체할 수 없어요. 현재 비목으로 계속 진행해 주세요.",
+    );
+  }
   if (error || !data) return failure(500, programEvidencePolicyErrorCodes.writeError, "Failed to confirm policy.");
 
   return success(mapVersion(data));

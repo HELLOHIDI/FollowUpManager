@@ -1,6 +1,6 @@
 begin;
 
-select plan(10);
+select plan(15);
 
 select ok(
   exists(select 1 from storage.buckets where id = 'program-policy-documents' and public = false),
@@ -151,6 +151,11 @@ select ok(
 );
 
 select ok(
+  has_function_privilege('authenticated', 'public.create_expense_with_policy_lock(uuid, text, text, text, text, bigint, date, text)', 'EXECUTE'),
+  'authenticated app path can execute policy-locked expense creation'
+);
+
+select ok(
   exists (
     select 1
     from information_schema.columns
@@ -222,6 +227,103 @@ select ok(
       and category_key = 'original_category'
   ),
   'failed draft replacement preserves the previous draft rows'
+);
+
+update public.program_policy_versions
+set status = 'ready_to_confirm'
+where id = '30000000-0000-0000-0000-000000000002';
+
+insert into public.project_budget_categories (
+  project_id,
+  category_key,
+  sort_order,
+  is_active
+) values (
+  '20000000-0000-0000-0000-000000000001',
+  'material_cost',
+  0,
+  true
+) on conflict (project_id, category_key) do nothing;
+
+insert into public.expenses (
+  id,
+  project_id,
+  project_budget_category_id,
+  category_key,
+  title,
+  stage_key,
+  amount
+)
+select
+  '40000000-0000-0000-0000-000000000001',
+  project_id,
+  id,
+  category_key,
+  'Existing expense',
+  'budget_registration',
+  100
+from public.project_budget_categories
+where project_id = '20000000-0000-0000-0000-000000000001'
+limit 1;
+
+select throws_ok(
+  $$
+  select public.confirm_program_policy_version(
+    '20000000-0000-0000-0000-000000000001',
+    '30000000-0000-0000-0000-000000000002',
+    '2a9d9ca7-50b5-4f59-bd52-a65cc8c9756e',
+    '{"categoryCount":1,"subcategoryCount":0,"evidenceRequirementCount":1}'::jsonb
+  )
+  $$,
+  'P0001',
+  'POLICY_REPLACEMENT_BLOCKED_ACTIVE_EXPENSES',
+  'policy confirmation is blocked while active expenses exist'
+);
+
+update public.expenses
+set deleted_at = now()
+where id = '40000000-0000-0000-0000-000000000001';
+
+select lives_ok(
+  $$
+  select public.confirm_program_policy_version(
+    '20000000-0000-0000-0000-000000000001',
+    '30000000-0000-0000-0000-000000000002',
+    '2a9d9ca7-50b5-4f59-bd52-a65cc8c9756e',
+    '{"categoryCount":1,"subcategoryCount":0,"evidenceRequirementCount":1}'::jsonb
+  )
+  $$,
+  'policy confirmation succeeds after active expenses are gone'
+);
+
+select is(
+  (
+    select string_agg(category_key, ',' order by sort_order, category_key)
+    from public.project_budget_categories
+    where project_id = '20000000-0000-0000-0000-000000000001'
+      and deleted_at is null
+      and is_active
+  ),
+  'original_category',
+  'confirmed policy categories replace fallback project budget categories'
+);
+
+select is(
+  (
+    select category_key
+    from public.create_expense_with_policy_lock(
+      '20000000-0000-0000-0000-000000000001',
+      'original_category',
+      null,
+      'government_subsidy',
+      'Policy locked expense',
+      500,
+      null,
+      null
+    )
+  ),
+  'original_category',
+  'policy-locked expense creation uses the confirmed policy category'
 );
 
 select * from finish();

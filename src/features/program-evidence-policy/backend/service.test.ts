@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toStablePolicyKey, validateDraftBlockingErrors, validateDraftStructuralErrors } from "./service";
+import { parseTextDraft, toStablePolicyKey, validateDraftBlockingErrors, validateDraftStructuralErrors } from "./service";
 
 describe("program evidence policy service helpers", () => {
   it("creates deterministic ASCII fallback keys for Korean labels", () => {
@@ -91,7 +91,7 @@ describe("program evidence policy service helpers", () => {
     expect(errors).toEqual([]);
   });
 
-  it("requires source references and reviewed subcategories before confirmation", () => {
+  it("does not require source references before confirmation in V1", () => {
     const errors = validateDraftBlockingErrors({
       categories: [{
         categoryKey: "material_cost",
@@ -121,9 +121,34 @@ describe("program evidence policy service helpers", () => {
       }],
     });
 
-    expect(errors).toContain("Category source reference is required: material_cost");
     expect(errors).toContain("Subcategory requires admin review: equipment");
-    expect(errors).toContain("Subcategory source reference is required: equipment");
-    expect(errors).toContain("Evidence source reference is required: receipt");
+    expect(errors).not.toContain("Category source reference is required: material_cost");
+    expect(errors).not.toContain("Subcategory source reference is required: equipment");
+    expect(errors).not.toContain("Evidence source reference is required: receipt");
+  });
+
+  it("creates a conservative draft from text-layer policy text", () => {
+    const draft = parseTextDraft(
+      [
+        "사업비 비목",
+        "1. 재료비",
+        "증빙서류: 세금계산서, 거래명세서, 검수확인서",
+        "2. 외주용역비",
+        "증빙서류: 계약서, 견적서, 결과보고서",
+      ].join("\n"),
+      "policy.pdf",
+    );
+
+    expect(draft?.categories).toHaveLength(2);
+    expect(draft?.evidenceRequirements.length).toBeGreaterThanOrEqual(2);
+    expect(draft?.categories[0]?.reviewStatus).toBe("needs_admin_review");
+    expect(draft?.categories[0]?.sourceReference).toEqual({});
+    expect(draft?.evidenceRequirements[0]?.categoryKey).toBe(draft?.categories[0]?.categoryKey);
+  });
+
+  it("rejects text that does not meet the V1 draft threshold", () => {
+    const draft = parseTextDraft("재료비\n증빙서류: 영수증", "policy.pdf");
+
+    expect(draft).toBeNull();
   });
 });
