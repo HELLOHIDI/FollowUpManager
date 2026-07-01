@@ -9,7 +9,6 @@ import {
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { match, P } from "ts-pattern";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser-client";
 import type {
   CurrentUserContextValue,
@@ -36,18 +35,19 @@ export const CurrentUserProvider = ({
 
     try {
       const result = await supabase.auth.getUser();
+      const user = result.data.user;
 
-      const nextSnapshot = match(result)
-        .with({ data: { user: P.nonNullable } }, ({ data }) => ({
-          status: "authenticated" as const,
-          user: {
-            id: data.user.id,
-            email: data.user.email,
-            appMetadata: data.user.app_metadata ?? {},
-            userMetadata: data.user.user_metadata ?? {},
-          },
-        }))
-        .otherwise(() => ({ status: "unauthenticated" as const, user: null }));
+      const nextSnapshot: CurrentUserSnapshot = user
+        ? {
+            status: "authenticated",
+            user: {
+              id: user.id,
+              email: user.email,
+              appMetadata: user.app_metadata ?? {},
+              userMetadata: user.user_metadata ?? {},
+            },
+          }
+        : { status: "unauthenticated", user: null };
 
       setSnapshot(nextSnapshot);
       queryClient.setQueryData(["currentUser"], nextSnapshot);
