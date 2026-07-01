@@ -1,150 +1,164 @@
-alter table public.project_budget_categories
-  drop constraint if exists project_budget_categories_category_key_fkey;
+alter table public.program_policy_evidence_requirements
+  add column if not exists sort_order integer not null default 0;
 
-comment on column public.project_budget_categories.category_key is
-  'Project-local budget category key. Legacy fallback keys may match templates; confirmed program policy keys are project-specific.';
-
-create or replace function public.enforce_confirmed_program_policy_version_immutable()
-returns trigger
-language plpgsql
-as $$
-begin
-  if old.status = 'confirmed'
-    and new.status = 'archived'
-    and new.archived_at is not null
-    and new.id = old.id
-    and new.project_id = old.project_id
-    and new.version_number = old.version_number
-    and new.operation_status = old.operation_status
-    and new.extraction_status = old.extraction_status
-    and new.confirmed_by = old.confirmed_by
-    and new.confirmed_at = old.confirmed_at
-    and new.confirmed_summary = old.confirmed_summary then
-    return new;
-  end if;
-
-  if old.status in ('confirmed', 'archived') then
-    raise exception 'confirmed or archived program policy versions are immutable';
-  end if;
-
-  return new;
-end;
-$$;
-
-create or replace function public.confirm_program_policy_version(
-  p_project_id uuid,
+create or replace function public.replace_program_policy_draft(
   p_policy_version_id uuid,
-  p_confirmed_by uuid,
-  p_confirmed_summary jsonb
+  p_categories jsonb,
+  p_subcategories jsonb,
+  p_evidence_requirements jsonb
 )
-returns public.program_policy_versions
+returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  locked_project public.projects%rowtype;
-  confirmed_row public.program_policy_versions%rowtype;
-  active_expense_count integer;
-  confirmed_category_count integer;
+  item jsonb;
+  category_id uuid;
+  subcategory_id uuid;
 begin
-  select *
-  into locked_project
-  from public.projects
-  where id = p_project_id
-    and deleted_at is null
-  for update;
-
-  if not found then
-    raise exception 'PROJECT_NOT_FOUND'
+  if exists (
+    select 1
+    from public.program_policy_versions
+    where id = p_policy_version_id
+      and (
+        status in ('confirmed', 'archived')
+        or operation_status = 'extraction_failed'
+        or extraction_status = 'failed'
+      )
+  ) then
+    raise exception 'POLICY_VERSION_NOT_EDITABLE'
       using errcode = 'P0002';
   end if;
 
-  select count(*)::integer
-  into active_expense_count
-  from public.expenses
-  where project_id = p_project_id
-    and deleted_at is null;
+  delete from public.program_policy_evidence_requirements
+  where policy_version_id = p_policy_version_id;
 
-  if active_expense_count > 0 then
-    raise exception 'POLICY_REPLACEMENT_BLOCKED_ACTIVE_EXPENSES'
-      using errcode = 'P0001';
-  end if;
+  delete from public.program_policy_subcategories
+  where policy_version_id = p_policy_version_id;
 
-  select count(*)::integer
-  into confirmed_category_count
-  from public.program_policy_categories categories
-  join public.program_policy_versions versions
-    on versions.id = categories.policy_version_id
-  where versions.id = p_policy_version_id
-    and versions.project_id = p_project_id;
+  delete from public.program_policy_categories
+  where policy_version_id = p_policy_version_id;
 
-  if confirmed_category_count = 0 then
-    raise exception 'POLICY_CATEGORIES_REQUIRED'
-      using errcode = 'P0002';
-  end if;
+  for item in select value from jsonb_array_elements(coalesce(p_categories, '[]'::jsonb)) loop
+    insert into public.program_policy_categories (
+      policy_version_id,
+      category_key,
+      category_name,
+      raw_category_name,
+      review_status,
+      sort_order,
+      source_reference
+    ) values (
+      p_policy_version_id,
+      item ->> 'categoryKey',
+      item ->> 'categoryName',
+      nullif(item ->> 'rawCategoryName', ''),
+      item ->> 'reviewStatus',
+      coalesce(nullif(item ->> 'sortOrder', '')::integer, 0),
+      coalesce(item -> 'sourceReference', '{}'::jsonb)
+    );
+  end loop;
 
-  update public.program_policy_versions
-  set
-    archived_at = now(),
-    status = 'archived'
-  where project_id = p_project_id
-    and status = 'confirmed';
+  for item in select value from jsonb_array_elements(coalesce(p_subcategories, '[]'::jsonb)) loop
+    select id
+    into category_id
+    from public.program_policy_categories
+    where policy_version_id = p_policy_version_id
+      and category_key = item ->> 'categoryKey';
 
-  update public.program_policy_versions
-  set
-    confirmed_at = now(),
-    confirmed_by = p_confirmed_by,
-    confirmed_summary = coalesce(p_confirmed_summary, '{}'::jsonb),
-    operation_status = 'confirmed_policy',
-    status = 'confirmed'
-  where id = p_policy_version_id
-    and project_id = p_project_id
-    and status = 'ready_to_confirm'
-  returning * into confirmed_row;
+    if category_id is null then
+      raise exception 'POLICY_CATEGORY_NOT_FOUND'
+        using errcode = 'P0002';
+    end if;
 
-  if not found then
-    raise exception 'POLICY_VERSION_NOT_READY'
-      using errcode = 'P0002';
-  end if;
+    insert into public.program_policy_subcategories (
+      policy_version_id,
+      category_id,
+      subcategory_key,
+      subcategory_name,
+      raw_subcategory_name,
+      review_status,
+      sort_order,
+      source_reference
+    ) values (
+      p_policy_version_id,
+      category_id,
+      item ->> 'subcategoryKey',
+      item ->> 'subcategoryName',
+      nullif(item ->> 'rawSubcategoryName', ''),
+      item ->> 'reviewStatus',
+      coalesce(nullif(item ->> 'sortOrder', '')::integer, 0),
+      coalesce(item -> 'sourceReference', '{}'::jsonb)
+    );
+  end loop;
 
-  update public.project_budget_categories
-  set
-    deleted_at = now(),
-    is_active = false
-  where project_id = p_project_id
-    and deleted_at is null;
+  for item in select value from jsonb_array_elements(coalesce(p_evidence_requirements, '[]'::jsonb)) loop
+    category_id := null;
+    subcategory_id := null;
 
-  insert into public.project_budget_categories (
-    project_id,
-    category_key,
-    sort_order,
-    is_active
-  )
-  select
-    p_project_id,
-    categories.category_key,
-    categories.sort_order,
-    true
-  from public.program_policy_categories categories
-  where categories.policy_version_id = p_policy_version_id
-  order by categories.sort_order, categories.category_key
-  on conflict (project_id, category_key) do update
-  set
-    deleted_at = null,
-    is_active = true,
-    sort_order = excluded.sort_order;
+    if nullif(item ->> 'categoryKey', '') is not null then
+      select id
+      into category_id
+      from public.program_policy_categories
+      where policy_version_id = p_policy_version_id
+        and category_key = item ->> 'categoryKey';
 
-  update public.projects
-  set confirmed_policy_version_id = p_policy_version_id
-  where id = p_project_id;
+      if category_id is null then
+        raise exception 'POLICY_CATEGORY_NOT_FOUND'
+          using errcode = 'P0002';
+      end if;
+    end if;
 
-  return confirmed_row;
+    if nullif(item ->> 'subcategoryKey', '') is not null then
+      select subcategories.id
+      into subcategory_id
+      from public.program_policy_subcategories subcategories
+      join public.program_policy_categories categories
+        on categories.id = subcategories.category_id
+      where subcategories.policy_version_id = p_policy_version_id
+        and categories.category_key = item ->> 'categoryKey'
+        and subcategories.subcategory_key = item ->> 'subcategoryKey';
+
+      if subcategory_id is null then
+        raise exception 'POLICY_SUBCATEGORY_NOT_FOUND'
+          using errcode = 'P0002';
+      end if;
+    end if;
+
+    insert into public.program_policy_evidence_requirements (
+      policy_version_id,
+      category_id,
+      subcategory_id,
+      evidence_key,
+      evidence_name,
+      document_key,
+      requirement_type,
+      fulfillment_type,
+      condition_text,
+      sort_order,
+      review_status,
+      source_reference
+    ) values (
+      p_policy_version_id,
+      category_id,
+      subcategory_id,
+      item ->> 'evidenceKey',
+      item ->> 'evidenceName',
+      coalesce(nullif(item ->> 'documentKey', ''), item ->> 'evidenceKey'),
+      item ->> 'requirementType',
+      item ->> 'fulfillmentType',
+      nullif(item ->> 'conditionText', ''),
+      coalesce(nullif(item ->> 'sortOrder', '')::integer, 0),
+      item ->> 'reviewStatus',
+      coalesce(item -> 'sourceReference', '{}'::jsonb)
+    );
+  end loop;
 end;
 $$;
 
-revoke execute on function public.confirm_program_policy_version(uuid, uuid, uuid, jsonb) from public, anon, authenticated;
-grant execute on function public.confirm_program_policy_version(uuid, uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function public.replace_program_policy_draft(uuid, jsonb, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function public.replace_program_policy_draft(uuid, jsonb, jsonb, jsonb) to authenticated, service_role;
 
 create or replace function public.create_expense_with_policy_lock(
   p_project_id uuid,

@@ -445,7 +445,12 @@ export const getPolicyDraftDetail = async (client: Client, projectId: string, po
     client.from("program_policy_documents").select(DOCUMENT_SELECT).eq("policy_version_id", policyVersionId).order("created_at"),
     client.from("program_policy_categories").select("*").eq("policy_version_id", policyVersionId).order("sort_order"),
     client.from("program_policy_subcategories").select("*").eq("policy_version_id", policyVersionId).order("sort_order"),
-    client.from("program_policy_evidence_requirements").select("*").eq("policy_version_id", policyVersionId).order("created_at"),
+    client
+      .from("program_policy_evidence_requirements")
+      .select("*")
+      .eq("policy_version_id", policyVersionId)
+      .order("sort_order")
+      .order("created_at"),
   ]);
   if (documents.error || categories.error || subcategories.error || evidence.error) {
     return failure(500, programEvidencePolicyErrorCodes.fetchError, "Failed to load policy draft.");
@@ -475,6 +480,7 @@ export const getPolicyDraftDetail = async (client: Client, projectId: string, po
       requirementType: row.requirement_type,
       reviewStatus: row.review_status,
       sourceReference: row.source_reference ?? {},
+      sortOrder: row.sort_order ?? 0,
       subcategoryId: row.subcategory_id,
       subcategoryKey: row.subcategory_id ? subcategoryById.get(row.subcategory_id) ?? null : null,
     })),
@@ -517,15 +523,31 @@ export const previewPolicyConfirmation = async (client: Client, projectId: strin
 };
 
 export const confirmPolicy = async (client: Client, projectId: string, policyVersionId: string, userId: string): Promise<Result<unknown>> => {
-  const preview = await previewPolicyConfirmation(client, projectId, policyVersionId);
-  if (!preview.ok) return preview;
-  if (preview.data.blockingErrors.length > 0) {
-    return failure(409, programEvidencePolicyErrorCodes.validation, "Policy has blocking review errors.", preview.data.blockingErrors);
+  const detail = await getPolicyDraftDetail(client, projectId, policyVersionId);
+  if (!detail.ok) return detail;
+
+  const structuralErrors = validateDraftStructuralErrors(detail.data);
+  if (structuralErrors.length > 0) {
+    return failure(409, programEvidencePolicyErrorCodes.validation, "Policy has structural errors.", structuralErrors);
   }
+
+  const summary = {
+    categoryCount: detail.data.categories.length,
+    evidenceRequirementCount: detail.data.evidenceRequirements.length,
+    subcategoryCount: detail.data.subcategories.length,
+  };
+  const ready = await client
+    .from("program_policy_versions")
+    .update({ status: "ready_to_confirm" })
+    .eq("id", policyVersionId)
+    .eq("project_id", projectId)
+    .neq("status", "confirmed")
+    .neq("status", "archived");
+  if (ready.error) return failure(500, programEvidencePolicyErrorCodes.writeError, "Failed to prepare policy confirmation.");
 
   const { data, error } = await (client as SupabaseClient<any>).rpc("confirm_program_policy_version", {
     p_confirmed_by: userId,
-    p_confirmed_summary: preview.data.summary,
+    p_confirmed_summary: summary,
     p_policy_version_id: policyVersionId,
     p_project_id: projectId,
   });
@@ -564,26 +586,28 @@ export const resolvePolicyCategories = async (client: Client, projectId: string)
   if (status.data.operationStatus !== "confirmed_policy" || !status.data.activePolicyVersionId) {
     const fallbackQuery = client
       .from("project_budget_categories")
-      .select("category_key, budget_category_policy_templates(category_name)")
+      .select("category_key")
       .eq("project_id", projectId);
     const activeFallbackQuery = typeof fallbackQuery.is === "function" ? fallbackQuery.is("deleted_at", null) : fallbackQuery;
     const { data, error } = await activeFallbackQuery.eq("is_active", true);
     if (error) return failure(500, programEvidencePolicyErrorCodes.fetchError, "Failed to load fallback categories.");
+
+    const { data: templates, error: templateError } = await client
+      .from("budget_category_policy_templates")
+      .select("category_key, category_name")
+      .eq("is_active", true);
+    if (templateError) return failure(500, programEvidencePolicyErrorCodes.fetchError, "Failed to load fallback category templates.");
+
+    const templateRows = Array.isArray(templates) ? templates : [];
+    const templateNameByKey = new Map(templateRows.map((row: AnyRow) => [row.category_key, row.category_name]));
     const categories = (Array.isArray(data) ? data : []).map((row: AnyRow) => ({
       categoryKey: row.category_key,
-      categoryName: Array.isArray(row.budget_category_policy_templates)
-        ? row.budget_category_policy_templates[0]?.category_name ?? row.category_key
-        : row.budget_category_policy_templates?.category_name ?? row.category_key,
+      categoryName: templateNameByKey.get(row.category_key) ?? row.category_key,
       sortOrder: getBudgetCategoryPolicySortOrder(row.category_key),
       subcategories: [],
     }));
     if (categories.length === 0) {
-      const { data: templates, error: templateError } = await client
-        .from("budget_category_policy_templates")
-        .select("category_key, category_name")
-        .eq("is_active", true);
-      if (templateError) return failure(500, programEvidencePolicyErrorCodes.fetchError, "Failed to load fallback category templates.");
-      categories.push(...(Array.isArray(templates) ? templates : []).map((row: AnyRow) => ({
+      categories.push(...templateRows.map((row: AnyRow) => ({
         categoryKey: row.category_key,
         categoryName: row.category_name,
         sortOrder: getBudgetCategoryPolicySortOrder(row.category_key),
