@@ -696,25 +696,23 @@ function PolicyEvidenceChecklist({
         {requirements.map((requirement) => {
           const requirementFiles = filesByRequirement.get(requirement.requirementKey) ?? [];
           return (
-            <details key={requirement.requirementKey} className="rounded-md border p-3" open>
-              <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-medium">{requirement.evidenceName}</h3>
-                      <Badge variant={requirement.status === "uploaded" ? "success" : requirement.status === "waived" ? "secondary" : "outline"}>
-                        {requirement.status === "uploaded" ? "업로드됨" : requirement.status === "waived" ? "해당 없음" : "미첨부"}
-                      </Badge>
-                    </div>
-                    {requirement.conditionText ? <p className="mt-1 text-xs text-muted-foreground">{requirement.conditionText}</p> : null}
+            <div key={requirement.requirementKey} className="rounded-md border bg-background px-3 py-2">
+              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate text-sm font-medium">{requirement.evidenceName}</h3>
+                    <Badge variant={requirement.status === "uploaded" ? "success" : requirement.status === "waived" ? "secondary" : "outline"}>
+                      {requirement.status === "uploaded" ? "업로드됨" : requirement.status === "waived" ? "해당 없음" : "미첨부"}
+                    </Badge>
                   </div>
+                  {requirement.conditionText ? <p className="mt-1 truncate text-xs text-muted-foreground">{requirement.conditionText}</p> : null}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 md:justify-end">
                   {requirement.requirementType === "conditional" && requirement.status !== "waived" ? (
                     <Button
                       disabled={waiveRequirementMutation.isPending}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        void waiveRequirementMutation.mutateAsync({ requirementKey: requirement.requirementKey });
-                      }}
+                      onClick={() => void waiveRequirementMutation.mutateAsync({ requirementKey: requirement.requirementKey })}
                       size="sm"
                       type="button"
                       variant="outline"
@@ -722,59 +720,37 @@ function PolicyEvidenceChecklist({
                       해당 없음
                     </Button>
                   ) : null}
-                </div>
-              </summary>
-
-              <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(18rem,1fr)]">
-                <div className="rounded-md bg-muted/30 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">증빙서류 목록</p>
-                  <ul className="mt-2 space-y-2">
-                    {requirement.acceptedDocuments.map((document) => (
-                      <li key={document.documentKey} className="rounded-md border bg-background px-3 py-2 text-sm">
-                        {document.label}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="rounded-md border bg-card p-3">
-                  <p className="text-xs font-medium text-muted-foreground">파일 첨부</p>
-                  <div className="mt-2 space-y-2">
-                    {requirement.acceptedDocuments.map((document) => (
-                      <div key={document.documentKey} className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background px-3 py-2">
-                        <span className="text-sm">{document.label}</span>
-                        <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium">
-                          {uploadMutation.isPending ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Upload className="size-3.5" aria-hidden="true" />}
-                          파일 선택
-                          <Input
-                            className="sr-only"
-                            disabled={uploadMutation.isPending}
-                            multiple
-                            type="file"
-                            accept=".pdf,.doc,.docx,.hwp,.hwpx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp,.zip"
-                            onChange={(event) => {
-                              void handleUpload(requirement.requirementKey, document.documentKey, event.target.files).finally(() => {
-                                event.target.value = "";
-                              });
-                            }}
-                          />
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-
-                  {requirementFiles.length > 0 ? (
-                    <EvidenceFileList
-                      deleteMutation={deleteMutation}
-                      files={requirementFiles}
-                      onOpen={openEvidence}
-                      onRemove={removeEvidence}
-                      openingId={openingId}
-                    />
-                  ) : null}
-                </div>
+                  {requirement.acceptedDocuments.map((document) => (
+                    <label key={document.documentKey} className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium">
+                      {uploadMutation.isPending ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Upload className="size-3.5" aria-hidden="true" />}
+                      파일 선택
+                      <Input
+                        className="sr-only"
+                        disabled={uploadMutation.isPending}
+                        multiple
+                        type="file"
+                        accept=".pdf,.doc,.docx,.hwp,.hwpx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp,.zip"
+                        onChange={(event) => {
+                          void handleUpload(requirement.requirementKey, document.documentKey, event.target.files).finally(() => {
+                            event.target.value = "";
+                          });
+                        }}
+                      />
+                    </label>
+                  ))}
               </div>
-            </details>
+              </div>
+
+              {requirementFiles.length > 0 ? (
+                <EvidenceFileList
+                  deleteMutation={deleteMutation}
+                  files={requirementFiles}
+                  onOpen={openEvidence}
+                  onRemove={removeEvidence}
+                  openingId={openingId}
+                />
+              ) : null}
+            </div>
           );
         })}
       </div>
@@ -888,14 +864,14 @@ function StageSection({
   );
 
   return (
-    <section className={cn("rounded-md border p-4", isCurrent ? "border-primary/40 bg-primary/5" : "bg-background")} aria-labelledby={`stage-${stageKey}`}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+    <details className={cn("rounded-md border p-4", isCurrent ? "border-primary/40 bg-primary/5" : "bg-background")} open>
+      <summary className="mb-4 flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
         <div>
           <h3 id={`stage-${stageKey}`} className="text-sm font-semibold">{stageLabel}</h3>
           <p className="mt-1 text-xs text-muted-foreground">{copy.description}</p>
         </div>
         <Badge variant={isCurrent ? "info" : isEditable ? "secondary" : "outline"}>{isCurrent ? "현재 단계" : isEditable ? "입력 가능" : "예정"}</Badge>
-      </div>
+      </summary>
 
       <div className="space-y-4">
         <StageStatusFields control={control} isEditable={isEditable} stageKey={stageKey} />
@@ -927,7 +903,7 @@ function StageSection({
         </div>
         ) : null}
       </div>
-    </section>
+    </details>
   );
 }
 
