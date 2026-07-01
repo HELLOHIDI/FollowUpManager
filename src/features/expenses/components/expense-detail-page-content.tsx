@@ -28,7 +28,6 @@ import {
   useExpenseEvidenceQuery,
   useExpenseDetailMutations,
   useExpenseDetailQuery,
-  useExpenseHistoryQuery,
   useExpenseStageMutation,
 } from "../hooks/use-expenses-query";
 import {
@@ -78,7 +77,6 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   const { toast } = useToast();
   const query = useExpenseDetailQuery(projectId, expenseId);
   const evidenceQuery = useExpenseEvidenceQuery(projectId, expenseId);
-  const historyQuery = useExpenseHistoryQuery(projectId, expenseId);
   const { updateMutation } = useExpenseDetailMutations(projectId, expenseId);
   const evidenceMutations = useExpenseEvidenceMutations(projectId, expenseId);
   const stageMutation = useExpenseStageMutation(projectId);
@@ -210,7 +208,7 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-lg">지출 상세</CardTitle>
-                <CardDescription>기본 정보, 단계 입력, 증빙과 변경 이력을 한 흐름에서 관리합니다.</CardDescription>
+                <CardDescription>기본 정보, 단계 입력, 증빙을 한 흐름에서 관리합니다.</CardDescription>
               </div>
               <Badge variant="info">{currentStageLabel}</Badge>
             </div>
@@ -247,9 +245,6 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
                 />
               ))}
             </div>
-
-            <ValidationSection />
-            <HistorySection historyQuery={historyQuery} />
           </CardContent>
         </Card>
       </div>
@@ -817,11 +812,13 @@ function EvidenceFileList({
             </p>
           </div>
           <div className="flex shrink-0 gap-1">
-            <Button aria-label={`${evidence.originalFileName} 열기`} disabled={openingId === evidence.id} onClick={() => onOpen(evidence)} size="icon" type="button" variant="ghost">
+            <Button aria-label={`${evidence.originalFileName} 열기`} disabled={openingId === evidence.id} onClick={() => onOpen(evidence)} size="sm" type="button" variant="ghost">
               {openingId === evidence.id ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <ExternalLink className="size-4" aria-hidden="true" />}
+              열기
             </Button>
-            <Button aria-label={`${evidence.originalFileName} 삭제`} disabled={deleteMutation.isPending} onClick={() => onRemove(evidence)} size="icon" type="button" variant="ghost">
+            <Button aria-label={`${evidence.originalFileName} 삭제`} disabled={deleteMutation.isPending} onClick={() => onRemove(evidence)} size="sm" type="button" variant="ghost">
               <Trash2 className="size-4" aria-hidden="true" />
+              삭제
             </Button>
           </div>
         </li>
@@ -982,44 +979,4 @@ function StageStatusFields({
   }
 
   return null;
-}
-
-function ValidationSection() {
-  return (
-    <section className="rounded-md border border-warning/30 bg-warning/10 p-4" aria-labelledby="expense-validation-title">
-      <h2 id="expense-validation-title" className="text-sm font-semibold">검증 메시지</h2>
-      <p className="mt-1 text-sm text-muted-foreground">단계별 필수 입력과 증빙 검증 메시지는 이 영역에 누적됩니다.</p>
-    </section>
-  );
-}
-
-function HistorySection({
-  historyQuery,
-}: {
-  historyQuery: ReturnType<typeof useExpenseHistoryQuery>;
-}) {
-  return (
-    <section className="rounded-md border p-4" aria-labelledby="expense-history-title">
-      <h2 id="expense-history-title" className="text-sm font-semibold">변경 이력</h2>
-      {historyQuery.isPending ? (
-        <p className="mt-2 text-sm text-muted-foreground">변경 이력을 불러오는 중입니다.</p>
-      ) : null}
-      {historyQuery.isError ? (
-        <p className="mt-2 text-sm text-destructive" role="alert">변경 이력을 불러오지 못했습니다.</p>
-      ) : null}
-      {!historyQuery.isPending && !historyQuery.isError && (historyQuery.data?.events.length ?? 0) === 0 ? (
-        <p className="mt-2 text-sm text-muted-foreground">아직 기록된 변경 이력이 없습니다.</p>
-      ) : null}
-      {historyQuery.data?.events.length ? (
-        <ul className="mt-3 space-y-2">
-          {historyQuery.data.events.map((event) => (
-            <li key={event.id} className="rounded-md bg-muted/40 p-3 text-sm">
-              <p className="font-medium">{event.summary}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{new Date(event.changedAt).toLocaleString("ko-KR")}</p>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </section>
-  );
 }
