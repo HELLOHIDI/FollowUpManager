@@ -14,17 +14,13 @@
     use following libraries for specific functionalities:
     
     1. `date-fns`: For efficient date and time handling.
-    2. `ts-pattern`: For clean and type-safe branching logic.
-    3. `@tanstack/react-query`: For server state management.
-    4. `zustand`: For lightweight global state management.
-    5. `react-use`: For commonly needed React hooks.
-    6. `es-toolkit`: For robust utility functions.
-    7. `lucide-react`: For customizable icons.
-    8. `zod`: For schema validation and data integrity.
-    9. `shadcn-ui`: For pre-built accessible UI components.
-    10. `tailwindcss`: For utility-first CSS styling.
-    11. `supabase`: For a backend-as-a-service solution.
-    12. `react-hook-form`: For form validation and state management.
+    2. `@tanstack/react-query`: For server state management.
+    3. `lucide-react`: For customizable icons.
+    4. `zod`: For schema validation and data integrity.
+    5. `shadcn-ui`: For pre-built accessible UI components.
+    6. `tailwindcss`: For utility-first CSS styling.
+    7. `supabase`: For a backend-as-a-service solution.
+    8. `react-hook-form`: For form validation and state management.
     
     ## Directory Structure
     
