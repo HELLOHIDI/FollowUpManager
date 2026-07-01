@@ -217,7 +217,6 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
           </CardHeader>
           <CardContent className="space-y-6">
             <BasicInfoFields form={form} categoryOptions={query.data.categoryOptions} />
-            <PolicyEvidenceSummary policySnapshot={query.data.policySnapshot} />
             {usesPolicyChecklist ? (
               <PolicyEvidenceChecklist
                 deleteMutation={evidenceMutations.deleteMutation}
@@ -361,30 +360,6 @@ function BasicInfoFields({
           <Textarea id="expense-memo" rows={4} {...form.register("memo")} />
         </Field>
       </div>
-    </section>
-  );
-}
-
-function PolicyEvidenceSummary({ policySnapshot }: { policySnapshot: ExpenseDetailResponse["policySnapshot"] }) {
-  const requirements = policyEvidenceOptionsFromSnapshot(policySnapshot);
-  if (requirements.length === 0) return null;
-
-  return (
-    <section className="rounded-md border bg-primary/5 p-4" aria-labelledby="expense-policy-evidence-title">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 id="expense-policy-evidence-title" className="text-sm font-semibold">정책 증빙서류</h2>
-          <p className="mt-1 text-xs text-muted-foreground">확정된 사업 정책에서 이 지출에 저장된 증빙 요구사항입니다.</p>
-        </div>
-        <Badge variant="info">{requirements.length}개</Badge>
-      </div>
-      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-        {requirements.map((requirement) => (
-          <li key={requirement.key} className="rounded-md border bg-background px-3 py-2 text-sm">
-            {requirement.label}
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
@@ -703,77 +678,103 @@ function PolicyEvidenceChecklist({
 
   if (requirements.length === 0) return null;
 
+  const uploadedRequirementCount = requirements.filter((requirement) => requirement.status !== "not_uploaded").length;
+
   return (
-    <section className="rounded-md border bg-background p-4" aria-labelledby="expense-policy-checklist-title">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <details className="rounded-md border bg-background p-4" open>
+      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
         <div>
-          <h2 id="expense-policy-checklist-title" className="text-sm font-semibold">정책 증빙 체크리스트</h2>
-          <p className="mt-1 text-xs text-muted-foreground">확정된 사업 정책의 증빙서류 목록에서 바로 파일을 첨부합니다.</p>
+          <h2 className="text-sm font-semibold">정책 증빙서류</h2>
+          <p className="mt-1 text-xs text-muted-foreground">사업 정책의 증빙서류 목록에서 바로 파일을 첨부합니다.</p>
         </div>
         <Badge variant="info">
-          증빙 {requirements.filter((requirement) => requirement.status !== "not_uploaded").length}/{requirements.length}
+          증빙 {uploadedRequirementCount}/{requirements.length}
         </Badge>
-      </div>
+      </summary>
 
       <div className="mt-4 space-y-3">
         {requirements.map((requirement) => {
           const requirementFiles = filesByRequirement.get(requirement.requirementKey) ?? [];
           return (
-            <article key={requirement.requirementKey} className="rounded-md border p-3">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-medium">{requirement.evidenceName}</h3>
-                    <Badge variant={requirement.status === "uploaded" ? "success" : requirement.status === "waived" ? "secondary" : "outline"}>
-                      {requirement.status === "uploaded" ? "업로드됨" : requirement.status === "waived" ? "해당 없음" : "미첨부"}
-                    </Badge>
+            <details key={requirement.requirementKey} className="rounded-md border p-3" open>
+              <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-medium">{requirement.evidenceName}</h3>
+                      <Badge variant={requirement.status === "uploaded" ? "success" : requirement.status === "waived" ? "secondary" : "outline"}>
+                        {requirement.status === "uploaded" ? "업로드됨" : requirement.status === "waived" ? "해당 없음" : "미첨부"}
+                      </Badge>
+                    </div>
+                    {requirement.conditionText ? <p className="mt-1 text-xs text-muted-foreground">{requirement.conditionText}</p> : null}
                   </div>
-                  {requirement.conditionText ? <p className="mt-1 text-xs text-muted-foreground">{requirement.conditionText}</p> : null}
-                </div>
-                {requirement.requirementType === "conditional" && requirement.status !== "waived" ? (
-                  <Button
-                    disabled={waiveRequirementMutation.isPending}
-                    onClick={() => void waiveRequirementMutation.mutateAsync({ requirementKey: requirement.requirementKey })}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    해당 없음
-                  </Button>
-                ) : null}
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {requirement.acceptedDocuments.map((document) => (
-                  <label key={document.documentKey} className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium">
-                    {uploadMutation.isPending ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Upload className="size-3.5" aria-hidden="true" />}
-                    {document.label}
-                    <Input
-                      className="sr-only"
-                      disabled={uploadMutation.isPending}
-                      multiple
-                      type="file"
-                      accept=".pdf,.doc,.docx,.hwp,.hwpx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp,.zip"
-                      onChange={(event) => {
-                        void handleUpload(requirement.requirementKey, document.documentKey, event.target.files).finally(() => {
-                          event.target.value = "";
-                        });
+                  {requirement.requirementType === "conditional" && requirement.status !== "waived" ? (
+                    <Button
+                      disabled={waiveRequirementMutation.isPending}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void waiveRequirementMutation.mutateAsync({ requirementKey: requirement.requirementKey });
                       }}
-                    />
-                  </label>
-                ))}
-              </div>
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      해당 없음
+                    </Button>
+                  ) : null}
+                </div>
+              </summary>
 
-              {requirementFiles.length > 0 ? (
-                <EvidenceFileList
-                  deleteMutation={deleteMutation}
-                  files={requirementFiles}
-                  onOpen={openEvidence}
-                  onRemove={removeEvidence}
-                  openingId={openingId}
-                />
-              ) : null}
-            </article>
+              <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(18rem,1fr)]">
+                <div className="rounded-md bg-muted/30 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">증빙서류 목록</p>
+                  <ul className="mt-2 space-y-2">
+                    {requirement.acceptedDocuments.map((document) => (
+                      <li key={document.documentKey} className="rounded-md border bg-background px-3 py-2 text-sm">
+                        {document.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="rounded-md border bg-card p-3">
+                  <p className="text-xs font-medium text-muted-foreground">파일 첨부</p>
+                  <div className="mt-2 space-y-2">
+                    {requirement.acceptedDocuments.map((document) => (
+                      <div key={document.documentKey} className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background px-3 py-2">
+                        <span className="text-sm">{document.label}</span>
+                        <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium">
+                          {uploadMutation.isPending ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Upload className="size-3.5" aria-hidden="true" />}
+                          파일 선택
+                          <Input
+                            className="sr-only"
+                            disabled={uploadMutation.isPending}
+                            multiple
+                            type="file"
+                            accept=".pdf,.doc,.docx,.hwp,.hwpx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp,.zip"
+                            onChange={(event) => {
+                              void handleUpload(requirement.requirementKey, document.documentKey, event.target.files).finally(() => {
+                                event.target.value = "";
+                              });
+                            }}
+                          />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+
+                  {requirementFiles.length > 0 ? (
+                    <EvidenceFileList
+                      deleteMutation={deleteMutation}
+                      files={requirementFiles}
+                      onOpen={openEvidence}
+                      onRemove={removeEvidence}
+                      openingId={openingId}
+                    />
+                  ) : null}
+                </div>
+              </div>
+            </details>
           );
         })}
       </div>
@@ -791,7 +792,7 @@ function PolicyEvidenceChecklist({
                       requirement.acceptedDocuments.map((document) => (
                         <Button
                           disabled={relinkMutation.isPending}
-                          key={`${requirement.requirementKey}-${document.documentKey}`}
+                          key={requirement.requirementKey + "-" + document.documentKey}
                           onClick={() => void relinkMutation.mutateAsync({
                             documentKey: document.documentKey,
                             evidenceId: file.id,
@@ -812,7 +813,7 @@ function PolicyEvidenceChecklist({
           </ul>
         </div>
       ) : null}
-    </section>
+    </details>
   );
 }
 

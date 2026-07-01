@@ -259,7 +259,7 @@ describe("ExpenseDetailPageContent", () => {
     render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
 
     const file = new File(["pdf"], "receipt.pdf", { type: "application/pdf" });
-    fireEvent.change(screen.getByLabelText("Receipt"), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText("파일 선택"), { target: { files: [file] } });
 
     await waitFor(() => expect(uploadMutateAsync).toHaveBeenCalledWith({
       documentKey: "receipt",
