@@ -3,15 +3,15 @@
 ## Source of Truth
 
 - Status: Active
-- Last refreshed: 2026-06-26
+- Last refreshed: 2026-07-01
 - Primary product surfaces: project dashboard, expense detail, project export
-- Evidence reviewed: `vooster-docs/prd.md`, `vooster-docs/architecture.md`, `vooster-docs/design-guide.md`, `vooster-docs/ia.md`, `vooster-docs/step-by-step.md`, `vooster-docs/guideline.md`, `vooster-docs/clean-code.md`, Figma file `GrantFollow UI System Wireframes` (`PJN5kW4PRknfi0bM8maGtM`)
+- Evidence reviewed: `vooster-docs/prd.md`, `vooster-docs/architecture.md`, `vooster-docs/design-guide.md`, `vooster-docs/ia.md`, `vooster-docs/step-by-step.md`, `vooster-docs/guideline.md`, `vooster-docs/clean-code.md`, `src/app/globals.css`, `src/app/design-tokens.test.ts`, Figma file `FuManager UI System Wireframes` (`PJN5kW4PRknfi0bM8maGtM`)
 - Current Figma decision: keep the current workflow structure and apply a stronger color/system hierarchy. Do not switch to the denser proposed panel layout yet.
 - Priority on conflict: PRD -> IA -> Architecture -> this DESIGN.md -> Design Guide -> Guideline -> Step-by-step -> Clean Code.
 
 ## Product Direction
 
-GrantFollow is an operational dashboard for government grant expense follow-up. The approved UI direction is `Current+Color`: preserve the current workflow and make priority clearer with semantic color, badges, accent bars, readable amounts, and light surface depth.
+FuManager is an operational dashboard for government grant expense follow-up. The approved UI direction is `Current+Color`: preserve the current workflow and make priority clearer with semantic color, badges, accent bars, readable amounts, and light surface depth.
 
 Avoid:
 - Dense side-by-side structural redesigns.
@@ -43,12 +43,14 @@ Use these labels everywhere in code, tests, docs, UI, and exports:
 
 ## Visual Language
 
-- Primary: indigo `#5E6AD2`
+- Primary: Toss Blue `#3182F6` (`--primary: 215.33 91.63% 57.84%`)
+- Primary strong: `#2272EB` for hover, pressed, and small text-link contrast
+- Primary weak: `#E8F3FF` surface with `#2272EB` text for secondary emphasis
 - Ink/navy: `#0F172A`
-- Semantic accents: success `#16A34A`, warning `#F59E0B`, error `#DC2626`, info `#06B6D4`
-- Surfaces: cool gray backgrounds with white cards and restrained borders
+- Semantic accents: success `#03B26C`, warning `#FE9800`, error `#F04452`, info `#18A5A5`
+- Surfaces: cool gray `#F9FAFB` / `#F2F4F6` backgrounds with white cards and restrained borders
 - Typography: compact Korean-first operational copy; amounts use tabular numeric emphasis
-- Shape: 8px-ish radius, border-first cards, light shadows only for major surfaces
+- Shape: 10px-ish radius, border-first controls, light shadows only for major surfaces
 
 ## Dashboard Rules
 

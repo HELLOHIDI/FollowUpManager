@@ -7,7 +7,7 @@
     - always use promise for page.tsx params props.
     - use valid picsum.photos stock image for placeholder image
     - when documentation conflicts, resolve product and IA decisions in this priority order: PRD > IA > Architecture > Design Guide > Guideline > Step-by-step > Clean-code.
-    - for GrantFollow MVP, keep Supabase Auth single internal account login and exclude multi-user role/permission management.
+    - for FuManager MVP, keep Supabase Auth single internal account login and exclude multi-user role/permission management.
     
     ## Library
     

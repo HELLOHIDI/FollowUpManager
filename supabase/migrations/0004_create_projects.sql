@@ -110,4 +110,4 @@ to authenticated
 using (true);
 
 comment on table public.projects is
-  'GrantFollow project and agreement context owned by a company.';
+  'FuManager project and agreement context owned by a company.';

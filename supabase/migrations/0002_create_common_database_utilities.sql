@@ -1,4 +1,4 @@
--- Migration: common database utilities for GrantFollow domain tables
+-- Migration: common database utilities for FuManager domain tables
 
 create extension if not exists "pgcrypto";
 
@@ -13,4 +13,4 @@ end;
 $$;
 
 comment on function public.set_updated_at() is
-  'Keeps updated_at current for GrantFollow domain tables.';
+  'Keeps updated_at current for FuManager domain tables.';

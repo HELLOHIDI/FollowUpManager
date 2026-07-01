@@ -1,4 +1,4 @@
-# GrantFollow 기업 등록 정책
+# FuManager 기업 등록 정책
 
 상태: Slice 1 구현 기준  
 기준일: 2026-06-22

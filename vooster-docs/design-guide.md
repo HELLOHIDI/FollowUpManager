@@ -1,4 +1,4 @@
-﻿# GrantFollow Design Guide
+﻿# FuManager Design Guide
 
 ## 1. Overall Mood (전체적인 무드)
 - 컨셉: Trustworthy & Professional(차분한 컬러, 정돈된 레이아웃)
@@ -125,7 +125,7 @@
 
 ## 8. KPI 계산 및 대시보드 규칙
 - KPI 구성(3개 고정)
-  1) 소진액: “집행 요청” 단계 카드 금액 합계
+  1) 소진액: “집행 완료” 단계 카드 금액 합계
   2) 잔액: 총예산 − 소진액
   3) 예산소진율(협약기간 대비): (소진액/총예산) ÷ (경과일/전체일) × 100
      - 임계값 컬러: 100% 초과 시 Error, 80~100% Warning, 미만은 Default
@@ -227,7 +227,7 @@
 
 ## Current+Color UI direction from Figma (2026-06-26)
 
-Source: Figma `GrantFollow UI System Wireframes`
+Source: Figma `FuManager UI System Wireframes`
 (`https://www.figma.com/design/PJN5kW4PRknfi0bM8maGtM`).
 
 The approved direction is not the dense `Proposed` structural redesign. Keep the

@@ -1,6 +1,6 @@
-# GrantFollow Domain Policies
+# FuManager Domain Policies
 
-  이 디렉터리는 GrantFollow의 도메인별 정책 문서를 관리한다.
+  이 디렉터리는 FuManager의 도메인별 정책 문서를 관리한다.
   기능 구현 전 관련 정책 문서를 반드시 확인한다.
 
   ## Policy Index

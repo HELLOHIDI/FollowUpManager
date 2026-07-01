@@ -1,4 +1,4 @@
-# GrantFollow 구현 백로그
+# FuManager 구현 백로그
 
 상태: Slice 1 기업 등록 구현 완료  
 기준일: 2026-06-22
