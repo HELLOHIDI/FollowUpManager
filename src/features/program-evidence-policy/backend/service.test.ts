@@ -1,10 +1,81 @@
 import { describe, expect, it } from "vitest";
-import { parseTextDraft, toStablePolicyKey, validateDraftBlockingErrors, validateDraftStructuralErrors } from "./service";
+import { parseTextDraft, resolvePolicyCategories, toStablePolicyKey, validateDraftBlockingErrors, validateDraftStructuralErrors } from "./service";
+
+const clientForPolicyCategoryFallback = () => {
+  const selects: string[] = [];
+  const dataByTable: Record<string, unknown> = {
+    budget_category_policy_templates: [
+      { category_key: "material_cost", category_name: "Materials" },
+    ],
+    program_policy_versions: [
+      {
+        confirmed_at: null,
+        confirmed_by: null,
+        confirmed_summary: {},
+        created_at: "2026-07-01T00:00:00.000Z",
+        extraction_failure_reason: null,
+        extraction_status: "succeeded",
+        id: "22222222-2222-4222-8222-222222222222",
+        operation_status: "draft_needs_review",
+        project_id: "11111111-1111-4111-8111-111111111111",
+        status: "needs_review",
+        version_number: 1,
+      },
+    ],
+    project_budget_categories: [
+      { category_key: "material_cost" },
+    ],
+    projects: {
+      company_id: "33333333-3333-4333-8333-333333333333",
+      confirmed_policy_version_id: null,
+      id: "11111111-1111-4111-8111-111111111111",
+    },
+  };
+
+  const client = {
+    from: (table: string) => {
+      const chain: any = {
+        eq: () => chain,
+        is: () => chain,
+        limit: () => chain,
+        maybeSingle: async () => ({ data: dataByTable[table], error: null }),
+        order: () => chain,
+        select: (columns: string) => {
+          selects.push(columns);
+          return chain;
+        },
+        then: (resolve: (value: { data: unknown; error: null }) => unknown, reject?: (reason?: unknown) => unknown) =>
+          Promise.resolve({ data: dataByTable[table] ?? [], error: null }).then(resolve, reject),
+      };
+      return chain;
+    },
+  };
+
+  return { client: client as any, selects };
+};
 
 describe("program evidence policy service helpers", () => {
   it("creates deterministic ASCII fallback keys when labels sanitize empty", () => {
     expect(toStablePolicyKey("!!!!", "category")).toMatch(/^category_[a-f0-9]{8}$/);
     expect(toStablePolicyKey("Material Cost", "category")).toBe("material_cost");
+  });
+
+  it("resolves fallback categories without relying on missing PostgREST relationships", async () => {
+    const { client, selects } = clientForPolicyCategoryFallback();
+
+    const result = await resolvePolicyCategories(client, "11111111-1111-4111-8111-111111111111");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(selects).not.toContain("category_key, budget_category_policy_templates(category_name)");
+    expect(result.data.categories).toEqual([
+      {
+        categoryKey: "material_cost",
+        categoryName: "Materials",
+        sortOrder: 0,
+        subcategories: [],
+      },
+    ]);
   });
 
   it("blocks confirmation while rows still require admin review", () => {

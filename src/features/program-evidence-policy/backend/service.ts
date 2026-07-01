@@ -586,26 +586,28 @@ export const resolvePolicyCategories = async (client: Client, projectId: string)
   if (status.data.operationStatus !== "confirmed_policy" || !status.data.activePolicyVersionId) {
     const fallbackQuery = client
       .from("project_budget_categories")
-      .select("category_key, budget_category_policy_templates(category_name)")
+      .select("category_key")
       .eq("project_id", projectId);
     const activeFallbackQuery = typeof fallbackQuery.is === "function" ? fallbackQuery.is("deleted_at", null) : fallbackQuery;
     const { data, error } = await activeFallbackQuery.eq("is_active", true);
     if (error) return failure(500, programEvidencePolicyErrorCodes.fetchError, "Failed to load fallback categories.");
+
+    const { data: templates, error: templateError } = await client
+      .from("budget_category_policy_templates")
+      .select("category_key, category_name")
+      .eq("is_active", true);
+    if (templateError) return failure(500, programEvidencePolicyErrorCodes.fetchError, "Failed to load fallback category templates.");
+
+    const templateRows = Array.isArray(templates) ? templates : [];
+    const templateNameByKey = new Map(templateRows.map((row: AnyRow) => [row.category_key, row.category_name]));
     const categories = (Array.isArray(data) ? data : []).map((row: AnyRow) => ({
       categoryKey: row.category_key,
-      categoryName: Array.isArray(row.budget_category_policy_templates)
-        ? row.budget_category_policy_templates[0]?.category_name ?? row.category_key
-        : row.budget_category_policy_templates?.category_name ?? row.category_key,
+      categoryName: templateNameByKey.get(row.category_key) ?? row.category_key,
       sortOrder: getBudgetCategoryPolicySortOrder(row.category_key),
       subcategories: [],
     }));
     if (categories.length === 0) {
-      const { data: templates, error: templateError } = await client
-        .from("budget_category_policy_templates")
-        .select("category_key, category_name")
-        .eq("is_active", true);
-      if (templateError) return failure(500, programEvidencePolicyErrorCodes.fetchError, "Failed to load fallback category templates.");
-      categories.push(...(Array.isArray(templates) ? templates : []).map((row: AnyRow) => ({
+      categories.push(...templateRows.map((row: AnyRow) => ({
         categoryKey: row.category_key,
         categoryName: row.category_name,
         sortOrder: getBudgetCategoryPolicySortOrder(row.category_key),
