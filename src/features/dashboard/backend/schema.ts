@@ -14,6 +14,8 @@ export const DashboardExpenseSchema = z.object({
   title: z.string().trim().min(1),
   amount: safeAmount,
   stageKey: z.enum(stageKeys),
+  evidenceUploadedCount: z.number().int().nonnegative().optional(),
+  evidenceRequiredCount: z.number().int().nonnegative().optional(),
 });
 
 export const DashboardCategorySchema = z.object({
@@ -59,6 +61,8 @@ export const DashboardSnapshotSchema = z.object({
     title: z.string().trim().min(1),
     amount: safeAmount,
     stageKey: z.enum(stageKeys),
+    evidenceUploadedCount: z.number().int().nonnegative().optional(),
+    evidenceRequiredCount: z.number().int().nonnegative().optional(),
   })),
   integrityCode: z.string().nullable(),
 });

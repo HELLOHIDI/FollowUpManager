@@ -137,6 +137,50 @@ describe("program evidence policy service helpers", () => {
     expect(errors).toEqual(["Duplicate category key: material_cost"]);
   });
 
+  it("validates custom accepted document lists for each evidence requirement", () => {
+    const errors = validateDraftStructuralErrors({
+      categories: [{
+        categoryKey: "material_cost",
+        categoryName: "Material cost",
+        reviewStatus: "auto_confident",
+        sortOrder: 0,
+        sourceReference: { page: 1 },
+      }],
+      evidenceRequirements: [{
+        acceptedDocuments: [
+          { documentKey: "receipt", label: "Receipt" },
+          { documentKey: "receipt", label: "Receipt duplicate" },
+        ],
+        categoryKey: "material_cost",
+        documentKey: "receipt",
+        evidenceKey: "payment_bundle",
+        evidenceName: "Payment bundle",
+        fulfillmentType: "all_of",
+        requirementType: "required",
+        reviewStatus: "auto_confident",
+        sourceReference: { page: 1 },
+      }, {
+        acceptedDocuments: [
+          { documentKey: "invoice", label: "Tax invoice" },
+        ],
+        categoryKey: "material_cost",
+        documentKey: "invoice",
+        evidenceKey: "invoice_bundle",
+        evidenceName: "Invoice bundle",
+        fulfillmentType: "all_of",
+        requirementType: "required",
+        reviewStatus: "auto_confident",
+        sourceReference: { page: 1 },
+      }],
+      subcategories: [],
+    });
+
+    expect(errors).toEqual([
+      "Duplicate accepted document key: payment_bundle/receipt",
+      "all_of evidence requires at least two accepted documents: invoice_bundle",
+    ]);
+  });
+
   it("allows common evidence requirements without category linkage", () => {
     const errors = validateDraftBlockingErrors({
       categories: [{
@@ -215,6 +259,12 @@ describe("program evidence policy service helpers", () => {
     expect(draft?.categories[0]?.reviewStatus).toBe("needs_admin_review");
     expect(draft?.categories[0]?.sourceReference).toEqual({});
     expect(draft?.evidenceRequirements[0]?.categoryKey).toBe(draft?.categories[0]?.categoryKey);
+    expect(draft?.evidenceRequirements[0]?.acceptedDocuments).toEqual([
+      expect.objectContaining({
+        documentKey: draft?.evidenceRequirements[0]?.documentKey,
+        label: draft?.evidenceRequirements[0]?.evidenceName,
+      }),
+    ]);
     expect(draft?.categories.some((category) => category.categoryName.includes("tech transfer"))).toBe(false);
   });
 

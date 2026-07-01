@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { failure, success, type HandlerResult } from "@/backend/http/response";
 import type { Database, Json } from "@/lib/supabase/types";
@@ -18,6 +18,8 @@ import {
   ExpenseEvidenceFileResponseSchema,
   ExpenseEvidenceListResponseSchema,
   ExpenseEvidenceSignedUrlResponseSchema,
+  ExpenseEvidenceRelinkInputSchema,
+  ExpenseEvidenceRequirementStatusInputSchema,
   ExpenseEvidenceUploadInputSchema,
   EXPENSE_EVIDENCE_BUCKET,
   ExpenseHistoryResponseSchema,
@@ -31,6 +33,8 @@ import {
   type ExpenseEvidenceListResponse,
   type ExpenseEvidenceSignedUrlResponse,
   type ExpenseEvidenceUploadInput,
+  type ExpenseEvidenceRelinkInput,
+  type ExpenseEvidenceRequirementStatusInput,
   type ExpenseHistoryResponse,
   type ExpensePageResponse,
   type ExpenseResponse,
@@ -69,6 +73,7 @@ type ResolveProjectBudgetCategoryResult =
   | { unavailable: true };
 
 type PolicyEvidenceRequirementRow = {
+  accepted_documents?: unknown;
   category_id: string | null;
   condition_text: string | null;
   document_key: string | null;
@@ -79,6 +84,31 @@ type PolicyEvidenceRequirementRow = {
   sort_order: number | null;
   source_reference: unknown;
   subcategory_id: string | null;
+};
+
+type AcceptedDocument = {
+  documentKey: string;
+  label: string;
+};
+
+type PolicySnapshotRequirement = {
+  acceptedDocuments: AcceptedDocument[];
+  conditionText: string | null;
+  documentKey: string;
+  evidenceKey: string;
+  evidenceName: string;
+  fulfillmentType: "single" | "any_of" | "all_of";
+  requirementType: "required" | "conditional" | "optional";
+  sortOrder: number;
+};
+
+type RequirementStatusRow = {
+  changed_at: string;
+  changed_by: string | null;
+  policy_snapshot_hash: string;
+  requirement_key: string;
+  status: "waived";
+  waived_reason: string | null;
 };
 
 type ResolvedExpenseCategory =
@@ -275,6 +305,100 @@ export const filterPolicyEvidenceRows = (
         || left.evidence_key.localeCompare(right.evidence_key);
     });
 
+const normalizeAcceptedDocuments = (row: {
+  accepted_documents?: unknown;
+  document_key?: string | null;
+  evidence_key: string;
+  evidence_name: string;
+}): AcceptedDocument[] => {
+  const documents = Array.isArray(row.accepted_documents)
+    ? row.accepted_documents
+        .map((document) => {
+          if (!document || typeof document !== "object" || Array.isArray(document)) return null;
+          const value = document as Record<string, unknown>;
+          const documentKey = typeof value.documentKey === "string" ? value.documentKey.trim() : "";
+          const label = typeof value.label === "string" ? value.label.trim() : "";
+          return documentKey && label ? { documentKey, label } : null;
+        })
+        .filter((document): document is AcceptedDocument => Boolean(document))
+    : [];
+
+  if (documents.length > 0) return documents;
+  return [{
+    documentKey: row.document_key || row.evidence_key,
+    label: row.evidence_name,
+  }];
+};
+
+const normalizePolicyRequirements = (policySnapshot: Record<string, unknown> | null | undefined): PolicySnapshotRequirement[] => {
+  const requirements = policySnapshot?.evidence_requirements;
+  if (!Array.isArray(requirements)) return [];
+
+  return requirements.flatMap((requirement): PolicySnapshotRequirement[] => {
+    if (!requirement || typeof requirement !== "object" || Array.isArray(requirement)) return [];
+    const row = requirement as Record<string, unknown>;
+    const evidenceKey = typeof row.evidence_key === "string" ? row.evidence_key : "";
+    const evidenceName = typeof row.evidence_name === "string" ? row.evidence_name : evidenceKey;
+    const documentKey = typeof row.document_key === "string" ? row.document_key : evidenceKey;
+    const fulfillmentType = row.fulfillment_type === "any_of" || row.fulfillment_type === "all_of" ? row.fulfillment_type : "single";
+    const requirementType = row.requirement_type === "conditional" || row.requirement_type === "optional" ? row.requirement_type : "required";
+    if (!evidenceKey || !evidenceName || !documentKey) return [];
+
+    return [{
+      acceptedDocuments: normalizeAcceptedDocuments({
+        accepted_documents: row.accepted_documents,
+        document_key: documentKey,
+        evidence_key: evidenceKey,
+        evidence_name: evidenceName,
+      }),
+      conditionText: typeof row.condition_text === "string" ? row.condition_text : null,
+      documentKey,
+      evidenceKey,
+      evidenceName,
+      fulfillmentType,
+      requirementType,
+      sortOrder: typeof row.sort_order === "number" ? row.sort_order : 0,
+    }];
+  });
+};
+
+const canonicalize = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (!value || typeof value !== "object") return value;
+  return Object.keys(value as Record<string, unknown>)
+    .sort()
+    .reduce<Record<string, unknown>>((result, key) => {
+      result[key] = canonicalize((value as Record<string, unknown>)[key]);
+      return result;
+    }, {});
+};
+
+const createPolicySnapshotHash = (policySnapshot: Record<string, unknown> | null | undefined) => {
+  const requirements = normalizePolicyRequirements(policySnapshot)
+    .map((requirement) => ({
+      acceptedDocuments: [...requirement.acceptedDocuments].sort((left, right) => left.documentKey.localeCompare(right.documentKey)),
+      conditionText: requirement.conditionText,
+      documentKey: requirement.documentKey,
+      evidenceKey: requirement.evidenceKey,
+      evidenceName: requirement.evidenceName,
+      fulfillmentType: requirement.fulfillmentType,
+      requirementType: requirement.requirementType,
+      sortOrder: requirement.sortOrder,
+    }))
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.evidenceKey.localeCompare(right.evidenceKey));
+  if (requirements.length === 0) return null;
+
+  const snapshot = canonicalize({
+    categoryKey: policySnapshot?.category_key,
+    subcategoryKey: policySnapshot?.subcategory_key ?? null,
+    requirements,
+  });
+  return createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
+};
+
+const findRequirement = (policySnapshot: Record<string, unknown> | null | undefined, requirementKey: string) =>
+  normalizePolicyRequirements(policySnapshot).find((requirement) => requirement.evidenceKey === requirementKey) ?? null;
+
 const resolveExpenseCategory = async (
   client: SupabaseClient<Database>,
   projectId: string,
@@ -326,7 +450,7 @@ const resolveExpenseCategory = async (
 
     const evidenceRows = await (client as SupabaseClient<any>)
       .from("program_policy_evidence_requirements")
-      .select("category_id, subcategory_id, evidence_key, evidence_name, requirement_type, fulfillment_type, condition_text, document_key, sort_order, source_reference")
+      .select("category_id, subcategory_id, accepted_documents, evidence_key, evidence_name, requirement_type, fulfillment_type, condition_text, document_key, sort_order, source_reference")
       .eq("policy_version_id", policyOptions.data.policyVersionId);
     if (evidenceRows.error) {
       return { kind: "error", error: evidenceRows.error };
@@ -341,6 +465,7 @@ const resolveExpenseCategory = async (
       category_key: category.categoryKey,
       category_name: category.categoryName,
       evidence_requirements: selectedEvidenceRows.map((row) => ({
+        accepted_documents: normalizeAcceptedDocuments(row),
         condition_text: row.condition_text ?? null,
         document_key: row.document_key,
         evidence_key: row.evidence_key,
@@ -527,6 +652,75 @@ const mapEvidenceResponse = (row: EvidenceRow, duplicateStatus: "none" | "possib
     requirementKey: row.requirement_key ?? null,
     uploadedAt: row.uploaded_at,
   });
+
+const buildEvidenceListResponse = (
+  rows: EvidenceRow[],
+  duplicateCounts: Map<string, number>,
+  requirements: PolicySnapshotRequirement[],
+  statusRows: RequirementStatusRow[],
+  policySnapshotHash: string | null,
+) => {
+  const files: ExpenseEvidenceFileResponse[] = [];
+  for (const row of rows) {
+    const mapped = mapEvidenceResponse(row, (duplicateCounts.get(duplicateKey(row)) ?? 0) > 1 ? "possible_duplicate" : "none");
+    if (!mapped.success) return null;
+    files.push(mapped.data);
+  }
+
+  const filesByRequirement = new Map<string, ExpenseEvidenceFileResponse[]>();
+  for (const file of files) {
+    if (!file.requirementKey) continue;
+    const list = filesByRequirement.get(file.requirementKey) ?? [];
+    list.push(file);
+    filesByRequirement.set(file.requirementKey, list);
+  }
+  const statusByRequirement = new Map(statusRows.map((row) => [row.requirement_key, row]));
+
+  const requirementResponses = requirements.map((requirement) => {
+    const requirementFiles = filesByRequirement.get(requirement.evidenceKey) ?? [];
+    const uploadedDocumentKeys = new Set(requirementFiles.map((file) => file.documentKey));
+    const acceptedDocuments = requirement.acceptedDocuments.map((document) => ({
+      ...document,
+      uploaded: uploadedDocumentKeys.has(document.documentKey),
+    }));
+    const waived = requirement.requirementType === "conditional" ? statusByRequirement.get(requirement.evidenceKey) ?? null : null;
+    const isUploaded = requirement.fulfillmentType === "all_of"
+      ? acceptedDocuments.every((document) => document.uploaded)
+      : requirementFiles.length > 0;
+
+    return {
+      acceptedDocuments,
+      changedAt: waived?.changed_at ?? null,
+      changedBy: waived?.changed_by ?? null,
+      conditionText: requirement.conditionText,
+      evidenceName: requirement.evidenceName,
+      fulfillmentType: requirement.fulfillmentType,
+      requirementKey: requirement.evidenceKey,
+      requirementType: requirement.requirementType,
+      status: waived ? "waived" : isUploaded ? "uploaded" : "not_uploaded",
+      uploadedCount: requirementFiles.length,
+      waivedReason: waived?.waived_reason ?? null,
+    };
+  });
+
+  const requirementKeys = new Set(requirements.map((requirement) => requirement.evidenceKey));
+  return {
+    files,
+    policySnapshotHash,
+    requirements: requirementResponses,
+    unclassifiedFiles: files.filter((file) => !file.requirementKey || !requirementKeys.has(file.requirementKey)),
+  };
+};
+
+const validatePolicyEvidencePairing = (
+  policySnapshot: Record<string, unknown> | null | undefined,
+  requirementKey: string | null | undefined,
+  documentKey: string,
+) => {
+  if (!requirementKey) return true;
+  const requirement = findRequirement(policySnapshot, requirementKey);
+  return Boolean(requirement?.acceptedDocuments.some((document) => document.documentKey === documentKey));
+};
 
 const resolveActiveExpenseContext = async (client: SupabaseClient<Database>, projectId: string, expenseId: string) => {
   const [projectResult, expenseResult] = await Promise.all([
@@ -973,6 +1167,19 @@ export const listExpenseEvidence = async (
     return failure(context.status, context.error.code, context.error.message, context.error.details);
   }
 
+  const expenseResult = await fetchExpenseDetailRow(client, projectId, expenseId);
+  if (expenseResult.error) {
+    return failure(500, expenseErrorCodes.fetchError, "Failed to load expense evidence context.");
+  }
+  if (!expenseResult.data || expenseResult.data.deleted_at) {
+    return failure(404, expenseErrorCodes.notFound, "Expense was not found.");
+  }
+  const policySnapshot = expenseResult.data.policy_snapshot && typeof expenseResult.data.policy_snapshot === "object" && !Array.isArray(expenseResult.data.policy_snapshot)
+    ? expenseResult.data.policy_snapshot as Record<string, unknown>
+    : null;
+  const policyRequirements = normalizePolicyRequirements(policySnapshot);
+  const policySnapshotHash = createPolicySnapshotHash(policySnapshot);
+
   const { data, error } = await client
     .from("expense_evidence_files")
     .select(selectEvidenceColumns)
@@ -987,6 +1194,17 @@ export const listExpenseEvidence = async (
   }
 
   const rows = ((data ?? []) as EvidenceRow[]);
+  const statusResult = policySnapshotHash
+    ? await (client as SupabaseClient<any>)
+        .from("expense_evidence_requirement_statuses")
+        .select("policy_snapshot_hash, requirement_key, status, waived_reason, changed_by, changed_at")
+        .eq("project_id", projectId)
+        .eq("expense_id", expenseId)
+        .eq("policy_snapshot_hash", policySnapshotHash)
+    : { data: [], error: null };
+  if (statusResult.error) {
+    return failure(500, expenseErrorCodes.fetchError, "Failed to load expense evidence statuses.");
+  }
   const duplicateCounts = new Map<string, number>();
   for (const row of rows) {
     const key = duplicateKey(row);
@@ -1002,7 +1220,22 @@ export const listExpenseEvidence = async (
     files.push(mapped.data);
   }
 
-  const response = ExpenseEvidenceListResponseSchema.safeParse({ files });
+  const checklistPayload = buildEvidenceListResponse(
+    rows,
+    duplicateCounts,
+    policyRequirements,
+    (statusResult.data ?? []) as RequirementStatusRow[],
+    policySnapshotHash,
+  );
+  if (!checklistPayload) {
+    return failure(409, expenseErrorCodes.integrity, "Invalid evidence response.");
+  }
+  const payload = {
+    files,
+    ...checklistPayload,
+  };
+
+  const response = ExpenseEvidenceListResponseSchema.safeParse(payload);
   return response.success
     ? success(response.data)
     : failure(409, expenseErrorCodes.integrity, "증빙 응답 형식을 확인해 주세요.");
@@ -1035,6 +1268,17 @@ export const uploadExpenseEvidence = async (
   const context = await resolveActiveExpenseContext(client, projectId, expenseId);
   if (context.ok === false) {
     return failure(context.status, context.error.code, context.error.message, context.error.details);
+  }
+
+  const expenseResult = await fetchExpenseDetailRow(client, projectId, expenseId);
+  if (expenseResult.error) {
+    return failure(500, expenseErrorCodes.fetchError, "Failed to load expense evidence context.");
+  }
+  const policySnapshot = expenseResult.data?.policy_snapshot && typeof expenseResult.data.policy_snapshot === "object" && !Array.isArray(expenseResult.data.policy_snapshot)
+    ? expenseResult.data.policy_snapshot as Record<string, unknown>
+    : null;
+  if (!validatePolicyEvidencePairing(policySnapshot, parsed.data.requirementKey, parsed.data.documentKey)) {
+    return failure(409, expenseErrorCodes.evidenceStateConflict, "Selected evidence requirement does not accept this document.");
   }
 
   const evidenceId = randomUUID();
@@ -1113,6 +1357,147 @@ export const createExpenseEvidenceSignedUrl = async (
   return response.success && response.data.signedUrl
     ? success({ signedUrl: response.data.signedUrl })
     : failure(409, expenseErrorCodes.integrity, "증빙 링크 응답 형식을 확인해 주세요.");
+};
+
+export const relinkExpenseEvidence = async (
+  client: SupabaseClient<Database>,
+  projectId: string,
+  expenseId: string,
+  evidenceId: string,
+  userId: string | null,
+  input: ExpenseEvidenceRelinkInput,
+): Promise<HandlerResult<ExpenseEvidenceFileResponse, ExpenseErrorCode>> => {
+  const parsed = ExpenseEvidenceRelinkInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return failure(400, expenseErrorCodes.evidenceInvalid, "Evidence link input is invalid.", parsed.error.flatten());
+  }
+
+  const [rowResult, expenseResult] = await Promise.all([
+    getActiveEvidenceRow(client, projectId, expenseId, evidenceId),
+    fetchExpenseDetailRow(client, projectId, expenseId),
+  ]);
+  if (rowResult.ok === false) {
+    return failure(rowResult.status, rowResult.error.code, rowResult.error.message, rowResult.error.details);
+  }
+  if (expenseResult.error || !expenseResult.data || expenseResult.data.deleted_at) {
+    return failure(500, expenseErrorCodes.fetchError, "Failed to load expense evidence context.");
+  }
+
+  const policySnapshot = expenseResult.data.policy_snapshot && typeof expenseResult.data.policy_snapshot === "object" && !Array.isArray(expenseResult.data.policy_snapshot)
+    ? expenseResult.data.policy_snapshot as Record<string, unknown>
+    : null;
+  if (!validatePolicyEvidencePairing(policySnapshot, parsed.data.requirementKey, parsed.data.documentKey)) {
+    return failure(409, expenseErrorCodes.evidenceStateConflict, "Selected evidence requirement does not accept this document.");
+  }
+
+  const { data, error } = await (client as SupabaseClient<any>)
+    .from("expense_evidence_files")
+    .update({
+      document_key: parsed.data.documentKey,
+      requirement_key: parsed.data.requirementKey,
+    })
+    .eq("id", evidenceId)
+    .eq("project_id", projectId)
+    .eq("expense_id", expenseId)
+    .is("deleted_at", null)
+    .select(selectEvidenceColumns)
+    .single();
+  if (error || !data) {
+    return failure(500, expenseErrorCodes.fetchError, "Failed to update evidence link.");
+  }
+
+  const historyResult = await (client as SupabaseClient<any>).from("expense_history_events").insert({
+    after_value: {
+      documentKey: parsed.data.documentKey,
+      evidenceId,
+      requirementKey: parsed.data.requirementKey,
+    },
+    before_value: {
+      documentKey: rowResult.data.document_key,
+      evidenceId,
+      requirementKey: rowResult.data.requirement_key,
+    },
+    changed_by: userId,
+    event_type: "evidence_relinked",
+    expense_id: expenseId,
+    summary: "Evidence file relinked.",
+  });
+  if (historyResult.error) {
+    return failure(500, expenseErrorCodes.fetchError, "Failed to record evidence history.");
+  }
+
+  const mapped = mapEvidenceResponse(data as EvidenceRow);
+  return mapped.success
+    ? success(mapped.data)
+    : failure(409, expenseErrorCodes.integrity, "Invalid evidence response.");
+};
+
+export const updateExpenseEvidenceRequirementStatus = async (
+  client: SupabaseClient<Database>,
+  projectId: string,
+  expenseId: string,
+  requirementKey: string,
+  userId: string | null,
+  input: ExpenseEvidenceRequirementStatusInput,
+): Promise<HandlerResult<ExpenseEvidenceListResponse, ExpenseErrorCode>> => {
+  const parsed = ExpenseEvidenceRequirementStatusInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return failure(400, expenseErrorCodes.evidenceInvalid, "Evidence status input is invalid.", parsed.error.flatten());
+  }
+
+  const context = await resolveActiveExpenseContext(client, projectId, expenseId);
+  if (context.ok === false) {
+    return failure(context.status, context.error.code, context.error.message, context.error.details);
+  }
+
+  const expenseResult = await fetchExpenseDetailRow(client, projectId, expenseId);
+  if (expenseResult.error || !expenseResult.data || expenseResult.data.deleted_at) {
+    return failure(500, expenseErrorCodes.fetchError, "Failed to load expense evidence context.");
+  }
+  const policySnapshot = expenseResult.data.policy_snapshot && typeof expenseResult.data.policy_snapshot === "object" && !Array.isArray(expenseResult.data.policy_snapshot)
+    ? expenseResult.data.policy_snapshot as Record<string, unknown>
+    : null;
+  const requirement = findRequirement(policySnapshot, requirementKey);
+  const policySnapshotHash = createPolicySnapshotHash(policySnapshot);
+  if (!requirement || requirement.requirementType !== "conditional" || !policySnapshotHash) {
+    return failure(409, expenseErrorCodes.evidenceStateConflict, "Only conditional policy evidence can be waived.");
+  }
+
+  const { error } = await (client as SupabaseClient<any>)
+    .from("expense_evidence_requirement_statuses")
+    .upsert({
+      changed_at: new Date().toISOString(),
+      changed_by: userId,
+      expense_id: expenseId,
+      policy_snapshot_hash: policySnapshotHash,
+      policy_version_id: expenseResult.data.policy_version_id ?? null,
+      project_id: projectId,
+      requirement_key: requirementKey,
+      status: parsed.data.status,
+      waived_reason: parsed.data.waivedReason ?? null,
+    }, { onConflict: "expense_id,policy_snapshot_hash,requirement_key" });
+  if (error) {
+    return failure(500, expenseErrorCodes.fetchError, "Failed to update evidence status.");
+  }
+
+  const historyResult = await (client as SupabaseClient<any>).from("expense_history_events").insert({
+    after_value: {
+      policySnapshotHash,
+      requirementKey,
+      status: parsed.data.status,
+      waivedReason: parsed.data.waivedReason ?? null,
+    },
+    before_value: null,
+    changed_by: userId,
+    event_type: "evidence_requirement_waived",
+    expense_id: expenseId,
+    summary: "Evidence requirement waived.",
+  });
+  if (historyResult.error) {
+    return failure(500, expenseErrorCodes.fetchError, "Failed to record evidence history.");
+  }
+
+  return listExpenseEvidence(client, projectId, expenseId);
 };
 
 export const deleteExpenseEvidence = async (

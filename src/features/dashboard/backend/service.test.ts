@@ -26,21 +26,21 @@ const clientFor = (data: unknown, error: unknown = null) => ({
   rpc: vi.fn().mockResolvedValue({ data, error }),
 }) as unknown as SupabaseClient<Database>;
 
-const buildChain = (result: unknown) => {
+const buildChain = (result: unknown, error: unknown = null) => {
   const chain: any = {
     eq: () => chain,
     is: () => chain,
     limit: () => chain,
-    maybeSingle: async () => ({ data: result, error: null }),
+    maybeSingle: async () => ({ data: result, error }),
     order: () => chain,
     select: () => chain,
     then: (resolve: (value: unknown) => unknown, reject?: (reason?: unknown) => unknown) =>
-      Promise.resolve({ data: result, error: null }).then(resolve, reject),
+      Promise.resolve({ data: result, error }).then(resolve, reject),
   };
   return chain;
 };
 
-const clientForPolicyDirectDashboard = () => ({
+const clientForPolicyDirectDashboard = (evidenceResult: { data?: unknown; error?: unknown } = {}) => ({
   rpc: vi.fn().mockResolvedValue({ data: snapshot({ activeExpenseCount: 1, expenseRows: [], integrityCode: "CATEGORY_METADATA_MISMATCH" }), error: null }),
   from: (table: string) => {
     if (table === "projects") {
@@ -62,10 +62,35 @@ const clientForPolicyDirectDashboard = () => ({
         created_at: "2026-06-29T00:00:00.000Z",
         deleted_at: null,
         id: "44444444-4444-4444-8444-444444444444",
-        policy_snapshot: { category_key: "policy_material", category_name: "Policy materials" },
+        policy_snapshot: {
+          category_key: "policy_material",
+          category_name: "Policy materials",
+          evidence_requirements: [{
+            accepted_documents: [
+              { documentKey: "receipt", label: "Receipt" },
+              { documentKey: "transfer_confirm", label: "Transfer confirmation" },
+            ],
+            document_key: "receipt",
+            evidence_key: "payment_bundle",
+            evidence_name: "Payment bundle",
+            fulfillment_type: "all_of",
+            requirement_type: "required",
+            sort_order: 0,
+          }],
+        },
         stage_key: "execution_completed",
         title: "policy expense",
       }]);
+    }
+    if (table === "expense_evidence_files") {
+      return buildChain(
+        evidenceResult.data ?? [{
+          document_key: "receipt",
+          expense_id: "44444444-4444-4444-8444-444444444444",
+          requirement_key: "payment_bundle",
+        }],
+        evidenceResult.error ?? null,
+      );
     }
     return buildChain([]);
   },
@@ -110,5 +135,15 @@ describe("getProjectDashboard", () => {
       expenseCount: 1,
       totalAmount: 70,
     })]);
+    expect(result.data.categories[0].expenses[0]).toMatchObject({
+      evidenceRequiredCount: 1,
+      evidenceUploadedCount: 0,
+    });
+  });
+
+  it("does not hide direct evidence query failures on policy dashboard progress", async () => {
+    const result = await getProjectDashboard(clientForPolicyDirectDashboard({ error: new Error("evidence failed") }), PROJECT_ID);
+
+    expect(result).toMatchObject({ ok: false, status: 500, error: { code: "DASHBOARD_FETCH_ERROR" } });
   });
 });

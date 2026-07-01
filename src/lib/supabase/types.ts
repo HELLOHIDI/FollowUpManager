@@ -139,6 +139,45 @@ export type Database = {
         }
         Relationships: []
       }
+      expense_evidence_requirement_statuses: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          expense_id: string
+          id: string
+          policy_snapshot_hash: string
+          policy_version_id: string | null
+          project_id: string
+          requirement_key: string
+          status: string
+          waived_reason: string | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          expense_id: string
+          id?: string
+          policy_snapshot_hash: string
+          policy_version_id?: string | null
+          project_id: string
+          requirement_key: string
+          status: string
+          waived_reason?: string | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          expense_id?: string
+          id?: string
+          policy_snapshot_hash?: string
+          policy_version_id?: string | null
+          project_id?: string
+          requirement_key?: string
+          status?: string
+          waived_reason?: string | null
+        }
+        Relationships: []
+      }
       expense_evidence_files: {
         Row: {
           company_id: string
@@ -547,6 +586,7 @@ export type Database = {
       }
       program_policy_evidence_requirements: {
         Row: {
+          accepted_documents: Json
           category_id: string | null
           condition_text: string | null
           created_at: string
@@ -564,6 +604,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          accepted_documents?: Json
           category_id?: string | null
           condition_text?: string | null
           created_at?: string
@@ -581,6 +622,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          accepted_documents?: Json
           category_id?: string | null
           condition_text?: string | null
           created_at?: string

@@ -188,7 +188,7 @@ export function ExpenseQuickCreateSheet({
             <Input id="expense-amount" inputMode="numeric" type="number" min={0} step={1} {...form.register("amount", { valueAsNumber: true, required: true })} />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="expense-date">지출 예정일</Label>
+            <Label htmlFor="expense-date">지출 예정일 (선택)</Label>
             <Input id="expense-date" type="date" {...form.register("expectedSpendDate")} />
           </div>
           <div className="grid gap-2">

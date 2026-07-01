@@ -9,9 +9,11 @@ import {
   fetchProjectExpenseDetail,
   fetchProjectExpenseHistory,
   fetchProjectExpensesPage,
+  relinkExpenseEvidenceRequest,
   updateExpenseRequest,
   updateExpenseStageRequest,
   uploadExpenseEvidenceRequest,
+  waiveExpenseEvidenceRequirementRequest,
 } from "../api";
 import { dashboardKeys } from "@/features/dashboard/hooks/dashboard-keys";
 import type { ExpenseDetailResponse, ExpenseResponse } from "../backend/schema";
@@ -101,6 +103,7 @@ export const useExpenseEvidenceMutations = (projectId: string, expenseId: string
     void queryClient.invalidateQueries({ queryKey: expenseKeys.evidence(projectId, expenseId) });
     void queryClient.invalidateQueries({ queryKey: expenseKeys.history(projectId, expenseId) });
     void queryClient.invalidateQueries({ queryKey: expenseKeys.detail(projectId, expenseId) });
+    void queryClient.invalidateQueries({ queryKey: dashboardKeys.project(projectId) });
   };
 
   const uploadMutation = useMutation({
@@ -114,13 +117,25 @@ export const useExpenseEvidenceMutations = (projectId: string, expenseId: string
       createExpenseEvidenceSignedUrlRequest({ projectId, expenseId, evidenceId }),
   });
 
+  const relinkMutation = useMutation({
+    mutationFn: (input: Omit<Parameters<typeof relinkExpenseEvidenceRequest>[0], "projectId" | "expenseId">) =>
+      relinkExpenseEvidenceRequest({ projectId, expenseId, ...input }),
+    onSuccess: invalidateEvidence,
+  });
+
+  const waiveRequirementMutation = useMutation({
+    mutationFn: (input: Omit<Parameters<typeof waiveExpenseEvidenceRequirementRequest>[0], "projectId" | "expenseId">) =>
+      waiveExpenseEvidenceRequirementRequest({ projectId, expenseId, ...input }),
+    onSuccess: invalidateEvidence,
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (evidenceId: string) =>
       deleteExpenseEvidenceRequest({ projectId, expenseId, evidenceId }),
     onSuccess: invalidateEvidence,
   });
 
-  return { deleteMutation, signedUrlMutation, uploadMutation };
+  return { deleteMutation, relinkMutation, signedUrlMutation, uploadMutation, waiveRequirementMutation };
 };
 
 export const useExpenseStageMutation = (projectId: string) => {

@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it } from "vitest";
 import type { Database } from "@/lib/supabase/types";
-import { createExpense, filterPolicyEvidenceRows, getExpenseDetail, getExpenseHistory, listExpenseEvidence, listProjectExpensesPage, updateExpense, updateExpenseStage } from "./service";
+import { createExpense, filterPolicyEvidenceRows, getExpenseDetail, getExpenseHistory, listExpenseEvidence, listProjectExpensesPage, relinkExpenseEvidence, updateExpense, updateExpenseStage, uploadExpenseEvidence } from "./service";
 
 const PROJECT_ID = "10000000-0000-4000-8000-000000000002";
 const CATEGORY_ID = "10000000-0000-4000-8000-000000000003";
@@ -74,7 +74,7 @@ const buildChain = (result: TableResult, calls: ChainCall[] = []) => {
     single: async () =>
       (mode === "insert" ? result.insert ?? result.select : mode === "update" ? result.update ?? result.select : result.select) ?? { data: null },
     then: (resolve: (value: ChainResult) => unknown, reject?: (reason?: unknown) => unknown) =>
-      Promise.resolve(result.select ?? { data: [] }).then(resolve, reject),
+      Promise.resolve((mode === "insert" ? result.insert ?? result.select : mode === "update" ? result.update ?? result.select : result.select) ?? { data: [] }).then(resolve, reject),
   };
   return chain;
 };
@@ -163,6 +163,27 @@ const fullUpdateInput = {
   title: "sample expense",
   vendorName: null,
 } as const;
+
+const policySnapshot = {
+  category_key: "material_cost",
+  category_name: "Materials",
+  evidence_requirements: [
+    {
+      accepted_documents: [
+        { documentKey: "receipt", label: "Receipt" },
+        { documentKey: "transfer_confirm", label: "Transfer confirmation" },
+      ],
+      condition_text: null,
+      document_key: "receipt",
+      evidence_key: "payment_bundle",
+      evidence_name: "Payment bundle",
+      fulfillment_type: "all_of",
+      requirement_type: "required",
+      sort_order: 0,
+      source_reference: {},
+    },
+  ],
+};
 
 describe("expense service", () => {
   it("filters policy evidence snapshots to common, selected category, and selected subcategory rows", () => {
@@ -599,5 +620,229 @@ describe("expense service", () => {
     if (!result.ok) return;
     expect(result.data.files).toHaveLength(2);
     expect(result.data.files.map((file) => file.duplicateStatus)).toEqual(["possible_duplicate", "possible_duplicate"]);
+  });
+
+  it("builds policy-backed evidence requirements and keeps unmatched files unclassified", async () => {
+    const result = await listExpenseEvidence(
+      clientFor({
+        projects: {
+          select: { data: { id: PROJECT_ID, company_id: "10000000-0000-4000-8000-000000000001", deleted_at: null } },
+        },
+        expenses: {
+          select: { data: baseExpenseRow({ policy_snapshot: policySnapshot, policy_version_id: "77777777-7777-4777-8777-777777777777" }) },
+        },
+        expense_evidence_files: {
+          select: {
+            data: [
+              {
+                deleted_at: null,
+                document_key: "receipt",
+                expense_id: EXPENSE_ID,
+                file_extension: "pdf",
+                file_size: 1024,
+                id: "55555555-5555-4555-8555-555555555555",
+                mime_type: "application/pdf",
+                original_file_name: "receipt.pdf",
+                project_id: PROJECT_ID,
+                requirement_key: "payment_bundle",
+                storage_path: "companies/company/projects/project/expenses/expense/receipt/file.pdf",
+                uploaded_at: "2026-06-25T00:00:00.000Z",
+              },
+              {
+                deleted_at: null,
+                document_key: "legacy_misc",
+                expense_id: EXPENSE_ID,
+                file_extension: "pdf",
+                file_size: 512,
+                id: "66666666-6666-4666-8666-666666666666",
+                mime_type: "application/pdf",
+                original_file_name: "legacy.pdf",
+                project_id: PROJECT_ID,
+                requirement_key: null,
+                storage_path: "companies/company/projects/project/expenses/expense/legacy/file.pdf",
+                uploaded_at: "2026-06-25T00:01:00.000Z",
+              },
+            ],
+          },
+        },
+        expense_evidence_requirement_statuses: {
+          select: { data: [] },
+        },
+      }),
+      PROJECT_ID,
+      EXPENSE_ID,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.policySnapshotHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.data.requirements).toEqual([
+      expect.objectContaining({
+        acceptedDocuments: [
+          expect.objectContaining({ documentKey: "receipt", uploaded: true }),
+          expect.objectContaining({ documentKey: "transfer_confirm", uploaded: false }),
+        ],
+        fulfillmentType: "all_of",
+        requirementKey: "payment_bundle",
+        status: "not_uploaded",
+      }),
+    ]);
+    expect(result.data.unclassifiedFiles.map((file) => file.id)).toEqual(["66666666-6666-4666-8666-666666666666"]);
+  });
+
+  it("rejects uploads when the selected document is not accepted by the policy requirement", async () => {
+    const result = await uploadExpenseEvidence(
+      clientFor({
+        projects: {
+          select: { data: { id: PROJECT_ID, company_id: "10000000-0000-4000-8000-000000000001", deleted_at: null } },
+        },
+        expenses: {
+          select: { data: baseExpenseRow({ policy_snapshot: policySnapshot }) },
+        },
+      }),
+      PROJECT_ID,
+      EXPENSE_ID,
+      null,
+      {
+        browserMimeType: "application/pdf",
+        documentKey: "not_allowed",
+        file: {
+          arrayBuffer: async () => new ArrayBuffer(0),
+          name: "bad.pdf",
+          size: 10,
+          type: "application/pdf",
+        },
+        fileSize: 10,
+        originalFileName: "bad.pdf",
+        requirementKey: "payment_bundle",
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 409,
+      error: { code: "EXPENSE_EVIDENCE_STATE_CONFLICT" },
+    });
+  });
+
+  it("relinks an unclassified evidence file by updating only evidence metadata", async () => {
+    const result = await relinkExpenseEvidence(
+      clientFor({
+        projects: {
+          select: { data: { id: PROJECT_ID, company_id: "10000000-0000-4000-8000-000000000001", deleted_at: null } },
+        },
+        expenses: {
+          select: { data: baseExpenseRow({ policy_snapshot: policySnapshot }) },
+        },
+        expense_evidence_files: {
+          select: {
+            data: {
+              deleted_at: null,
+              document_key: "legacy_misc",
+              expense_id: EXPENSE_ID,
+              file_extension: "pdf",
+              file_size: 512,
+              id: "66666666-6666-4666-8666-666666666666",
+              mime_type: "application/pdf",
+              original_file_name: "legacy.pdf",
+              project_id: PROJECT_ID,
+              requirement_key: null,
+              storage_path: "companies/company/projects/project/expenses/expense/legacy/file.pdf",
+              uploaded_at: "2026-06-25T00:01:00.000Z",
+            },
+          },
+          update: {
+            data: {
+              deleted_at: null,
+              document_key: "receipt",
+              expense_id: EXPENSE_ID,
+              file_extension: "pdf",
+              file_size: 512,
+              id: "66666666-6666-4666-8666-666666666666",
+              mime_type: "application/pdf",
+              original_file_name: "legacy.pdf",
+              project_id: PROJECT_ID,
+              requirement_key: "payment_bundle",
+              storage_path: "companies/company/projects/project/expenses/expense/legacy/file.pdf",
+              uploaded_at: "2026-06-25T00:01:00.000Z",
+            },
+          },
+        },
+      }),
+      PROJECT_ID,
+      EXPENSE_ID,
+      "66666666-6666-4666-8666-666666666666",
+      null,
+      { documentKey: "receipt", requirementKey: "payment_bundle" },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data).toMatchObject({
+      documentKey: "receipt",
+      id: "66666666-6666-4666-8666-666666666666",
+      requirementKey: "payment_bundle",
+    });
+  });
+
+  it("fails relinking when audit history cannot be recorded", async () => {
+    const result = await relinkExpenseEvidence(
+      clientFor({
+        projects: {
+          select: { data: { id: PROJECT_ID, company_id: "10000000-0000-4000-8000-000000000001", deleted_at: null } },
+        },
+        expenses: {
+          select: { data: baseExpenseRow({ policy_snapshot: policySnapshot }) },
+        },
+        expense_evidence_files: {
+          select: {
+            data: {
+              deleted_at: null,
+              document_key: "legacy_misc",
+              expense_id: EXPENSE_ID,
+              file_extension: "pdf",
+              file_size: 512,
+              id: "66666666-6666-4666-8666-666666666666",
+              mime_type: "application/pdf",
+              original_file_name: "legacy.pdf",
+              project_id: PROJECT_ID,
+              requirement_key: null,
+              storage_path: "companies/company/projects/project/expenses/expense/legacy/file.pdf",
+              uploaded_at: "2026-06-25T00:01:00.000Z",
+            },
+          },
+          update: {
+            data: {
+              deleted_at: null,
+              document_key: "receipt",
+              expense_id: EXPENSE_ID,
+              file_extension: "pdf",
+              file_size: 512,
+              id: "66666666-6666-4666-8666-666666666666",
+              mime_type: "application/pdf",
+              original_file_name: "legacy.pdf",
+              project_id: PROJECT_ID,
+              requirement_key: "payment_bundle",
+              storage_path: "companies/company/projects/project/expenses/expense/legacy/file.pdf",
+              uploaded_at: "2026-06-25T00:01:00.000Z",
+            },
+          },
+        },
+        expense_history_events: {
+          insert: { error: new Error("history failed") },
+        },
+      }),
+      PROJECT_ID,
+      EXPENSE_ID,
+      "66666666-6666-4666-8666-666666666666",
+      null,
+      { documentKey: "receipt", requirementKey: "payment_bundle" },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 500,
+      error: { code: "EXPENSES_FETCH_ERROR" },
+    });
   });
 });

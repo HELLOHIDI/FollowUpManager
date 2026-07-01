@@ -13,10 +13,18 @@ type DashboardCategory = {
   totalAmount: number;
   expenses: Array<{
     amount: number;
+    evidenceRequiredCount?: number;
+    evidenceUploadedCount?: number;
     id: string;
     stageKey: ParsedDashboardSnapshot["expenseRows"][number]["stageKey"];
     title: string;
   }>;
+};
+
+type EvidenceProgressRow = {
+  document_key: string | null;
+  expense_id: string;
+  requirement_key: string | null;
 };
 
 const dashboardFetchMessage = "대시보드 정보를 불러오지 못했습니다.";
@@ -34,7 +42,14 @@ const groupSnapshotExpenses = (snapshot: ParsedDashboardSnapshot) => {
       expenses: [],
       totalAmount: 0,
     };
-    category.expenses.push({ amount: row.amount, id: row.id, stageKey: row.stageKey, title: row.title });
+    category.expenses.push({
+      amount: row.amount,
+      evidenceRequiredCount: row.evidenceRequiredCount,
+      evidenceUploadedCount: row.evidenceUploadedCount,
+      id: row.id,
+      stageKey: row.stageKey,
+      title: row.title,
+    });
     category.expenseCount += 1;
     category.totalAmount += row.amount;
     grouped.set(row.categoryKey, category);
@@ -52,6 +67,57 @@ const toDashboardResponse = (snapshot: ParsedDashboardSnapshot, categories: Dash
   return response.success
     ? success(response.data)
     : failure(409, dashboardErrorCodes.integrity, dashboardIntegrityMessage);
+};
+
+const normalizeAcceptedDocumentKeys = (requirement: Record<string, unknown>) => {
+  const acceptedDocuments = requirement.accepted_documents;
+  if (Array.isArray(acceptedDocuments)) {
+    const keys = acceptedDocuments
+      .map((document) => {
+        if (!document || typeof document !== "object" || Array.isArray(document)) return null;
+        const key = (document as Record<string, unknown>).documentKey;
+        return typeof key === "string" && key.trim() ? key.trim() : null;
+      })
+      .filter((key): key is string => Boolean(key));
+    if (keys.length > 0) return keys;
+  }
+  const documentKey = requirement.document_key;
+  const evidenceKey = requirement.evidence_key;
+  if (typeof documentKey === "string" && documentKey.trim()) return [documentKey.trim()];
+  return typeof evidenceKey === "string" && evidenceKey.trim() ? [evidenceKey.trim()] : [];
+};
+
+const countFulfilledEvidenceRequirements = (
+  requirements: unknown,
+  evidenceRows: EvidenceProgressRow[],
+) => {
+  if (!Array.isArray(requirements)) return { required: 0, uploaded: 0 };
+
+  let required = 0;
+  let uploaded = 0;
+  for (const requirement of requirements) {
+    if (!requirement || typeof requirement !== "object" || Array.isArray(requirement)) continue;
+    const row = requirement as Record<string, unknown>;
+    const requirementKey = row.evidence_key;
+    if (typeof requirementKey !== "string" || !requirementKey.trim()) continue;
+    const acceptedDocumentKeys = normalizeAcceptedDocumentKeys(row);
+    if (acceptedDocumentKeys.length === 0) continue;
+
+    required += 1;
+    const uploadedDocumentKeys = new Set(
+      evidenceRows
+        .filter((evidence) => evidence.requirement_key === requirementKey)
+        .map((evidence) => evidence.document_key)
+        .filter((key): key is string => typeof key === "string" && key.trim().length > 0),
+    );
+    const fulfillmentType = row.fulfillment_type === "all_of" ? "all_of" : "single";
+    const isFulfilled = fulfillmentType === "all_of"
+      ? acceptedDocumentKeys.every((key) => uploadedDocumentKeys.has(key))
+      : acceptedDocumentKeys.some((key) => uploadedDocumentKeys.has(key)) || uploadedDocumentKeys.size > 0;
+    if (isFulfilled) uploaded += 1;
+  }
+
+  return { required, uploaded };
 };
 
 export const getProjectDashboard = async (
@@ -79,7 +145,7 @@ export const getProjectDashboard = async (
     return toDashboardResponse(snapshot, groupSnapshotExpenses(snapshot));
   }
 
-  const [categoryOptionsResult, expensesResult] = await Promise.all([
+  const [categoryOptionsResult, expensesResult, evidenceResult] = await Promise.all([
     resolvePolicyCategories(client, projectId),
     (() => {
       const query = (client as SupabaseClient<any>)
@@ -93,6 +159,16 @@ export const getProjectDashboard = async (
       return activeQuery.order("category_key", { ascending: true })
       .order("created_at", { ascending: true })
       .order("id", { ascending: true });
+    })(),
+    (() => {
+      const query = (client as SupabaseClient<any>)
+        .from("expense_evidence_files")
+        .select("expense_id, requirement_key, document_key")
+        .eq("project_id", projectId);
+      const activeQuery = typeof query.is === "function" ? query.is("deleted_at", null) : query;
+      return typeof activeQuery.then === "function"
+        ? activeQuery
+        : Promise.resolve({ data: [], error: null });
     })(),
   ]);
 
@@ -120,10 +196,20 @@ export const getProjectDashboard = async (
     }
     return toDashboardResponse(snapshot, groupSnapshotExpenses(snapshot));
   }
+  if (evidenceResult.error || !Array.isArray(evidenceResult.data)) {
+    return failure(500, dashboardErrorCodes.fetchError, dashboardFetchMessage);
+  }
 
   const categoryNameByKey = new Map(categoryOptionsResult.ok
     ? categoryOptionsResult.data.categories.map((option) => [option.categoryKey, option.categoryName])
     : snapshot.expenseRows.map((row) => [row.categoryKey, row.categoryName]));
+  const evidenceRows = evidenceResult.data as EvidenceProgressRow[];
+  const evidenceRowsByExpense = new Map<string, EvidenceProgressRow[]>();
+  for (const evidence of evidenceRows) {
+    const rows = evidenceRowsByExpense.get(evidence.expense_id) ?? [];
+    rows.push(evidence);
+    evidenceRowsByExpense.set(evidence.expense_id, rows);
+  }
   const grouped = new Map<string, DashboardCategory>();
 
   for (const row of expensesResult.data) {
@@ -139,7 +225,15 @@ export const getProjectDashboard = async (
       expenses: [],
       totalAmount: 0,
     };
-    category.expenses.push({ amount: row.amount, id: row.id, stageKey: row.stage_key, title: row.title });
+    const progress = countFulfilledEvidenceRequirements(policySnapshot.evidence_requirements, evidenceRowsByExpense.get(row.id) ?? []);
+    category.expenses.push({
+      amount: row.amount,
+      evidenceRequiredCount: progress.required,
+      evidenceUploadedCount: progress.uploaded,
+      id: row.id,
+      stageKey: row.stage_key,
+      title: row.title,
+    });
     category.expenseCount += 1;
     category.totalAmount += row.amount;
     grouped.set(categoryKey, category);

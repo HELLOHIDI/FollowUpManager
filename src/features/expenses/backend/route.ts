@@ -6,6 +6,8 @@ import { expenseErrorCodes } from "./error";
 import {
   ExpenseCreateInputSchema,
   ExpenseDetailParamsSchema,
+  ExpenseEvidenceRelinkInputSchema,
+  ExpenseEvidenceRequirementStatusInputSchema,
   ExpenseEvidenceParamsSchema,
   ExpenseParamsSchema,
   ExpenseStageUpdateInputSchema,
@@ -19,7 +21,9 @@ import {
   getExpenseHistory,
   listExpenseEvidence,
   listProjectExpensesPage,
+  relinkExpenseEvidence,
   updateExpense,
+  updateExpenseEvidenceRequirementStatus,
   updateExpenseStage,
   uploadExpenseEvidence,
 } from "./service";
@@ -216,6 +220,56 @@ export const registerExpenseRoutes = (
         route: "POST /projects/:projectId/expenses/:expenseId/evidence/:evidenceId/signed-url",
       });
     }
+    return respond(context, result);
+  });
+
+  app.patch("/projects/:projectId/expenses/:expenseId/evidence/:evidenceId/link", async (context) => {
+    const params = ExpenseEvidenceParamsSchema.safeParse({
+      projectId: context.req.param("projectId"),
+      expenseId: context.req.param("expenseId"),
+      evidenceId: context.req.param("evidenceId"),
+    });
+    if (!params.success) {
+      return respond(context, failure(400, expenseErrorCodes.invalidParams, "?꾨줈?앺듃, 吏異? 利앸튃 ID瑜??뺤씤??二쇱꽭??"));
+    }
+    const body = ExpenseEvidenceRelinkInputSchema.safeParse(await parseBody(context.req));
+    if (!body.success) {
+      return respond(context, failure(400, expenseErrorCodes.evidenceInvalid, "Evidence link input is invalid.", body.error.flatten()));
+    }
+    const result = await relinkExpenseEvidence(
+      options.createExpenseMutationClient(),
+      params.data.projectId,
+      params.data.expenseId,
+      params.data.evidenceId,
+      getCurrentUser(context).id,
+      body.data,
+    );
+    return respond(context, result);
+  });
+
+  app.patch("/projects/:projectId/expenses/:expenseId/evidence-requirements/:requirementKey/status", async (context) => {
+    const params = ExpenseDetailParamsSchema.extend({
+      requirementKey: ExpenseEvidenceRelinkInputSchema.shape.documentKey,
+    }).safeParse({
+      projectId: context.req.param("projectId"),
+      expenseId: context.req.param("expenseId"),
+      requirementKey: context.req.param("requirementKey"),
+    });
+    if (!params.success) {
+      return respond(context, failure(400, expenseErrorCodes.invalidParams, "?꾨줈?앺듃, 吏異? 利앸튃 ID瑜??뺤씤??二쇱꽭??"));
+    }
+    const body = ExpenseEvidenceRequirementStatusInputSchema.safeParse(await parseBody(context.req));
+    if (!body.success) {
+      return respond(context, failure(400, expenseErrorCodes.evidenceInvalid, "Evidence status input is invalid.", body.error.flatten()));
+    }
+    const result = await updateExpenseEvidenceRequirementStatus(
+      options.createExpenseMutationClient(),
+      params.data.projectId,
+      params.data.expenseId,
+      params.data.requirementKey,
+      getCurrentUser(context).id,
+      body.data,
+    );
     return respond(context, result);
   });
 

@@ -82,6 +82,7 @@ export function ProgramPolicyPanel({
       })),
       evidenceRequirements: draftQuery.data.evidenceRequirements.map((evidence) => ({
         categoryKey: evidence.categoryKey,
+        acceptedDocuments: evidence.acceptedDocuments,
         conditionText: evidence.conditionText,
         documentKey: evidence.documentKey,
         evidenceKey: evidence.evidenceKey,
@@ -329,7 +330,16 @@ function PolicyRowEditor({
     value: string,
   ) => {
     const evidenceRequirements = draft.evidenceRequirements.map((evidence, current) =>
-      current === index ? { ...evidence, [key]: value, reviewStatus: "auto_confident" as const } : evidence,
+      current === index
+        ? {
+            ...evidence,
+            [key]: value,
+            acceptedDocuments: key === "evidenceName" && (evidence.acceptedDocuments?.length ?? 0) <= 1
+              ? [{ documentKey: evidence.documentKey ?? evidence.evidenceKey, label: value }]
+              : evidence.acceptedDocuments,
+            reviewStatus: "auto_confident" as const,
+          }
+        : evidence,
     );
     onChange({ ...draft, evidenceRequirements });
   };
@@ -375,11 +385,13 @@ function PolicyRowEditor({
     const existingEvidenceKeys = new Set(draft.evidenceRequirements.map((evidence) => evidence.evidenceKey));
     const existingDocumentKeys = new Set(draft.evidenceRequirements.map((evidence) => evidence.documentKey).filter(Boolean) as string[]);
     const nextEvidenceKey = createInternalKey("evidence_manual", existingEvidenceKeys);
+    const nextDocumentKey = createInternalKey("document_manual", existingDocumentKeys);
     onChange({
       ...draft,
       evidenceRequirements: [...draft.evidenceRequirements, {
+        acceptedDocuments: [{ documentKey: nextDocumentKey, label: "" }],
         categoryKey,
-        documentKey: createInternalKey("document_manual", existingDocumentKeys),
+        documentKey: nextDocumentKey,
         evidenceKey: nextEvidenceKey,
         evidenceName: "",
         fulfillmentType: "single",

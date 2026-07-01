@@ -94,7 +94,12 @@ const detailData: ExpenseDetailResponse = {
   vendorName: null,
 };
 
-const mockLoadedQueries = (overrides: Partial<typeof detailData> = {}, mutateAsync = vi.fn()) => {
+const mockLoadedQueries = (
+  overrides: Partial<ExpenseDetailResponse> = {},
+  mutateAsync = vi.fn(),
+  evidenceData: Record<string, unknown> = { files: [], policySnapshotHash: null, requirements: [], unclassifiedFiles: [] },
+  evidenceMutations: Record<string, unknown> = {},
+) => {
   queryMocks.useExpenseDetailQuery.mockReturnValue({
     data: { ...detailData, ...overrides },
     isError: false,
@@ -106,7 +111,7 @@ const mockLoadedQueries = (overrides: Partial<typeof detailData> = {}, mutateAsy
     isPending: false,
   });
   queryMocks.useExpenseEvidenceQuery.mockReturnValue({
-    data: { files: [] },
+    data: evidenceData,
     isError: false,
     isPending: false,
     refetch: vi.fn(),
@@ -122,6 +127,10 @@ const mockLoadedQueries = (overrides: Partial<typeof detailData> = {}, mutateAsy
       isPending: false,
       mutateAsync: vi.fn(),
     },
+    relinkMutation: {
+      isPending: false,
+      mutateAsync: vi.fn(),
+    },
     signedUrlMutation: {
       isPending: false,
       mutateAsync: vi.fn(),
@@ -130,6 +139,11 @@ const mockLoadedQueries = (overrides: Partial<typeof detailData> = {}, mutateAsy
       isPending: false,
       mutateAsync: vi.fn(),
     },
+    waiveRequirementMutation: {
+      isPending: false,
+      mutateAsync: vi.fn(),
+    },
+    ...evidenceMutations,
   });
   queryMocks.useExpenseStageMutation.mockReturnValue({
     isPending: false,
@@ -151,8 +165,8 @@ describe("ExpenseDetailPageContent", () => {
     expect(screen.getAllByText("집행 요청").length).toBeGreaterThan(0);
     expect(screen.getAllByText("집행 완료").length).toBeGreaterThan(0);
     expect(screen.getAllByText("파일 추가")).toHaveLength(5);
-    expect(screen.getByText("검증 메시지")).toBeInTheDocument();
-    expect(screen.getByText("변경 이력")).toBeInTheDocument();
+    expect(screen.queryByText("검증 메시지")).not.toBeInTheDocument();
+    expect(screen.queryByText("변경 이력")).not.toBeInTheDocument();
     expect(screen.queryByText("Checklist")).not.toBeInTheDocument();
     expect(screen.queryByText("현재 요약")).not.toBeInTheDocument();
   });
@@ -165,8 +179,8 @@ describe("ExpenseDetailPageContent", () => {
     const detailCard = screen.getByText("지출 상세").closest("section");
     expect(detailCard).not.toBeNull();
     expect(within(detailCard as HTMLElement).getAllByText("증빙 파일")).toHaveLength(5);
-    expect(within(detailCard as HTMLElement).getByText("검증 메시지")).toBeInTheDocument();
-    expect(within(detailCard as HTMLElement).getByText("변경 이력")).toBeInTheDocument();
+    expect(within(detailCard as HTMLElement).queryByText("검증 메시지")).not.toBeInTheDocument();
+    expect(within(detailCard as HTMLElement).queryByText("변경 이력")).not.toBeInTheDocument();
   });
 
   it("normalizes cleared date inputs to null before saving", async () => {
@@ -193,5 +207,141 @@ describe("ExpenseDetailPageContent", () => {
         expectedSpendDate: null,
       }),
     );
+  });
+
+  it("uploads directly from a policy-backed evidence checklist row", async () => {
+    const uploadMutateAsync = vi.fn().mockResolvedValue({});
+    mockLoadedQueries(
+      {
+        policySnapshot: {
+          category_key: "material_cost",
+          category_name: "Materials",
+          evidence_requirements: [{
+            accepted_documents: [{ documentKey: "receipt", label: "Receipt" }],
+            condition_text: null,
+            document_key: "receipt",
+            evidence_key: "payment_bundle",
+            evidence_name: "Payment bundle",
+            fulfillment_type: "single",
+            requirement_type: "required",
+            sort_order: 0,
+            source_reference: {},
+          }],
+        },
+      },
+      vi.fn(),
+      {
+        files: [],
+        policySnapshotHash: "hash",
+        requirements: [{
+          acceptedDocuments: [{ documentKey: "receipt", label: "Receipt", uploaded: false }],
+          changedAt: null,
+          changedBy: null,
+          conditionText: null,
+          evidenceName: "Payment bundle",
+          fulfillmentType: "single",
+          requirementKey: "payment_bundle",
+          requirementType: "required",
+          status: "not_uploaded",
+          uploadedCount: 0,
+          waivedReason: null,
+        }],
+        unclassifiedFiles: [],
+      },
+      {
+        uploadMutation: {
+          isPending: false,
+          mutateAsync: uploadMutateAsync,
+        },
+      },
+    );
+
+    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
+
+    const file = new File(["pdf"], "receipt.pdf", { type: "application/pdf" });
+    fireEvent.change(screen.getByLabelText("파일 선택"), { target: { files: [file] } });
+
+    await waitFor(() => expect(uploadMutateAsync).toHaveBeenCalledWith({
+      documentKey: "receipt",
+      file,
+      requirementKey: "payment_bundle",
+    }));
+    expect(screen.queryAllByText("?뚯씪 異붽?")).toHaveLength(0);
+  });
+
+  it("opens and deletes uploaded policy evidence files", async () => {
+    const deleteMutateAsync = vi.fn().mockResolvedValue({});
+    const signedUrlMutateAsync = vi.fn().mockResolvedValue({ signedUrl: "https://example.test/receipt.pdf" });
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    mockLoadedQueries(
+      {
+        policySnapshot: {
+          category_key: "material_cost",
+          category_name: "Materials",
+          evidence_requirements: [{
+            accepted_documents: [{ documentKey: "receipt", label: "Receipt" }],
+            condition_text: null,
+            document_key: "receipt",
+            evidence_key: "payment_bundle",
+            evidence_name: "Payment bundle",
+            fulfillment_type: "single",
+            requirement_type: "required",
+            sort_order: 0,
+            source_reference: {},
+          }],
+        },
+      },
+      vi.fn(),
+      {
+        files: [{
+          documentKey: "receipt",
+          duplicateStatus: "unique",
+          expenseId,
+          fileExtension: "pdf",
+          fileSize: 1024,
+          id: "33333333-3333-4333-8333-333333333333",
+          mimeType: "application/pdf",
+          originalFileName: "receipt.pdf",
+          projectId,
+          requirementKey: "payment_bundle",
+          uploadedAt: "2026-07-01T00:00:00.000Z",
+        }],
+        policySnapshotHash: "hash",
+        requirements: [{
+          acceptedDocuments: [{ documentKey: "receipt", label: "Receipt", uploaded: true }],
+          changedAt: null,
+          changedBy: null,
+          conditionText: null,
+          evidenceName: "Payment bundle",
+          fulfillmentType: "single",
+          requirementKey: "payment_bundle",
+          requirementType: "required",
+          status: "uploaded",
+          uploadedCount: 1,
+          waivedReason: null,
+        }],
+        unclassifiedFiles: [],
+      },
+      {
+        deleteMutation: {
+          isPending: false,
+          mutateAsync: deleteMutateAsync,
+        },
+        signedUrlMutation: {
+          isPending: false,
+          mutateAsync: signedUrlMutateAsync,
+        },
+      },
+    );
+
+    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "receipt.pdf 열기" }));
+    await waitFor(() => expect(signedUrlMutateAsync).toHaveBeenCalledWith("33333333-3333-4333-8333-333333333333"));
+    expect(openSpy).toHaveBeenCalledWith("https://example.test/receipt.pdf", "_blank", "noopener,noreferrer");
+
+    fireEvent.click(screen.getByRole("button", { name: "receipt.pdf 삭제" }));
+    await waitFor(() => expect(deleteMutateAsync).toHaveBeenCalledWith("33333333-3333-4333-8333-333333333333"));
+    openSpy.mockRestore();
   });
 });
