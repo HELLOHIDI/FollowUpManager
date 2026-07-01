@@ -5,8 +5,8 @@ import { loadCurrentUser } from "@/features/auth/server/load-current-user";
 import { CurrentUserProvider } from "@/features/auth/context/current-user-context";
 
 export const metadata: Metadata = {
-  title: "GrantFollow",
-  description: "정부지원금 지출 관리 관리자 도구",
+  title: "FuManager",
+  description: "Project follow-up operations manager",
 };
 
 export default async function RootLayout({

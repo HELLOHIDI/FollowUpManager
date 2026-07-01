@@ -26,13 +26,13 @@ create table if not exists public.budget_category_policy_templates (
   evidence_guide_message text not null default '',
   caution_guide_message text not null default '',
 
-  source_type text not null default 'grantfollow_default'
+  source_type text not null default 'fumanager_default'
     check (source_type in (
       'integrated_guideline',
       'program_specific_guideline',
-      'grantfollow_default'
+      'fumanager_default'
     )),
-  source_title text not null default 'GrantFollow MVP default policy',
+  source_title text not null default 'FuManager MVP default policy',
   source_version text,
 
   is_active boolean not null default true,
@@ -113,4 +113,4 @@ set
   updated_at = now();
 
 comment on table public.budget_category_policy_templates is
-  'Global default policy guidance for GrantFollow budget category keys.';
+  'Global default policy guidance for FuManager budget category keys.';
