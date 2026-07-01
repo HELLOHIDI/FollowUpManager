@@ -2,8 +2,8 @@ import type { Hono } from "hono";
 import { failure, respond } from "@/backend/http/response";
 import { getCurrentUser, getLogger, getSupabase, type AppEnv } from "@/backend/hono/context";
 import type { ProjectMutationClientFactory } from "./mutation-client";
-import { CompanyProjectsParamsSchema, MAX_DOCUMENT_SIZE, ProjectDocumentParamsSchema, ProjectInputSchema, ProjectParamsSchema, UploadIntentInputSchema } from "./schema";
-import { completeUpload, createDocumentSignedUrl, createProject, createUploadIntent, deleteProjectDocument, getProject, listProjectDocuments, listProjects, updateProject } from "./service";
+import { CompanyProjectsParamsSchema, MAX_DOCUMENT_SIZE, ProjectDocumentParamsSchema, ProjectInputSchema, ProjectParamsSchema, SaveProjectEvidenceDocumentsInputSchema, UploadIntentInputSchema } from "./schema";
+import { completeUpload, createDocumentSignedUrl, createProject, createUploadIntent, deleteProjectDocument, getProject, listProjectDocuments, listProjectEvidenceTemplateDownloads, listProjects, reconcileProjectEvidenceDocumentsFromConfirmedPolicy, saveProjectEvidenceTemplateSetup, updateProject } from "./service";
 
 const parseBody = async (request: { json: () => Promise<unknown> }) => request.json().catch(() => null);
 
@@ -53,6 +53,26 @@ export const registerProjectRoutes = (app: Hono<AppEnv>, options: { createProjec
     const params = ProjectParamsSchema.safeParse({ projectId: context.req.param("projectId") });
     if (!params.success) return invalid(context, "INVALID_PROJECT_PARAMS", "사업 ID를 확인해 주세요.", params.error.flatten());
     return respond(context, await listProjectDocuments(options.createProjectMutationClient(), params.data.projectId));
+  });
+
+  app.get("/projects/:projectId/evidence-documents", async (context) => {
+    const params = ProjectParamsSchema.safeParse({ projectId: context.req.param("projectId") });
+    if (!params.success) return invalid(context, "INVALID_PROJECT_PARAMS", "사업 ID를 확인해 주세요.", params.error.flatten());
+    return respond(context, await reconcileProjectEvidenceDocumentsFromConfirmedPolicy(options.createProjectMutationClient(), params.data.projectId));
+  });
+
+  app.put("/projects/:projectId/evidence-documents", async (context) => {
+    const params = ProjectParamsSchema.safeParse({ projectId: context.req.param("projectId") });
+    if (!params.success) return invalid(context, "INVALID_PROJECT_PARAMS", "사업 ID를 확인해 주세요.", params.error.flatten());
+    const body = SaveProjectEvidenceDocumentsInputSchema.safeParse(await parseBody(context.req));
+    if (!body.success) return invalid(context, "INVALID_PROJECT_TEMPLATE_BODY", "기관 양식 연결 정보를 확인해 주세요.", body.error.flatten());
+    return respond(context, await saveProjectEvidenceTemplateSetup(options.createProjectMutationClient(), params.data.projectId, body.data));
+  });
+
+  app.get("/projects/:projectId/evidence-template-links", async (context) => {
+    const params = ProjectParamsSchema.safeParse({ projectId: context.req.param("projectId") });
+    if (!params.success) return invalid(context, "INVALID_PROJECT_PARAMS", "사업 ID를 확인해 주세요.", params.error.flatten());
+    return respond(context, await listProjectEvidenceTemplateDownloads(options.createProjectMutationClient(), params.data.projectId));
   });
 
   app.post("/projects/:projectId/documents/upload-intents", async (context) => {

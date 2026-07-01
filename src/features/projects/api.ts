@@ -1,7 +1,7 @@
 "use client";
 
 import { apiClient } from "@/lib/remote/api-client";
-import { ProjectDocumentListResponseSchema, ProjectDocumentResponseSchema, ProjectListResponseSchema, ProjectResponseSchema, type ProjectInput } from "./lib/dto";
+import { ProjectDocumentListResponseSchema, ProjectDocumentResponseSchema, ProjectEvidenceTemplateDownloadListSchema, ProjectEvidenceTemplateSetupResponseSchema, ProjectListResponseSchema, ProjectResponseSchema, type ProjectInput, type SaveProjectEvidenceDocumentsInput } from "./lib/dto";
 import { uploadSignedFile } from "./lib/signed-upload";
 
 export const fetchCompanyProjects = async (companyId: string) => ProjectListResponseSchema.parse((await apiClient.get(`/api/companies/${companyId}/projects`)).data);
@@ -9,6 +9,9 @@ export const fetchProject = async (projectId: string) => ProjectResponseSchema.p
 export const createProjectRequest = async ({ companyId, input }: { companyId: string; input: ProjectInput }) => ProjectResponseSchema.parse((await apiClient.post(`/api/companies/${companyId}/projects`, input)).data);
 export const updateProjectRequest = async ({ projectId, input }: { projectId: string; input: ProjectInput }) => ProjectResponseSchema.parse((await apiClient.patch(`/api/projects/${projectId}`, input)).data);
 export const fetchProjectDocuments = async (projectId: string) => ProjectDocumentListResponseSchema.parse((await apiClient.get(`/api/projects/${projectId}/documents`)).data);
+export const fetchProjectEvidenceDocuments = async (projectId: string) => ProjectEvidenceTemplateSetupResponseSchema.parse((await apiClient.get(`/api/projects/${projectId}/evidence-documents`)).data);
+export const saveProjectEvidenceDocuments = async ({ input, projectId }: { input: SaveProjectEvidenceDocumentsInput; projectId: string }) => ProjectEvidenceTemplateSetupResponseSchema.parse((await apiClient.put(`/api/projects/${projectId}/evidence-documents`, input)).data);
+export const fetchProjectEvidenceTemplateDownloads = async (projectId: string) => ProjectEvidenceTemplateDownloadListSchema.parse((await apiClient.get(`/api/projects/${projectId}/evidence-template-links`)).data);
 
 export const uploadProjectDocument = async (projectId: string, file: File) => {
   let documentId: string | null = null;

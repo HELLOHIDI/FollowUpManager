@@ -12,6 +12,7 @@ import {
 import { programPolicyKeys } from "./program-policy-keys";
 import { expenseKeys } from "@/features/expenses/hooks/expense-keys";
 import { dashboardKeys } from "@/features/dashboard/hooks/dashboard-keys";
+import { projectKeys } from "@/features/projects/hooks/project-keys";
 
 export const useProjectPolicyStatusQuery = (projectId: string) =>
   useQuery({
@@ -68,6 +69,8 @@ export const useProgramPolicyMutations = (projectId: string, policyVersionId?: s
       invalidate();
       void queryClient.invalidateQueries({ queryKey: expenseKeys.project(projectId) });
       void queryClient.invalidateQueries({ queryKey: dashboardKeys.project(projectId) });
+      void queryClient.invalidateQueries({ queryKey: projectKeys.evidenceDocuments(projectId) });
+      void queryClient.invalidateQueries({ queryKey: projectKeys.evidenceTemplateDownloads(projectId) });
     },
   });
 
