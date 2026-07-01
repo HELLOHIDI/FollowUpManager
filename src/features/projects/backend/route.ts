@@ -3,7 +3,7 @@ import { failure, respond } from "@/backend/http/response";
 import { getCurrentUser, getLogger, getSupabase, type AppEnv } from "@/backend/hono/context";
 import type { ProjectMutationClientFactory } from "./mutation-client";
 import { CompanyProjectsParamsSchema, MAX_DOCUMENT_SIZE, ProjectDocumentParamsSchema, ProjectInputSchema, ProjectParamsSchema, SaveProjectEvidenceDocumentsInputSchema, UploadIntentInputSchema } from "./schema";
-import { completeUpload, createDocumentSignedUrl, createProject, createUploadIntent, deleteProjectDocument, getProject, listProjectDocuments, listProjectEvidenceTemplateDownloads, listProjects, reconcileProjectEvidenceDocumentsFromConfirmedPolicy, saveProjectEvidenceTemplateSetup, updateProject } from "./service";
+import { completeUpload, createDocumentSignedUrl, createProject, createUploadIntent, deleteProjectDocument, getProject, listProjectDocuments, listProjectEvidenceDocuments, listProjectEvidenceTemplateDownloads, listProjects, saveProjectEvidenceTemplateSetup, updateProject } from "./service";
 
 const parseBody = async (request: { json: () => Promise<unknown> }) => request.json().catch(() => null);
 
@@ -58,7 +58,7 @@ export const registerProjectRoutes = (app: Hono<AppEnv>, options: { createProjec
   app.get("/projects/:projectId/evidence-documents", async (context) => {
     const params = ProjectParamsSchema.safeParse({ projectId: context.req.param("projectId") });
     if (!params.success) return invalid(context, "INVALID_PROJECT_PARAMS", "사업 ID를 확인해 주세요.", params.error.flatten());
-    return respond(context, await reconcileProjectEvidenceDocumentsFromConfirmedPolicy(options.createProjectMutationClient(), params.data.projectId));
+    return respond(context, await listProjectEvidenceDocuments(options.createProjectMutationClient(), params.data.projectId));
   });
 
   app.put("/projects/:projectId/evidence-documents", async (context) => {
