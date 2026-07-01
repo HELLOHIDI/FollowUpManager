@@ -40,9 +40,12 @@ import {
   preApprovalStatuses,
 } from "../lib/expense-detail-policy";
 import { requiresSubcategorySelection } from "../lib/policy-category-options";
+import { getProjectDocumentSignedUrl } from "@/features/projects/api";
+import { useProjectEvidenceDocumentsQuery, useProjectEvidenceTemplateDownloadsQuery } from "@/features/projects/hooks/use-projects";
+import type { ProjectEvidenceTemplateDownload } from "@/features/projects/lib/dto";
 
 type FormValues = ExpenseUpdateInput;
-type DetailEvidenceDocumentOption = { key: string; label: string };
+type DetailEvidenceDocumentOption = { key: string; label: string; source?: "policy" | "custom" };
 
 const selectedOrNone = (value: string | null | undefined) => value ?? "none";
 const noneToNull = (value: string) => (value === "none" ? null : value);
@@ -68,6 +71,8 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   const query = useExpenseDetailQuery(projectId, expenseId);
   const evidenceQuery = useExpenseEvidenceQuery(projectId, expenseId);
   const historyQuery = useExpenseHistoryQuery(projectId, expenseId);
+  const projectEvidenceDocumentsQuery = useProjectEvidenceDocumentsQuery(projectId);
+  const templateDownloadsQuery = useProjectEvidenceTemplateDownloadsQuery(projectId);
   const { updateMutation } = useExpenseDetailMutations(projectId, expenseId);
   const evidenceMutations = useExpenseEvidenceMutations(projectId, expenseId);
   const stageMutation = useExpenseStageMutation(projectId);
@@ -133,7 +138,13 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   const currentStageIndex = getExpenseStageIndex(query.data.stageKey);
   const nextStageKey = getNextExpenseStageKey(query.data.stageKey);
   const currentStageLabel = EXPENSE_STAGES[currentStageIndex]?.label ?? query.data.stageKey;
-  const policyDocumentOptions = policyEvidenceOptionsFromSnapshot(query.data.policySnapshot);
+  const projectDocumentOptions = projectEvidenceDocumentsQuery.data?.documentTypes.map((documentType) => ({
+    key: documentType.documentKey,
+    label: documentType.displayName,
+    source: documentType.source,
+  })) ?? [];
+  const policyDocumentOptions = projectDocumentOptions.length > 0 ? projectDocumentOptions : policyEvidenceOptionsFromSnapshot(query.data.policySnapshot);
+  const templateDownloads = templateDownloadsQuery.data ?? [];
 
   const handleSave = form.handleSubmit(async (values) => {
     const selectedCategory = query.data.categoryOptions.find((option) => option.categoryKey === values.categoryKey);
@@ -218,9 +229,11 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
                   isCurrent={stage.key === query.data.stageKey}
                   isEditable={index <= currentStageIndex}
                   policyDocumentOptions={policyDocumentOptions}
+                  projectId={projectId}
                   signedUrlMutation={evidenceMutations.signedUrlMutation}
                   stageKey={stage.key}
                   stageLabel={stage.label}
+                  templateDownloads={templateDownloads}
                   uploadMutation={evidenceMutations.uploadMutation}
                 />
               ))}
@@ -443,14 +456,18 @@ function ExpenseEvidencePanel({
   documentOptions,
   evidenceQuery,
   fieldId,
+  projectId,
   signedUrlMutation,
+  templateDownloads,
   uploadMutation,
 }: {
   deleteMutation: EvidenceMutation<string, unknown>;
   documentOptions: DetailEvidenceDocumentOption[];
   evidenceQuery: ReturnType<typeof useExpenseEvidenceQuery>;
   fieldId: string;
+  projectId: string;
   signedUrlMutation: EvidenceMutation<string, { signedUrl?: string }>;
+  templateDownloads: ProjectEvidenceTemplateDownload[];
   uploadMutation: EvidenceMutation<{ documentKey: string; file: File; requirementKey?: string | null }, unknown>;
 }) {
   const { toast } = useToast();
@@ -458,6 +475,7 @@ function ExpenseEvidencePanel({
   const [openingId, setOpeningId] = useState<string | null>(null);
   const visibleDocumentKeys = useMemo<Set<string>>(() => new Set(documentOptions.map((option) => option.key)), [documentOptions]);
   const files = evidenceQuery.data?.files.filter((file) => visibleDocumentKeys.has(file.documentKey)) ?? [];
+  const downloads = templateDownloads.filter((template) => template.documentKey === documentKey);
 
   useEffect(() => {
     if (!visibleDocumentKeys.has(documentKey)) {
@@ -497,6 +515,22 @@ function ExpenseEvidencePanel({
     }
   };
 
+  const openTemplate = async (template: ProjectEvidenceTemplateDownload) => {
+    setOpeningId(template.id);
+    try {
+      const { signedUrl } = await getProjectDocumentSignedUrl(projectId, template.id);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast({
+        title: "기관 양식을 열지 못했습니다.",
+        description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."),
+        variant: "destructive",
+      });
+    } finally {
+      setOpeningId(null);
+    }
+  };
+
   const removeEvidence = async (evidence: ExpenseEvidenceFileResponse) => {
     try {
       await deleteMutation.mutateAsync(evidence.id);
@@ -526,6 +560,20 @@ function ExpenseEvidencePanel({
           </SelectContent>
         </Select>
       </div>
+
+      {downloads.length > 0 ? (
+        <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+          <p className="text-xs font-medium text-muted-foreground">기관 양식</p>
+          <div className="flex flex-wrap gap-2">
+            {downloads.map((template) => (
+              <Button key={template.id} type="button" size="sm" variant="outline" onClick={() => void openTemplate(template)} disabled={openingId === template.id}>
+                {openingId === template.id ? <Loader2 className="mr-2 size-3 animate-spin" /> : <ExternalLink className="mr-2 size-3" />}
+                {template.originalFileName}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium">
         {uploadMutation.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Upload className="size-4" aria-hidden="true" />}
@@ -611,9 +659,11 @@ function StageSection({
   isCurrent,
   isEditable,
   policyDocumentOptions,
+  projectId,
   signedUrlMutation,
   stageKey,
   stageLabel,
+  templateDownloads,
   uploadMutation,
 }: {
   control: ReturnType<typeof useForm<FormValues>>["control"];
@@ -623,14 +673,21 @@ function StageSection({
   isCurrent: boolean;
   isEditable: boolean;
   policyDocumentOptions: DetailEvidenceDocumentOption[];
+  projectId: string;
   signedUrlMutation: EvidenceMutation<string, { signedUrl?: string }>;
   stageKey: ExpenseStageKey;
   stageLabel: string;
+  templateDownloads: ProjectEvidenceTemplateDownload[];
   uploadMutation: EvidenceMutation<{ documentKey: string; file: File; requirementKey?: string | null }, unknown>;
 }) {
   const copy = expenseStageDetailCopy[stageKey];
   const documentOptions = useMemo<DetailEvidenceDocumentOption[]>(
-    () => policyDocumentOptions.length > 0 ? policyDocumentOptions : evidenceOptionsForStage(stageKey),
+    () => {
+      const options: DetailEvidenceDocumentOption[] = policyDocumentOptions.length > 0
+        ? policyDocumentOptions
+        : evidenceOptionsForStage(stageKey).map((option) => ({ ...option }));
+      return stageKey === "execution_request" ? options : options.filter((option) => option.source !== "custom");
+    },
     [policyDocumentOptions, stageKey],
   );
 
@@ -667,7 +724,9 @@ function StageSection({
             documentOptions={documentOptions}
             evidenceQuery={evidenceQuery}
             fieldId={`expense-evidence-document-key-${stageKey}`}
+            projectId={projectId}
             signedUrlMutation={signedUrlMutation}
+            templateDownloads={templateDownloads}
             uploadMutation={uploadMutation}
           />
         </div>

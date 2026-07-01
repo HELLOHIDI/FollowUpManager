@@ -20,6 +20,9 @@ const projectApi = vi.hoisted(() => ({
   fetchCompanyProjects: vi.fn(),
   fetchProject: vi.fn(),
   fetchProjectDocuments: vi.fn(),
+  fetchProjectEvidenceDocuments: vi.fn(),
+  fetchProjectEvidenceTemplateDownloads: vi.fn(),
+  saveProjectEvidenceDocuments: vi.fn(),
   updateProjectRequest: vi.fn(),
   uploadProjectDocument: vi.fn(),
   uploadProjectDocuments: vi.fn(),
@@ -107,6 +110,9 @@ describe("CompanySettings", () => {
     projectApi.fetchCompanyProjects.mockReset();
     projectApi.fetchProject.mockReset();
     projectApi.fetchProjectDocuments.mockReset();
+    projectApi.fetchProjectEvidenceDocuments.mockReset();
+    projectApi.fetchProjectEvidenceTemplateDownloads.mockReset();
+    projectApi.saveProjectEvidenceDocuments.mockReset();
     projectApi.updateProjectRequest.mockReset();
     projectApi.uploadProjectDocument.mockReset();
     projectApi.uploadProjectDocuments.mockReset();

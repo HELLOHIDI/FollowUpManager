@@ -51,6 +51,57 @@ export const ProjectDocumentParamsSchema = z.object({
   projectId: z.string().uuid(),
 });
 
+export const ProjectEvidenceDocumentTypeSchema = z.object({
+  displayName: z.string().trim().min(1).max(200),
+  documentKey: z.string().regex(/^[a-z0-9_]+$/),
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  sortOrder: z.number().int(),
+  source: z.enum(["policy", "custom"]),
+  stageKey: z.literal("execution_request"),
+});
+
+export const ProjectDocumentTemplateLinkSchema = z.object({
+  documentKey: z.string().regex(/^[a-z0-9_]+$/),
+  documentTypeId: z.string().uuid(),
+  projectDocumentId: z.string().uuid(),
+  sortOrder: z.number().int(),
+});
+
+export const SaveProjectEvidenceDocumentTypeSchema = ProjectEvidenceDocumentTypeSchema.pick({
+  displayName: true,
+  documentKey: true,
+  sortOrder: true,
+  source: true,
+  stageKey: true,
+}).extend({ id: z.string().uuid().optional() });
+
+export const SaveProjectDocumentTemplateLinkSchema = ProjectDocumentTemplateLinkSchema.pick({
+  documentKey: true,
+  projectDocumentId: true,
+  sortOrder: true,
+}).extend({ documentTypeId: z.string().uuid().optional() });
+
+export const SaveProjectEvidenceDocumentsInputSchema = z.object({
+  documentTypes: z.array(SaveProjectEvidenceDocumentTypeSchema),
+  links: z.array(SaveProjectDocumentTemplateLinkSchema),
+}).strict();
+
+export const ProjectEvidenceTemplateSetupResponseSchema = z.object({
+  documentTypes: z.array(ProjectEvidenceDocumentTypeSchema),
+  links: z.array(ProjectDocumentTemplateLinkSchema),
+});
+
+export const ProjectEvidenceTemplateDownloadSchema = z.object({
+  documentKey: z.string(),
+  documentTypeId: z.string().uuid(),
+  fileSize: z.number(),
+  id: z.string().uuid(),
+  originalFileName: z.string(),
+  sortOrder: z.number(),
+});
+export const ProjectEvidenceTemplateDownloadListSchema = z.array(ProjectEvidenceTemplateDownloadSchema);
+
 export const ProjectInputSchema = z
   .object({
     agreementEndDate: dateSchema,
@@ -134,4 +185,9 @@ export const ProjectDocumentListResponseSchema = z.array(ProjectDocumentResponse
 export type ProjectInput = z.infer<typeof ProjectInputSchema>;
 export type ProjectResponse = z.infer<typeof ProjectResponseSchema>;
 export type ProjectDocumentResponse = z.infer<typeof ProjectDocumentResponseSchema>;
+export type ProjectEvidenceDocumentType = z.infer<typeof ProjectEvidenceDocumentTypeSchema>;
+export type ProjectDocumentTemplateLink = z.infer<typeof ProjectDocumentTemplateLinkSchema>;
+export type ProjectEvidenceTemplateSetupResponse = z.infer<typeof ProjectEvidenceTemplateSetupResponseSchema>;
+export type ProjectEvidenceTemplateDownload = z.infer<typeof ProjectEvidenceTemplateDownloadSchema>;
+export type SaveProjectEvidenceDocumentsInput = z.infer<typeof SaveProjectEvidenceDocumentsInputSchema>;
 export type UploadIntentInput = z.infer<typeof UploadIntentInputSchema>;

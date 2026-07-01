@@ -12,8 +12,16 @@ const queryMocks = vi.hoisted(() => ({
   useExpenseHistoryQuery: vi.fn(),
   useExpenseStageMutation: vi.fn(),
 }));
+const projectQueryMocks = vi.hoisted(() => ({
+  useProjectEvidenceDocumentsQuery: vi.fn(),
+  useProjectEvidenceTemplateDownloadsQuery: vi.fn(),
+}));
 
 vi.mock("../hooks/use-expenses-query", () => queryMocks);
+vi.mock("@/features/projects/hooks/use-projects", () => projectQueryMocks);
+vi.mock("@/features/projects/api", () => ({
+  getProjectDocumentSignedUrl: vi.fn(),
+}));
 vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
@@ -134,6 +142,16 @@ const mockLoadedQueries = (overrides: Partial<typeof detailData> = {}, mutateAsy
   queryMocks.useExpenseStageMutation.mockReturnValue({
     isPending: false,
     mutateAsync: vi.fn(),
+  });
+  projectQueryMocks.useProjectEvidenceDocumentsQuery.mockReturnValue({
+    data: null,
+    isError: false,
+    isPending: false,
+  });
+  projectQueryMocks.useProjectEvidenceTemplateDownloadsQuery.mockReturnValue({
+    data: [],
+    isError: false,
+    isPending: false,
   });
 };
 

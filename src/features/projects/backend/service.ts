@@ -7,10 +7,15 @@ import {
   getDocumentMetadata,
   PROJECT_DOCUMENT_BUCKET,
   ProjectDocumentResponseSchema,
+  ProjectEvidenceTemplateDownloadListSchema,
+  ProjectEvidenceTemplateSetupResponseSchema,
   ProjectResponseSchema,
   type ProjectDocumentResponse,
+  type ProjectEvidenceTemplateDownload,
+  type ProjectEvidenceTemplateSetupResponse,
   type ProjectInput,
   type ProjectResponse,
+  type SaveProjectEvidenceDocumentsInput,
   type UploadIntentInput,
 } from "./schema";
 
@@ -18,6 +23,7 @@ type Client = SupabaseClient<Database>;
 type Result<T> = HandlerResult<T, ProjectServiceError, unknown>;
 const PROJECT_SELECT = "id, company_id, project_name, host_institution, agreement_start_date, agreement_end_date, government_subsidy_amount, self_cash_amount, self_in_kind_amount, self_contribution_amount, total_project_budget, assignment_number, assignment_name, manager_name, manager_email, manager_phone, project_notes, profile_status, created_at, updated_at";
 const DOCUMENT_SELECT = "id, project_id, original_file_name, file_size, mime_type, created_at";
+const TEMPLATE_DOCUMENT_TYPE_SELECT = "id, project_id, document_key, display_name, source, stage_key, sort_order";
 const ASSIGNMENT_CONSTRAINT = "projects_company_assignment_number_unique";
 
 const mapProject = (row: Record<string, unknown>, status: 200 | 201 = 200): Result<ProjectResponse> => {
@@ -107,6 +113,134 @@ export const updateProject = async (client: Client, projectId: string, input: Pr
 const getDocumentRow = (client: Client, projectId: string, documentId: string) =>
   client.from("project_documents").select("*").eq("id", documentId).eq("project_id", projectId).maybeSingle();
 
+const mapTemplateSetup = (payload: unknown): Result<ProjectEvidenceTemplateSetupResponse> => {
+  const parsed = ProjectEvidenceTemplateSetupResponseSchema.safeParse(payload);
+  return parsed.success ? success(parsed.data) : failure(500, projectErrorCodes.responseInvalid, "기관 양식 연결 정보가 올바르지 않습니다.");
+};
+
+const mapTemplateDownloads = (payload: unknown): Result<ProjectEvidenceTemplateDownload[]> => {
+  const parsed = ProjectEvidenceTemplateDownloadListSchema.safeParse(payload);
+  return parsed.success ? success(parsed.data) : failure(500, projectErrorCodes.responseInvalid, "기관 양식 다운로드 정보가 올바르지 않습니다.");
+};
+
+const toDocumentTypeResponse = (row: Record<string, unknown>) => ({
+  displayName: row.display_name,
+  documentKey: row.document_key,
+  id: row.id,
+  projectId: row.project_id,
+  sortOrder: row.sort_order,
+  source: row.source,
+  stageKey: row.stage_key,
+});
+
+const toLinkResponse = (row: Record<string, unknown>) => ({
+  documentKey: row.document_key,
+  documentTypeId: row.document_type_id,
+  projectDocumentId: row.project_document_id,
+  sortOrder: row.sort_order,
+});
+
+export const reconcileProjectEvidenceDocumentsFromConfirmedPolicy = async (client: Client, projectId: string): Promise<Result<ProjectEvidenceTemplateSetupResponse>> => {
+  const db = client as SupabaseClient<any>;
+  const project = await db.from("projects").select("id, confirmed_policy_version_id").eq("id", projectId).is("deleted_at", null).maybeSingle();
+  if (project.error) return failure(500, projectErrorCodes.fetchError, "사업 정책 정보를 확인하지 못했습니다.");
+  if (!project.data) return failure(404, projectErrorCodes.notFound, "사업을 찾을 수 없습니다.");
+
+  const policyVersionId = project.data.confirmed_policy_version_id as string | null;
+  if (policyVersionId) {
+    const { data, error } = await db
+      .from("program_policy_evidence_requirements")
+      .select("document_key, evidence_key, evidence_name, sort_order")
+      .eq("policy_version_id", policyVersionId)
+      .order("sort_order")
+      .order("evidence_key");
+    if (error) return failure(500, projectErrorCodes.fetchError, "정책 증빙서류를 불러오지 못했습니다.");
+
+    const rows = new Map<string, Record<string, unknown>>();
+    for (const row of data ?? []) {
+      const documentKey = String(row.document_key || row.evidence_key || "");
+      if (!documentKey || rows.has(documentKey)) continue;
+      rows.set(documentKey, {
+        display_name: String(row.evidence_name || documentKey),
+        document_key: documentKey,
+        project_id: projectId,
+        sort_order: Number(row.sort_order ?? rows.size),
+        source: "policy",
+        stage_key: "execution_request",
+      });
+    }
+
+    if (rows.size > 0) {
+      const upsert = await db.from("project_evidence_document_types").upsert([...rows.values()], { onConflict: "project_id,document_key" });
+      if (upsert.error) return failure(500, projectErrorCodes.writeError, "증빙서류 목록을 동기화하지 못했습니다.");
+    }
+  }
+
+  return listProjectEvidenceDocuments(client, projectId);
+};
+
+export const listProjectEvidenceDocuments = async (client: Client, projectId: string): Promise<Result<ProjectEvidenceTemplateSetupResponse>> => {
+  const db = client as SupabaseClient<any>;
+  const documentTypes = await db
+    .from("project_evidence_document_types")
+    .select(TEMPLATE_DOCUMENT_TYPE_SELECT)
+    .eq("project_id", projectId)
+    .is("deleted_at", null)
+    .order("sort_order")
+    .order("display_name");
+  if (documentTypes.error) return failure(500, projectErrorCodes.fetchError, "증빙서류 목록을 불러오지 못했습니다.");
+
+  const links = await db
+    .from("project_document_template_links")
+    .select("document_type_id, project_document_id, sort_order, project_evidence_document_types!inner(document_key), project_documents!inner(upload_status, deleted_at)")
+    .eq("project_id", projectId)
+    .eq("project_documents.upload_status", "ready")
+    .is("project_documents.deleted_at", null)
+    .order("sort_order");
+  if (links.error) return failure(500, projectErrorCodes.fetchError, "기관 양식 연결 정보를 불러오지 못했습니다.");
+
+  return mapTemplateSetup({
+    documentTypes: (documentTypes.data ?? []).map((row: Record<string, unknown>) => toDocumentTypeResponse(row)),
+    links: (links.data ?? []).map((row: Record<string, unknown>) => toLinkResponse({
+      ...row,
+      document_key: (row.project_evidence_document_types as { document_key?: string } | null)?.document_key,
+    })),
+  });
+};
+
+export const saveProjectEvidenceTemplateSetup = async (client: Client, projectId: string, input: SaveProjectEvidenceDocumentsInput): Promise<Result<ProjectEvidenceTemplateSetupResponse>> => {
+  const { data, error } = await (client as SupabaseClient<any>).rpc("save_project_evidence_template_setup", {
+    p_document_types: input.documentTypes,
+    p_links: input.links,
+    p_project_id: projectId,
+  });
+  return error ? failure(500, projectErrorCodes.writeError, "기관 양식 연결 정보를 저장하지 못했습니다.") : mapTemplateSetup(data);
+};
+
+export const listProjectEvidenceTemplateDownloads = async (client: Client, projectId: string): Promise<Result<ProjectEvidenceTemplateDownload[]>> => {
+  const { data, error } = await (client as SupabaseClient<any>)
+    .from("project_document_template_links")
+    .select("document_type_id, sort_order, project_evidence_document_types!inner(document_key), project_documents!inner(id, original_file_name, file_size, upload_status, deleted_at)")
+    .eq("project_id", projectId)
+    .eq("project_documents.upload_status", "ready")
+    .is("project_documents.deleted_at", null)
+    .order("sort_order");
+  if (error) return failure(500, projectErrorCodes.fetchError, "기관 양식 다운로드 목록을 불러오지 못했습니다.");
+
+  return mapTemplateDownloads((data ?? []).map((row: Record<string, unknown>) => {
+    const document = row.project_documents as { id?: string; original_file_name?: string; file_size?: number } | null;
+    const type = row.project_evidence_document_types as { document_key?: string } | null;
+    return {
+      documentKey: type?.document_key,
+      documentTypeId: row.document_type_id,
+      fileSize: document?.file_size,
+      id: document?.id,
+      originalFileName: document?.original_file_name,
+      sortOrder: row.sort_order,
+    };
+  }));
+};
+
 export const listProjectDocuments = async (client: Client, projectId: string): Promise<Result<ProjectDocumentResponse[]>> => {
   const project = await getProject(client, projectId);
   if (project.ok === false) return failure(project.status, project.error.code, project.error.message, project.error.details);
@@ -175,6 +309,8 @@ export const deleteProjectDocument = async (client: Client, projectId: string, d
   if (lookup.error) return failure(500, projectErrorCodes.fetchError, "첨부파일 상태를 확인하지 못했습니다.");
   const row = lookup.data;
   if (!row || row.deleted_at) return failure(404, projectErrorCodes.notFound, "첨부파일을 찾을 수 없습니다.");
+  const linkCleanup = await (client as SupabaseClient<any>).from("project_document_template_links").delete().eq("project_id", projectId).eq("project_document_id", documentId);
+  if (linkCleanup.error) return failure(500, projectErrorCodes.writeError, "기관 양식 연결을 정리하지 못했습니다.");
   const { data: deleted, error } = await client.from("project_documents").update({ deleted_at: new Date().toISOString() }).eq("id", documentId).eq("project_id", projectId).is("deleted_at", null).select("id").maybeSingle();
   if (error) return failure(500, projectErrorCodes.writeError, "첨부파일을 삭제하지 못했습니다.");
   if (!deleted) return failure(409, projectErrorCodes.documentStateConflict, "첨부파일 상태가 변경되었습니다.");
