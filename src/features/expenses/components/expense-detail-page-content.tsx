@@ -143,7 +143,8 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
     label: documentType.displayName,
     source: documentType.source,
   })) ?? [];
-  const policyDocumentOptions = projectDocumentOptions.length > 0 ? projectDocumentOptions : policyEvidenceOptionsFromSnapshot(query.data.policySnapshot);
+  const snapshotDocumentOptions = policyEvidenceOptionsFromSnapshot(query.data.policySnapshot);
+  const executionRequestDocumentOptions = projectDocumentOptions.length > 0 ? projectDocumentOptions : snapshotDocumentOptions;
   const templateDownloads = templateDownloadsQuery.data ?? [];
 
   const handleSave = form.handleSubmit(async (values) => {
@@ -228,7 +229,7 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
                   evidenceQuery={evidenceQuery}
                   isCurrent={stage.key === query.data.stageKey}
                   isEditable={index <= currentStageIndex}
-                  policyDocumentOptions={policyDocumentOptions}
+                  policyDocumentOptions={stage.key === "execution_request" ? executionRequestDocumentOptions : snapshotDocumentOptions}
                   projectId={projectId}
                   signedUrlMutation={evidenceMutations.signedUrlMutation}
                   stageKey={stage.key}

@@ -187,6 +187,37 @@ describe("ExpenseDetailPageContent", () => {
     expect(within(detailCard as HTMLElement).getByText("변경 이력")).toBeInTheDocument();
   });
 
+  it("keeps non-execution stages on snapshot evidence options when project templates exist", () => {
+    mockLoadedQueries({
+      policySnapshot: {
+        evidence_requirements: [
+          { evidence_key: "pre_approval_form", evidence_name: "Pre approval form" },
+        ],
+      },
+    });
+    projectQueryMocks.useProjectEvidenceDocumentsQuery.mockReturnValue({
+      data: {
+        documentTypes: [{
+          displayName: "Execution template",
+          documentKey: "execution_template",
+          id: "66666666-6666-4666-8666-666666666666",
+          projectId,
+          sortOrder: 0,
+          source: "custom",
+          stageKey: "execution_request",
+        }],
+        links: [],
+      },
+      isError: false,
+      isPending: false,
+    });
+
+    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
+
+    expect(screen.getAllByText("Pre approval form").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Execution template").length).toBeGreaterThan(0);
+  });
+
   it("normalizes cleared date inputs to null before saving", async () => {
     const mutateAsync = vi.fn().mockResolvedValue({});
     mockLoadedQueries(
