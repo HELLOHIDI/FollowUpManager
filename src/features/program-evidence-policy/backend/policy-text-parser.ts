@@ -31,6 +31,7 @@ const subcategorySectionPattern = /\uBE44\uBAA9\s*\uC99D\uBE59\uC11C\uB958/u;
 const evidenceContinuationKeywordPattern =
   /\uC11C\uB958|\uBB38\uC11C|\uACF5\uBB38|\uACC4\uC57D|\uD655\uC778|\uBCF4\uACE0|\uC99D\uBE59|\uC2E0\uCCAD|\uC811\uC218|\uCE74\uD0C8\uB85C\uADF8|\uC601\uC218\uC99D|\uACC4\uC0B0\uC11C|\uD1B5\uC7A5|\uB4F1\uB85D\uC99D|\uBA85\uC138\uC11C|\uACAC\uC801|\uC694\uCCAD|\uACC4\uD68D\uC11C|\uC2B9\uC778/u;
 const conditionalKeywordPattern = /when|if|case|optional|required if|over|exceed/i;
+const circledNumberStartCode = 0x2460;
 
 const normalizeCellText = (value: string) =>
   value
@@ -53,6 +54,21 @@ const cleanDisplayText = (value: string, maxLength: number) =>
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
+
+const getEvidenceSortOrder = (value: string, fallback: number) => {
+  const trimmed = value.trim();
+  const circled = trimmed.match(new RegExp(`^(${circledNumberPattern})`, "u"))?.[1];
+  if (circled) {
+    return circled.codePointAt(0)! - circledNumberStartCode;
+  }
+
+  const numbered = trimmed.match(/^(\d+)[.)]/)?.[1];
+  if (numbered) {
+    return Math.max(0, Number(numbered) - 1);
+  }
+
+  return fallback;
+};
 
 const isUsableCategoryName = (value: string) => {
   const normalized = cleanDisplayText(value, 120);
@@ -282,7 +298,7 @@ export const tablePolicyParser: PolicyParser = {
           }
         }
 
-        for (const evidenceLine of group.evidenceLines.slice(0, 80)) {
+        for (const [evidenceIndex, evidenceLine] of group.evidenceLines.slice(0, 80).entries()) {
           const evidenceName = cleanDisplayText(evidenceLine, 140);
           if (!evidenceName) {
             continue;
@@ -298,6 +314,7 @@ export const tablePolicyParser: PolicyParser = {
             fulfillmentType: "single",
             requirementType: conditionalKeywordPattern.test(evidenceLine) ? "conditional" : "required",
             reviewStatus: "needs_admin_review",
+            sortOrder: getEvidenceSortOrder(evidenceLine, evidenceIndex),
             sourceReference: {},
             subcategoryKey,
           });

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { parseTextDraft, toStablePolicyKey, validateDraftBlockingErrors, validateDraftStructuralErrors } from "./service";
 
 describe("program evidence policy service helpers", () => {
-  it("creates deterministic ASCII fallback keys for non-ASCII labels", () => {
-    expect(toStablePolicyKey("材料費", "category")).toMatch(/^category_[a-f0-9]{8}$/);
+  it("creates deterministic ASCII fallback keys when labels sanitize empty", () => {
+    expect(toStablePolicyKey("!!!!", "category")).toMatch(/^category_[a-f0-9]{8}$/);
     expect(toStablePolicyKey("Material Cost", "category")).toBe("material_cost");
   });
 
@@ -244,6 +244,35 @@ describe("program evidence policy service helpers", () => {
 
     expect(draft?.evidenceRequirements.map((evidence) => evidence.evidenceName)).toContain("Payment request (statement continuation)");
     expect(draft?.evidenceRequirements.map((evidence) => evidence.evidenceName)).toContain("Tax invoice");
+  });
+
+  it("stores and can apply evidence sort order from PDF numbering markers", () => {
+    const draft = parseTextDraft(
+      [
+        "budget_item\tevidence_documents",
+        "material_cost\t\u2460 Payment request |LINE| \u2462 Transaction statement |LINE| \u2461 Tax invoice",
+        "outsourcing\t1. Contract |LINE| 2. Quote",
+      ].join("\n"),
+      "policy.pdf",
+    );
+
+    const materialEvidence = draft?.evidenceRequirements.filter((evidence) => evidence.categoryKey === draft.categories[0]?.categoryKey);
+    const outsourcingEvidence = draft?.evidenceRequirements.filter((evidence) => evidence.categoryKey === draft.categories[1]?.categoryKey);
+
+    expect(materialEvidence?.map((evidence) => [evidence.evidenceName, evidence.sortOrder])).toEqual([
+      ["Payment request", 0],
+      ["Transaction statement", 2],
+      ["Tax invoice", 1],
+    ]);
+    expect(outsourcingEvidence?.map((evidence) => [evidence.evidenceName, evidence.sortOrder])).toEqual([
+      ["Contract", 0],
+      ["Quote", 1],
+    ]);
+    expect(
+      [...(materialEvidence ?? [])]
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .map((evidence) => evidence.evidenceName),
+    ).toEqual(["Payment request", "Tax invoice", "Transaction statement"]);
   });
 
   it("merges split category labels when a continued table row starts from the second evidence item", () => {

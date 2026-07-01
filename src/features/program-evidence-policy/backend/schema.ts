@@ -94,6 +94,7 @@ export const PolicyEvidenceRequirementInputSchema = z.object({
   fulfillmentType: EvidenceFulfillmentTypeSchema,
   conditionText: z.string().trim().nullable().optional(),
   documentKey: z.string().trim().regex(/^[a-z0-9_]+$/).nullable().optional(),
+  sortOrder: z.number().int().default(0),
   reviewStatus: PolicyReviewStatusSchema,
   sourceReference: SourceReferenceSchema.default({}),
 });

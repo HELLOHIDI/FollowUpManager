@@ -76,6 +76,7 @@ type PolicyEvidenceRequirementRow = {
   evidence_name: string;
   fulfillment_type: string;
   requirement_type: string;
+  sort_order: number | null;
   source_reference: unknown;
   subcategory_id: string | null;
 };
@@ -260,11 +261,19 @@ export const filterPolicyEvidenceRows = (
   categoryId: string,
   subcategoryId: string | null,
 ) =>
-  rows.filter((row) => {
-    if (!row.category_id && !row.subcategory_id) return true;
-    if (row.category_id !== categoryId) return false;
-    return row.subcategory_id === null || row.subcategory_id === subcategoryId;
-  });
+  rows
+    .filter((row) => {
+      if (!row.category_id && !row.subcategory_id) return true;
+      if (row.category_id !== categoryId) return false;
+      return row.subcategory_id === null || row.subcategory_id === subcategoryId;
+    })
+    .sort((left, right) => {
+      const leftGroup = !left.category_id && !left.subcategory_id ? 0 : left.subcategory_id === null ? 1 : 2;
+      const rightGroup = !right.category_id && !right.subcategory_id ? 0 : right.subcategory_id === null ? 1 : 2;
+      return leftGroup - rightGroup
+        || (left.sort_order ?? 0) - (right.sort_order ?? 0)
+        || left.evidence_key.localeCompare(right.evidence_key);
+    });
 
 const resolveExpenseCategory = async (
   client: SupabaseClient<Database>,
@@ -317,7 +326,7 @@ const resolveExpenseCategory = async (
 
     const evidenceRows = await (client as SupabaseClient<any>)
       .from("program_policy_evidence_requirements")
-      .select("category_id, subcategory_id, evidence_key, evidence_name, requirement_type, fulfillment_type, condition_text, document_key, source_reference")
+      .select("category_id, subcategory_id, evidence_key, evidence_name, requirement_type, fulfillment_type, condition_text, document_key, sort_order, source_reference")
       .eq("policy_version_id", policyOptions.data.policyVersionId);
     if (evidenceRows.error) {
       return { kind: "error", error: evidenceRows.error };
@@ -338,6 +347,7 @@ const resolveExpenseCategory = async (
         evidence_name: row.evidence_name,
         fulfillment_type: row.fulfillment_type,
         requirement_type: row.requirement_type,
+        sort_order: row.sort_order ?? 0,
         source_reference: row.source_reference ?? {},
       })),
       subcategory_key: subcategory?.subcategoryKey ?? null,

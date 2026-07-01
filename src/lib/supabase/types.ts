@@ -558,6 +558,7 @@ export type Database = {
           policy_version_id: string
           requirement_type: string
           review_status: string
+          sort_order: number
           source_reference: Json
           subcategory_id: string | null
           updated_at: string
@@ -574,6 +575,7 @@ export type Database = {
           policy_version_id: string
           requirement_type: string
           review_status?: string
+          sort_order?: number
           source_reference?: Json
           subcategory_id?: string | null
           updated_at?: string
@@ -590,6 +592,7 @@ export type Database = {
           policy_version_id?: string
           requirement_type?: string
           review_status?: string
+          sort_order?: number
           source_reference?: Json
           subcategory_id?: string | null
           updated_at?: string

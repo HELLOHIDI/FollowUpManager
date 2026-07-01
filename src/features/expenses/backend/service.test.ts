@@ -167,15 +167,16 @@ const fullUpdateInput = {
 describe("expense service", () => {
   it("filters policy evidence snapshots to common, selected category, and selected subcategory rows", () => {
     const rows = [
-      { category_id: null, condition_text: null, document_key: "common", evidence_key: "common", evidence_name: "Common", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: null },
-      { category_id: "cat-1", condition_text: null, document_key: "category", evidence_key: "category", evidence_name: "Category", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: null },
-      { category_id: "cat-1", condition_text: null, document_key: "sub", evidence_key: "sub", evidence_name: "Sub", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: "sub-1" },
-      { category_id: "cat-1", condition_text: null, document_key: "other_sub", evidence_key: "other_sub", evidence_name: "Other sub", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: "sub-2" },
-      { category_id: "cat-2", condition_text: null, document_key: "other_cat", evidence_key: "other_cat", evidence_name: "Other cat", fulfillment_type: "single", requirement_type: "required", source_reference: {}, subcategory_id: null },
+      { category_id: null, condition_text: null, document_key: "common", evidence_key: "common", evidence_name: "Common", fulfillment_type: "single", requirement_type: "required", sort_order: 0, source_reference: {}, subcategory_id: null },
+      { category_id: "cat-1", condition_text: null, document_key: "category_second", evidence_key: "category_second", evidence_name: "Category second", fulfillment_type: "single", requirement_type: "required", sort_order: 1, source_reference: {}, subcategory_id: null },
+      { category_id: "cat-1", condition_text: null, document_key: "category_first", evidence_key: "category_first", evidence_name: "Category first", fulfillment_type: "single", requirement_type: "required", sort_order: 0, source_reference: {}, subcategory_id: null },
+      { category_id: "cat-1", condition_text: null, document_key: "sub", evidence_key: "sub", evidence_name: "Sub", fulfillment_type: "single", requirement_type: "required", sort_order: 0, source_reference: {}, subcategory_id: "sub-1" },
+      { category_id: "cat-1", condition_text: null, document_key: "other_sub", evidence_key: "other_sub", evidence_name: "Other sub", fulfillment_type: "single", requirement_type: "required", sort_order: 0, source_reference: {}, subcategory_id: "sub-2" },
+      { category_id: "cat-2", condition_text: null, document_key: "other_cat", evidence_key: "other_cat", evidence_name: "Other cat", fulfillment_type: "single", requirement_type: "required", sort_order: 0, source_reference: {}, subcategory_id: null },
     ];
 
-    expect(filterPolicyEvidenceRows(rows, "cat-1", "sub-1").map((row) => row.evidence_key)).toEqual(["common", "category", "sub"]);
-    expect(filterPolicyEvidenceRows(rows, "cat-1", null).map((row) => row.evidence_key)).toEqual(["common", "category"]);
+    expect(filterPolicyEvidenceRows(rows, "cat-1", "sub-1").map((row) => row.evidence_key)).toEqual(["common", "category_first", "category_second", "sub"]);
+    expect(filterPolicyEvidenceRows(rows, "cat-1", null).map((row) => row.evidence_key)).toEqual(["common", "category_first", "category_second"]);
   });
 
   it("lists grouped expense rows and template-based category options", async () => {

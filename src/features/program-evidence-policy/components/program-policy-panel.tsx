@@ -91,6 +91,7 @@ export function ProgramPolicyPanel({
         requirementType: evidence.requirementType,
         reviewStatus: evidence.reviewStatus,
         sourceReference: evidence.sourceReference,
+        sortOrder: evidence.sortOrder,
         subcategoryKey: evidence.subcategoryKey,
       })),
       subcategories: draftQuery.data.subcategories.map((subcategory) => ({
@@ -384,6 +385,9 @@ function PolicyRowEditor({
         fulfillmentType: "single",
         requirementType: "required",
         reviewStatus: "auto_confident",
+        sortOrder: draft.evidenceRequirements.filter((evidence) =>
+          evidence.categoryKey === categoryKey && (evidence.subcategoryKey ?? null) === subcategoryKey,
+        ).length,
         sourceReference: {},
         subcategoryKey,
       }],
@@ -396,11 +400,13 @@ function PolicyRowEditor({
       .filter(({ subcategory }) => subcategory.categoryKey === category.categoryKey);
     const categoryCommonEvidence = draft.evidenceRequirements
       .map((evidence, evidenceIndex) => ({ evidence, evidenceIndex }))
-      .filter(({ evidence }) => evidence.categoryKey === category.categoryKey && !evidence.subcategoryKey);
+      .filter(({ evidence }) => evidence.categoryKey === category.categoryKey && !evidence.subcategoryKey)
+      .sort((left, right) => (left.evidence.sortOrder ?? 0) - (right.evidence.sortOrder ?? 0) || left.evidenceIndex - right.evidenceIndex);
     const subcategoryRows = categorySubcategories.map(({ subcategory, subcategoryIndex }) => ({
       evidenceItems: draft.evidenceRequirements
         .map((evidence, evidenceIndex) => ({ evidence, evidenceIndex }))
-        .filter(({ evidence }) => evidence.categoryKey === category.categoryKey && evidence.subcategoryKey === subcategory.subcategoryKey),
+        .filter(({ evidence }) => evidence.categoryKey === category.categoryKey && evidence.subcategoryKey === subcategory.subcategoryKey)
+        .sort((left, right) => (left.evidence.sortOrder ?? 0) - (right.evidence.sortOrder ?? 0) || left.evidenceIndex - right.evidenceIndex),
       kind: "subcategory" as const,
       label: subcategory.subcategoryName,
       subcategory,

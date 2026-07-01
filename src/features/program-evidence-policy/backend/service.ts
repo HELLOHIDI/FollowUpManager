@@ -445,7 +445,12 @@ export const getPolicyDraftDetail = async (client: Client, projectId: string, po
     client.from("program_policy_documents").select(DOCUMENT_SELECT).eq("policy_version_id", policyVersionId).order("created_at"),
     client.from("program_policy_categories").select("*").eq("policy_version_id", policyVersionId).order("sort_order"),
     client.from("program_policy_subcategories").select("*").eq("policy_version_id", policyVersionId).order("sort_order"),
-    client.from("program_policy_evidence_requirements").select("*").eq("policy_version_id", policyVersionId).order("created_at"),
+    client
+      .from("program_policy_evidence_requirements")
+      .select("*")
+      .eq("policy_version_id", policyVersionId)
+      .order("sort_order")
+      .order("created_at"),
   ]);
   if (documents.error || categories.error || subcategories.error || evidence.error) {
     return failure(500, programEvidencePolicyErrorCodes.fetchError, "Failed to load policy draft.");
@@ -475,6 +480,7 @@ export const getPolicyDraftDetail = async (client: Client, projectId: string, po
       requirementType: row.requirement_type,
       reviewStatus: row.review_status,
       sourceReference: row.source_reference ?? {},
+      sortOrder: row.sort_order ?? 0,
       subcategoryId: row.subcategory_id,
       subcategoryKey: row.subcategory_id ? subcategoryById.get(row.subcategory_id) ?? null : null,
     })),

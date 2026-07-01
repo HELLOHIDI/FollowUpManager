@@ -129,6 +129,7 @@ create table public.program_policy_evidence_requirements (
   fulfillment_type text not null check (fulfillment_type in ('single', 'any_of', 'all_of')),
   condition_text text,
   document_key text check (document_key is null or document_key ~ '^[a-z0-9_]+$'),
+  sort_order integer not null default 0,
   review_status text not null default 'needs_admin_review'
     check (review_status in ('auto_confident', 'needs_admin_review', 'manual_required')),
   source_reference jsonb not null default '{}'::jsonb check (jsonb_typeof(source_reference) = 'object'),
@@ -527,6 +528,7 @@ begin
       requirement_type,
       fulfillment_type,
       condition_text,
+      sort_order,
       review_status,
       source_reference
     ) values (
@@ -539,6 +541,7 @@ begin
       item ->> 'requirementType',
       item ->> 'fulfillmentType',
       nullif(item ->> 'conditionText', ''),
+      coalesce(nullif(item ->> 'sortOrder', '')::integer, 0),
       item ->> 'reviewStatus',
       coalesce(item -> 'sourceReference', '{}'::jsonb)
     );
