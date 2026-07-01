@@ -247,7 +247,7 @@ export const registerExpenseRoutes = (
     return respond(context, result);
   });
 
-  app.put("/projects/:projectId/expenses/:expenseId/evidence-requirements/:requirementKey/status", async (context) => {
+  app.patch("/projects/:projectId/expenses/:expenseId/evidence-requirements/:requirementKey/status", async (context) => {
     const params = ExpenseDetailParamsSchema.extend({
       requirementKey: ExpenseEvidenceRelinkInputSchema.shape.documentKey,
     }).safeParse({

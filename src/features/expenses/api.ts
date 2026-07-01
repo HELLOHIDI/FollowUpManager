@@ -106,7 +106,7 @@ export const waiveExpenseEvidenceRequirementRequest = async ({
   waivedReason?: string | null;
 }) =>
   ExpenseEvidenceListResponseSchema.parse(
-    (await apiClient.put(`/api/projects/${projectId}/expenses/${expenseId}/evidence-requirements/${requirementKey}/status`, {
+    (await apiClient.patch(`/api/projects/${projectId}/expenses/${expenseId}/evidence-requirements/${requirementKey}/status`, {
       status: "waived",
       waivedReason: waivedReason ?? null,
     })).data,
