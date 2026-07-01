@@ -1,5 +1,4 @@
 import { createServerClient } from "@supabase/ssr";
-import { match } from "ts-pattern";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   DEFAULT_AUTHENTICATED_PATH,
@@ -51,43 +50,32 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
 
-  return match({ user, pathname })
-    .when(
-      ({ user: currentUser, pathname: currentPathname }) =>
-        Boolean(currentUser) &&
-        (isRootPath(currentPathname) || isAuthEntryPath(currentPathname)),
-      () => {
-        const projectsUrl = request.nextUrl.clone();
-        projectsUrl.pathname = DEFAULT_AUTHENTICATED_PATH;
-        projectsUrl.search = "";
-        return copyCookies(response, NextResponse.redirect(projectsUrl));
-      }
-    )
-    .when(
-      ({ user: currentUser, pathname: currentPathname }) =>
-        !currentUser && isRootPath(currentPathname),
-      () => {
-        const loginUrl = request.nextUrl.clone();
-        loginUrl.pathname = LOGIN_PATH;
-        loginUrl.search = "";
-        return copyCookies(response, NextResponse.redirect(loginUrl));
-      }
-    )
-    .when(
-      ({ user: currentUser, pathname: currentPathname }) =>
-        !currentUser && shouldProtectPath(currentPathname),
-      ({ pathname: currentPathname }) => {
-        const loginUrl = request.nextUrl.clone();
-        loginUrl.pathname = LOGIN_PATH;
-        loginUrl.search = "";
-        loginUrl.searchParams.set(
-          "redirectedFrom",
-          `${currentPathname}${request.nextUrl.search}`
-        );
-        return copyCookies(response, NextResponse.redirect(loginUrl));
-      }
-    )
-    .otherwise(() => response);
+  if (user && (isRootPath(pathname) || isAuthEntryPath(pathname))) {
+    const projectsUrl = request.nextUrl.clone();
+    projectsUrl.pathname = DEFAULT_AUTHENTICATED_PATH;
+    projectsUrl.search = "";
+    return copyCookies(response, NextResponse.redirect(projectsUrl));
+  }
+
+  if (!user && isRootPath(pathname)) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = LOGIN_PATH;
+    loginUrl.search = "";
+    return copyCookies(response, NextResponse.redirect(loginUrl));
+  }
+
+  if (!user && shouldProtectPath(pathname)) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = LOGIN_PATH;
+    loginUrl.search = "";
+    loginUrl.searchParams.set(
+      "redirectedFrom",
+      `${pathname}${request.nextUrl.search}`
+    );
+    return copyCookies(response, NextResponse.redirect(loginUrl));
+  }
+
+  return response;
 }
 
 export const config = {

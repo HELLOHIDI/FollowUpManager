@@ -1,11 +1,5 @@
-import {
-  AxiosError,
-  type AxiosResponse,
-  type InternalAxiosRequestConfig,
-} from "axios";
 import { describe, expect, it, vi } from "vitest";
-import { createApiClient } from "./api-client";
-import { extractApiErrorCode } from "./api-client";
+import { ApiError, createApiClient, extractApiErrorCode } from "./api-client";
 
 vi.mock("@/lib/supabase/browser-client", () => ({
   getSupabaseBrowserClient: vi.fn(),
@@ -29,42 +23,20 @@ const createAuthClientStub = () => {
   };
 };
 
-const successResponse = (
-  config: InternalAxiosRequestConfig
-): AxiosResponse => ({
-  config,
-  data: { ok: true },
-  headers: {},
-  status: 200,
-  statusText: "OK",
-});
-
-const unauthorizedError = (config: InternalAxiosRequestConfig) =>
-  new AxiosError(
-    "Unauthorized",
-    "ERR_BAD_REQUEST",
-    config,
-    undefined,
-    {
-      config,
-      data: { error: { code: "UNAUTHORIZED" } },
-      headers: {},
-      status: 401,
-      statusText: "Unauthorized",
-    }
-  );
+const jsonResponse = (status: number, data: unknown, statusText = "OK") =>
+  new Response(JSON.stringify(data), {
+    headers: { "content-type": "application/json" },
+    status,
+    statusText,
+  });
 
 describe("authenticated API client", () => {
   it("extracts a stable API error code", () => {
-    const error = new AxiosError(
+    const error = new ApiError(
       "Conflict",
-      "ERR_BAD_REQUEST",
-      {} as InternalAxiosRequestConfig,
-      undefined,
       {
-        config: {} as InternalAxiosRequestConfig,
         data: { error: { code: "COMPANY_REGISTRATION_NUMBER_CONFLICT" } },
-        headers: {},
+        headers: new Headers(),
         status: 409,
         statusText: "Conflict",
       }
@@ -74,17 +46,19 @@ describe("authenticated API client", () => {
       "COMPANY_REGISTRATION_NUMBER_CONFLICT"
     );
   });
+
   it("attaches the current access token", async () => {
     const { authClient } = createAuthClientStub();
-    const adapter = vi.fn(async (config: InternalAxiosRequestConfig) =>
-      successResponse(config)
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse(200, { ok: true })
     );
-    const client = createApiClient({ getAuthClient: () => authClient });
+    const client = createApiClient({ fetcher, getAuthClient: () => authClient });
 
-    await client.get("/api/example", { adapter });
+    await client.get("/api/example");
 
-    expect(adapter).toHaveBeenCalledTimes(1);
-    expect(adapter.mock.calls[0][0].headers.get("Authorization")).toBe(
+    const init = fetcher.mock.calls[0]?.[1];
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(new Headers(init?.headers).get("Authorization")).toBe(
       "Bearer initial-token"
     );
   });
@@ -99,25 +73,27 @@ describe("authenticated API client", () => {
       .mockResolvedValue({
         data: { session: { access_token: "refreshed-token" } },
       });
-    const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => {
-      if (adapter.mock.calls.length === 1) {
-        throw unauthorizedError(config);
-      }
-
-      return successResponse(config);
-    });
+    const fetcher = vi
+      .fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        jsonResponse(200, { ok: true })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(401, { error: { code: "UNAUTHORIZED" } }, "Unauthorized")
+      )
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true }));
     const redirectToLogin = vi.fn();
     const client = createApiClient({
+      fetcher,
       getAuthClient: () => authClient,
       redirectToLogin,
     });
 
-    const response = await client.get("/api/example", { adapter });
+    const response = await client.get("/api/example");
 
     expect(response.status).toBe(200);
-    expect(adapter).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(2);
     expect(refreshSession).toHaveBeenCalledTimes(1);
-    expect(adapter.mock.calls[1][0].headers.get("Authorization")).toBe(
+    expect(new Headers(fetcher.mock.calls[1][1]?.headers).get("Authorization")).toBe(
       "Bearer refreshed-token"
     );
     expect(signOut).not.toHaveBeenCalled();
@@ -134,20 +110,19 @@ describe("authenticated API client", () => {
       .mockResolvedValue({
         data: { session: { access_token: "refreshed-token" } },
       });
-    const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => {
-      throw unauthorizedError(config);
-    });
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse(401, { error: { code: "UNAUTHORIZED" } }, "Unauthorized")
+    );
     const redirectToLogin = vi.fn();
     const client = createApiClient({
+      fetcher,
       getAuthClient: () => authClient,
       redirectToLogin,
     });
 
-    await expect(client.get("/api/example", { adapter })).rejects.toBeInstanceOf(
-      AxiosError
-    );
+    await expect(client.get("/api/example")).rejects.toBeInstanceOf(ApiError);
 
-    expect(adapter).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(2);
     expect(refreshSession).toHaveBeenCalledTimes(1);
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(redirectToLogin).toHaveBeenCalledTimes(1);
@@ -159,20 +134,19 @@ describe("authenticated API client", () => {
       data: { session: null },
       error: new Error("refresh failed"),
     });
-    const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => {
-      throw unauthorizedError(config);
-    });
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse(401, { error: { code: "UNAUTHORIZED" } }, "Unauthorized")
+    );
     const redirectToLogin = vi.fn();
     const client = createApiClient({
+      fetcher,
       getAuthClient: () => authClient,
       redirectToLogin,
     });
 
-    await expect(client.get("/api/example", { adapter })).rejects.toBeInstanceOf(
-      AxiosError
-    );
+    await expect(client.get("/api/example")).rejects.toBeInstanceOf(ApiError);
 
-    expect(adapter).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledTimes(1);
     expect(refreshSession).toHaveBeenCalledTimes(1);
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(redirectToLogin).toHaveBeenCalledTimes(1);

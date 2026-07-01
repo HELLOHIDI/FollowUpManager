@@ -34,12 +34,9 @@ bun dev
 - [Shadcn UI](https://ui.shadcn.com)
 - [Lucide Icon](https://lucide.dev)
 - [date-fns](https://date-fns.org)
-- [react-use](https://github.com/streamich/react-use)
-- [es-toolkit](https://github.com/toss/es-toolkit)
 - [Zod](https://zod.dev)
 - [React Query](https://tanstack.com/query/latest)
 - [React Hook Form](https://react-hook-form.com)
-- [TS Pattern](https://github.com/gvergnaud/ts-pattern)
 
 ## 사용 가능한 명령어
 
