@@ -41,6 +41,30 @@ const formatFailureReason = (reason: string, error?: string) =>
 
 export { toStablePolicyKey } from "./policy-text-parser";
 
+const normalizeAcceptedDocuments = (evidence: PolicyDraftUpdateInput["evidenceRequirements"][number]) => {
+  const acceptedDocuments = (evidence.acceptedDocuments ?? [])
+    .map((document) => ({
+      documentKey: document.documentKey.trim(),
+      label: document.label.trim(),
+    }))
+    .filter((document) => document.documentKey && document.label);
+  if (acceptedDocuments.length > 0) return acceptedDocuments;
+  const documentKey = evidence.documentKey?.trim() || evidence.evidenceKey;
+  return [{ documentKey, label: evidence.evidenceName }];
+};
+
+const normalizePolicyDraft = (draft: PolicyDraftUpdateInput): PolicyDraftUpdateInput => ({
+  ...draft,
+  evidenceRequirements: draft.evidenceRequirements.map((evidence) => {
+    const acceptedDocuments = normalizeAcceptedDocuments(evidence);
+    return {
+      ...evidence,
+      acceptedDocuments,
+      documentKey: evidence.documentKey?.trim() || acceptedDocuments[0]?.documentKey || evidence.evidenceKey,
+    };
+  }),
+});
+
 const mapVersion = (row: AnyRow) =>
   PolicyVersionSummarySchema.parse({
     confirmedAt: row.confirmed_at,
@@ -263,6 +287,16 @@ export const validateDraftStructuralErrors = (draft: Pick<PolicyDraftUpdateInput
     if (evidenceKeys.has(evidence.evidenceKey)) errors.push(`Duplicate evidence key: ${evidence.evidenceKey}`);
     evidenceKeys.add(evidence.evidenceKey);
     if (!evidence.evidenceName.trim()) errors.push("Evidence display name is required.");
+    const acceptedDocuments = normalizeAcceptedDocuments(evidence);
+    const acceptedDocumentKeys = new Set<string>();
+    for (const document of acceptedDocuments) {
+      if (acceptedDocumentKeys.has(document.documentKey)) errors.push(`Duplicate accepted document key: ${evidence.evidenceKey}/${document.documentKey}`);
+      acceptedDocumentKeys.add(document.documentKey);
+    }
+    if (acceptedDocuments.length === 0) errors.push(`Evidence accepted document is required: ${evidence.evidenceKey}`);
+    if (evidence.fulfillmentType === "all_of" && acceptedDocuments.length < 2) {
+      errors.push(`all_of evidence requires at least two accepted documents: ${evidence.evidenceKey}`);
+    }
     if (evidence.categoryKey && !categoryKeys.has(evidence.categoryKey)) errors.push(`Evidence category is missing: ${evidence.categoryKey}`);
     if (evidence.subcategoryKey && !evidence.categoryKey) errors.push(`Evidence subcategory requires a category: ${evidence.evidenceKey}`);
     if (evidence.subcategoryKey && evidence.categoryKey && !subcategoryKeysByCategory.get(evidence.categoryKey)?.has(evidence.subcategoryKey)) {
@@ -276,7 +310,7 @@ export const validateDraftStructuralErrors = (draft: Pick<PolicyDraftUpdateInput
 const writeDraftRows = async (client: Client, policyVersionId: string, draft: PolicyDraftUpdateInput) => {
   const { error } = await client.rpc("replace_program_policy_draft", {
     p_categories: draft.categories,
-    p_evidence_requirements: draft.evidenceRequirements,
+    p_evidence_requirements: normalizePolicyDraft(draft).evidenceRequirements,
     p_policy_version_id: policyVersionId,
     p_subcategories: draft.subcategories,
   });
@@ -472,6 +506,12 @@ export const getPolicyDraftDetail = async (client: Client, projectId: string, po
       categoryId: row.category_id,
       categoryKey: row.category_id ? categoryById.get(row.category_id) ?? null : null,
       conditionText: row.condition_text,
+      acceptedDocuments: Array.isArray(row.accepted_documents)
+        ? row.accepted_documents
+        : [{
+            documentKey: row.document_key ?? row.evidence_key,
+            label: row.evidence_name,
+          }],
       documentKey: row.document_key,
       evidenceKey: row.evidence_key,
       evidenceName: row.evidence_name,

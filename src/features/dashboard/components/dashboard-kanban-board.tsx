@@ -185,6 +185,11 @@ export function DashboardKanbanBoard({
                     </Link>
                     <span className="text-sm font-semibold tabular-nums">{formatWon(expense.amount)}</span>
                   </div>
+                  {typeof expense.evidenceRequiredCount === "number" && expense.evidenceRequiredCount > 0 ? (
+                    <Badge className="mt-3" variant={expense.evidenceUploadedCount === expense.evidenceRequiredCount ? "success" : "neutral"}>
+                      증빙 {expense.evidenceUploadedCount ?? 0}/{expense.evidenceRequiredCount}
+                    </Badge>
+                  ) : null}
                   {column.nextStageKey ? (
                     <div className="mt-3 flex justify-end">
                       <Button

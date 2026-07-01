@@ -74,6 +74,44 @@ export const createExpenseEvidenceSignedUrlRequest = async ({
     (await apiClient.post(`/api/projects/${projectId}/expenses/${expenseId}/evidence/${evidenceId}/signed-url`)).data,
   );
 
+export const relinkExpenseEvidenceRequest = async ({
+  documentKey,
+  evidenceId,
+  expenseId,
+  projectId,
+  requirementKey,
+}: {
+  documentKey: string;
+  evidenceId: string;
+  expenseId: string;
+  projectId: string;
+  requirementKey: string | null;
+}) =>
+  ExpenseEvidenceFileResponseSchema.parse(
+    (await apiClient.patch(`/api/projects/${projectId}/expenses/${expenseId}/evidence/${evidenceId}/link`, {
+      documentKey,
+      requirementKey,
+    })).data,
+  );
+
+export const waiveExpenseEvidenceRequirementRequest = async ({
+  expenseId,
+  projectId,
+  requirementKey,
+  waivedReason,
+}: {
+  expenseId: string;
+  projectId: string;
+  requirementKey: string;
+  waivedReason?: string | null;
+}) =>
+  ExpenseEvidenceListResponseSchema.parse(
+    (await apiClient.put(`/api/projects/${projectId}/expenses/${expenseId}/evidence-requirements/${requirementKey}/status`, {
+      status: "waived",
+      waivedReason: waivedReason ?? null,
+    })).data,
+  );
+
 export const deleteExpenseEvidenceRequest = async ({
   evidenceId,
   expenseId,

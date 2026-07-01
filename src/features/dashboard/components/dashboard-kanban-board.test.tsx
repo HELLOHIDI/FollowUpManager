@@ -91,6 +91,27 @@ describe("DashboardKanbanBoard", () => {
     expect(prefetchExpenseDetail).toHaveBeenCalledWith("22222222-2222-4222-8222-222222222222");
   });
 
+  it("shows compact evidence progress on expense cards when policy requirements exist", () => {
+    render(
+      <DashboardKanbanBoard
+        dashboard={{
+          ...dashboard,
+          categories: [{
+            ...dashboard.categories[0],
+            expenses: [{
+              ...dashboard.categories[0].expenses[0],
+              evidenceRequiredCount: 2,
+              evidenceUploadedCount: 1,
+            }],
+          }],
+        }}
+        projectId={projectId}
+      />,
+    );
+
+    expect(within(screen.getByTestId("kanban-column-budget_registration")).getByText(/1\/2/)).toBeInTheDocument();
+  });
+
   it("moves a card one stage forward through drag and drop", () => {
     render(<DashboardKanbanBoard dashboard={dashboard} projectId={projectId} />);
 

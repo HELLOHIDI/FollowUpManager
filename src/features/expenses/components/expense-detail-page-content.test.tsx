@@ -94,7 +94,12 @@ const detailData: ExpenseDetailResponse = {
   vendorName: null,
 };
 
-const mockLoadedQueries = (overrides: Partial<typeof detailData> = {}, mutateAsync = vi.fn()) => {
+const mockLoadedQueries = (
+  overrides: Partial<ExpenseDetailResponse> = {},
+  mutateAsync = vi.fn(),
+  evidenceData: Record<string, unknown> = { files: [], policySnapshotHash: null, requirements: [], unclassifiedFiles: [] },
+  evidenceMutations: Record<string, unknown> = {},
+) => {
   queryMocks.useExpenseDetailQuery.mockReturnValue({
     data: { ...detailData, ...overrides },
     isError: false,
@@ -106,7 +111,7 @@ const mockLoadedQueries = (overrides: Partial<typeof detailData> = {}, mutateAsy
     isPending: false,
   });
   queryMocks.useExpenseEvidenceQuery.mockReturnValue({
-    data: { files: [] },
+    data: evidenceData,
     isError: false,
     isPending: false,
     refetch: vi.fn(),
@@ -122,6 +127,10 @@ const mockLoadedQueries = (overrides: Partial<typeof detailData> = {}, mutateAsy
       isPending: false,
       mutateAsync: vi.fn(),
     },
+    relinkMutation: {
+      isPending: false,
+      mutateAsync: vi.fn(),
+    },
     signedUrlMutation: {
       isPending: false,
       mutateAsync: vi.fn(),
@@ -130,6 +139,11 @@ const mockLoadedQueries = (overrides: Partial<typeof detailData> = {}, mutateAsy
       isPending: false,
       mutateAsync: vi.fn(),
     },
+    waiveRequirementMutation: {
+      isPending: false,
+      mutateAsync: vi.fn(),
+    },
+    ...evidenceMutations,
   });
   queryMocks.useExpenseStageMutation.mockReturnValue({
     isPending: false,
@@ -193,5 +207,65 @@ describe("ExpenseDetailPageContent", () => {
         expectedSpendDate: null,
       }),
     );
+  });
+
+  it("uploads directly from a policy-backed evidence checklist row", async () => {
+    const uploadMutateAsync = vi.fn().mockResolvedValue({});
+    mockLoadedQueries(
+      {
+        policySnapshot: {
+          category_key: "material_cost",
+          category_name: "Materials",
+          evidence_requirements: [{
+            accepted_documents: [{ documentKey: "receipt", label: "Receipt" }],
+            condition_text: null,
+            document_key: "receipt",
+            evidence_key: "payment_bundle",
+            evidence_name: "Payment bundle",
+            fulfillment_type: "single",
+            requirement_type: "required",
+            sort_order: 0,
+            source_reference: {},
+          }],
+        },
+      },
+      vi.fn(),
+      {
+        files: [],
+        policySnapshotHash: "hash",
+        requirements: [{
+          acceptedDocuments: [{ documentKey: "receipt", label: "Receipt", uploaded: false }],
+          changedAt: null,
+          changedBy: null,
+          conditionText: null,
+          evidenceName: "Payment bundle",
+          fulfillmentType: "single",
+          requirementKey: "payment_bundle",
+          requirementType: "required",
+          status: "not_uploaded",
+          uploadedCount: 0,
+          waivedReason: null,
+        }],
+        unclassifiedFiles: [],
+      },
+      {
+        uploadMutation: {
+          isPending: false,
+          mutateAsync: uploadMutateAsync,
+        },
+      },
+    );
+
+    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
+
+    const file = new File(["pdf"], "receipt.pdf", { type: "application/pdf" });
+    fireEvent.change(screen.getByLabelText("Receipt"), { target: { files: [file] } });
+
+    await waitFor(() => expect(uploadMutateAsync).toHaveBeenCalledWith({
+      documentKey: "receipt",
+      file,
+      requirementKey: "payment_bundle",
+    }));
+    expect(screen.queryAllByText("?뚯씪 異붽?")).toHaveLength(0);
   });
 });
