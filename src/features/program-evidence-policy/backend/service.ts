@@ -517,15 +517,31 @@ export const previewPolicyConfirmation = async (client: Client, projectId: strin
 };
 
 export const confirmPolicy = async (client: Client, projectId: string, policyVersionId: string, userId: string): Promise<Result<unknown>> => {
-  const preview = await previewPolicyConfirmation(client, projectId, policyVersionId);
-  if (!preview.ok) return preview;
-  if (preview.data.blockingErrors.length > 0) {
-    return failure(409, programEvidencePolicyErrorCodes.validation, "Policy has blocking review errors.", preview.data.blockingErrors);
+  const detail = await getPolicyDraftDetail(client, projectId, policyVersionId);
+  if (!detail.ok) return detail;
+
+  const structuralErrors = validateDraftStructuralErrors(detail.data);
+  if (structuralErrors.length > 0) {
+    return failure(409, programEvidencePolicyErrorCodes.validation, "Policy has structural errors.", structuralErrors);
   }
+
+  const summary = {
+    categoryCount: detail.data.categories.length,
+    evidenceRequirementCount: detail.data.evidenceRequirements.length,
+    subcategoryCount: detail.data.subcategories.length,
+  };
+  const ready = await client
+    .from("program_policy_versions")
+    .update({ status: "ready_to_confirm" })
+    .eq("id", policyVersionId)
+    .eq("project_id", projectId)
+    .neq("status", "confirmed")
+    .neq("status", "archived");
+  if (ready.error) return failure(500, programEvidencePolicyErrorCodes.writeError, "Failed to prepare policy confirmation.");
 
   const { data, error } = await (client as SupabaseClient<any>).rpc("confirm_program_policy_version", {
     p_confirmed_by: userId,
-    p_confirmed_summary: preview.data.summary,
+    p_confirmed_summary: summary,
     p_policy_version_id: policyVersionId,
     p_project_id: projectId,
   });

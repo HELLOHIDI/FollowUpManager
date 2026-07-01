@@ -113,7 +113,7 @@ export function ProgramPolicyPanel({
       && draftQuery.data.version.status !== "archived"
       && draftQuery.data.version.operationStatus !== "extraction_failed"
     : false;
-  const canConfirm = latestVersionId && canEditDraft && blockingErrors.length === 0;
+  const canConfirm = Boolean(latestVersionId && canEditDraft);
   const latestStatus = statusQuery.data?.operationStatus ?? "legacy_fallback";
   const versionRows = statusQuery.data?.versions ?? [];
   const summary = useMemo(() => ({
@@ -240,6 +240,7 @@ export function ProgramPolicyPanel({
 
             {blockingErrors.length > 0 ? (
               <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <p className="mb-2 font-medium">검토 필요 항목이 있어도 정책 확정은 가능합니다. 확정 전 표 내용만 한 번 더 확인해 주세요.</p>
                 {displayBlockingErrors.slice(0, 5).map((error, index) => <p key={`${error}-${index}`}>{error}</p>)}
               </div>
             ) : null}

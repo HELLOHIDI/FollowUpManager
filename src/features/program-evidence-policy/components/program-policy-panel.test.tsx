@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, vi } from "vitest";
 import { ProgramPolicyPanel } from "./program-policy-panel";
 
@@ -147,5 +148,17 @@ describe("ProgramPolicyPanel", () => {
     expect(screen.queryByText("subcategory_abcd1234")).not.toBeInTheDocument();
     expect(screen.queryByText("evidence_abcd1234")).not.toBeInTheDocument();
     expect(screen.queryByText("document_abcd1234")).not.toBeInTheDocument();
+  });
+
+  it("allows policy confirmation while review warnings remain", () => {
+    setupLoadedDraft();
+
+    render(<ProgramPolicyPanel projectId={projectId} />);
+
+    const confirmButton = screen.getAllByRole("button").find((button) =>
+      button.textContent?.includes("정책 확정") || button.textContent?.includes("?뺤콉 ?뺤젙"),
+    );
+    expect(confirmButton).toBeDefined();
+    expect(confirmButton).toBeEnabled();
   });
 });
