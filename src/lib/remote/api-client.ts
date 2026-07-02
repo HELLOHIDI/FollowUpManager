@@ -81,6 +81,11 @@ export class ApiError extends Error {
   }
 }
 
+const getErrorPayloadMessage = (data: unknown) => {
+  const payload = data as ErrorPayload | undefined;
+  return payload?.error?.message || payload?.message || null;
+};
+
 const setAuthorization = (headers: Headers, accessToken: string) => {
   headers.set("Authorization", `Bearer ${accessToken}`);
 };
@@ -183,7 +188,7 @@ export const createApiClient = ({
     }
 
     const error = new ApiError(
-      response.statusText || "API request failed.",
+      getErrorPayloadMessage(responseData) || response.statusText || "API request failed.",
       apiResponse
     );
 
@@ -226,15 +231,7 @@ export const extractApiErrorMessage = (
   fallbackMessage = "API request failed."
 ) => {
   if (isApiError(error)) {
-    const payload = error.response?.data as ErrorPayload | undefined;
-
-    if (typeof payload?.error?.message === "string") {
-      return payload.error.message;
-    }
-
-    if (typeof payload?.message === "string") {
-      return payload.message;
-    }
+    return getErrorPayloadMessage(error.response?.data) || error.message || fallbackMessage;
   }
 
   if (error instanceof Error && error.message) {

@@ -128,6 +128,23 @@ export function ProgramPolicyPanel({
     [blockingErrors, draft],
   );
 
+  const showExtractionError = (error: unknown) => {
+    toast({
+      title: "정책 추출에 실패했습니다.",
+      description: extractApiErrorMessage(error, "기본 비목으로 시작하거나 텍스트를 붙여 넣어 다시 시도해 주세요."),
+      variant: "destructive",
+    });
+  };
+
+  const onExtract = async (versionId: string) => {
+    try {
+      await mutations.extractMutation.mutateAsync({ extractedText: extractedText || null, versionId });
+      toast({ title: "정책 초안을 추출했습니다.", description: "추출된 비목과 증빙서류를 검토해 주세요." });
+    } catch (error) {
+      showExtractionError(error);
+    }
+  };
+
   const onUpload = async (file: File | undefined) => {
     if (!file) return;
     try {
@@ -137,11 +154,7 @@ export function ProgramPolicyPanel({
         await mutations.extractMutation.mutateAsync({ extractedText: null, versionId: intent.policyVersionId });
         toast({ title: "정책 초안을 추출했습니다.", description: "추출된 비목과 증빙서류를 검토해 주세요." });
       } catch (error) {
-        toast({
-          title: "정책 추출에 실패했습니다.",
-          description: extractApiErrorMessage(error, "기본 비목으로 시작하거나 텍스트를 붙여 넣어 다시 시도해 주세요."),
-          variant: "destructive",
-        });
+        showExtractionError(error);
       }
     } catch (error) {
       toast({ title: "정책 PDF를 등록하지 못했습니다.", description: extractApiErrorMessage(error), variant: "destructive" });
@@ -186,7 +199,7 @@ export function ProgramPolicyPanel({
             />
             <Button
               disabled={!latestVersionId || mutations.extractMutation.isPending}
-              onClick={() => latestVersionId && mutations.extractMutation.mutate({ extractedText: extractedText || null, versionId: latestVersionId })}
+              onClick={() => latestVersionId && void onExtract(latestVersionId)}
               type="button"
               variant="outline"
             >

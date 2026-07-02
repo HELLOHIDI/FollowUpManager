@@ -42,8 +42,16 @@ const formatFailureReason = (reason: string, error?: string) =>
 export { toStablePolicyKey } from "./policy-text-parser";
 
 const extractPolicyPdfTextLazy = async (data: ArrayBuffer | Uint8Array) => {
-  const { extractPolicyPdfText } = await import("./pdf-text-extraction");
-  return extractPolicyPdfText(data);
+  try {
+    const { extractPolicyPdfText } = await import("./pdf-text-extraction");
+    return extractPolicyPdfText(data);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : String(error),
+      ok: false,
+      reason: TEXT_EXTRACTION_INSUFFICIENT,
+    } as const;
+  }
 };
 
 const normalizeAcceptedDocuments = (evidence: PolicyDraftUpdateInput["evidenceRequirements"][number]) => {
