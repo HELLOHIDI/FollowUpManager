@@ -21,7 +21,6 @@ import {
   type PolicyUploadIntentInput,
   type ProjectPolicyStatusResponse,
 } from "./schema";
-import { extractPolicyPdfText, TEXT_EXTRACTION_INSUFFICIENT } from "./pdf-text-extraction";
 import { parsePolicyTextDraft } from "./policy-text-parser";
 
 type Client = SupabaseClient<Database> & SupabaseClient<any>;
@@ -35,11 +34,17 @@ const POLICY_EXTRACTION_FAILED_MESSAGE =
 const DRAFT_THRESHOLD_NOT_MET = "DRAFT_THRESHOLD_NOT_MET";
 const POLICY_DOCUMENT_NOT_READY = "POLICY_DOCUMENT_NOT_READY";
 const POLICY_STORAGE_DOWNLOAD_FAILED = "POLICY_STORAGE_DOWNLOAD_FAILED";
+const TEXT_EXTRACTION_INSUFFICIENT = "TEXT_EXTRACTION_INSUFFICIENT";
 
 const formatFailureReason = (reason: string, error?: string) =>
   error ? `${reason}: ${error}` : reason;
 
 export { toStablePolicyKey } from "./policy-text-parser";
+
+const extractPolicyPdfTextLazy = async (data: ArrayBuffer | Uint8Array) => {
+  const { extractPolicyPdfText } = await import("./pdf-text-extraction");
+  return extractPolicyPdfText(data);
+};
 
 const normalizeAcceptedDocuments = (evidence: PolicyDraftUpdateInput["evidenceRequirements"][number]) => {
   const acceptedDocuments = (evidence.acceptedDocuments ?? [])
@@ -377,7 +382,7 @@ export const triggerDraftExtraction = async (
       });
     }
 
-    const extracted = await extractPolicyPdfText(await download.data.arrayBuffer());
+    const extracted = await extractPolicyPdfTextLazy(await download.data.arrayBuffer());
     if (extracted.ok === false) {
       await client
         .from("program_policy_versions")

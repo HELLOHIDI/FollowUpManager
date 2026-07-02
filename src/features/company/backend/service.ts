@@ -20,13 +20,6 @@ const COMPANY_SELECT =
 const BUSINESS_REGISTRATION_UNIQUE_CONSTRAINT =
   "companies_business_registration_number_key";
 
-type SupabaseErrorDetails = {
-  code?: string;
-  details?: string;
-  hint?: string;
-  message?: string;
-};
-
 type CompanyResult = HandlerResult<
   CompanyResponse,
   CompanyServiceError,
@@ -117,18 +110,10 @@ export const listCompanies = async (
     .order("id", { ascending: true });
 
   if (error) {
-    const details = {
-      code: error.code,
-      details: error.details,
-      hint: error.hint,
-      message: error.message,
-    } satisfies SupabaseErrorDetails;
-
     return failure(
       500,
       companyErrorCodes.fetchError,
-      "기업 목록을 불러오지 못했습니다.",
-      details
+      "기업 목록을 불러오지 못했습니다."
     );
   }
 
