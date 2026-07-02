@@ -201,7 +201,7 @@ GET    /api/projects/:projectId/expenses/:expenseId/history
 
 Included now: policy/schema alignment, migration 0015 and generated contracts, read-only dashboard endpoint, React Query boundary, KPI cards, expense-backed category groups, state handling, SQL/unit/integration/E2E verification.
 
-Deferred: expense creation, stage mutation/history automation, search and filters, quick registration, interactive kanban/drag-and-drop, expense editing/evidence, export, and independent category-budget allocation UI.
+Deferred: expense creation, stage mutation/history automation, search and filters, quick registration, interactive kanban/drag-and-drop, expense editing/evidence, and independent category-budget allocation UI.
 
 ## Operation Dashboard Slice 2 boundary (2026-06-24)
 
@@ -209,13 +209,13 @@ Included now: `/projects/:projectId/expenses` quick-registration page, top-level
 
 Decision locked for this slice: the create flow uses canonical `expenses.amount` and creates a new expense in `budget_registration`; stage movement stays deferred to the kanban slice.
 
-Deferred: stage changes, drag-and-drop, detailed editing, evidence, history automation, search/filters, export, and live refresh.
+Deferred: stage changes, drag-and-drop, detailed editing, evidence, history automation, search/filters, and live refresh.
 
 ## Program Evidence Policy boundary (2026-06-29)
 
 Included later: upload a program evidence PDF during project registration, extract a policy draft, review and edit categories/subcategories/evidence requirements, confirm an immutable policy version, and apply the confirmed policy to expense category selection and evidence requirement display.
 
-Scope locked for phase 1: customize only program categories, optional subcategories, evidence requirements, dashboard category grouping, and filters. Keep dashboard grouping at the top-level category; show subcategories as row/card labels and filter options. Keep CSV export policy integration, common KPI formulas, kanban stages, stage movement rules, and expense card structure unchanged.
+Scope locked for phase 1: customize only program categories, optional subcategories, evidence requirements, dashboard category grouping, and filters. Keep dashboard grouping at the top-level category; show subcategories as row/card labels and filter options. Keep common dashboard formulas, kanban stages, stage movement rules, and expense card structure unchanged.
 
 Policy upload lifecycle: allow optional upload during project registration and later upload of new policy PDF versions from the project management screen. New uploads create draft versions and never mutate an existing confirmed policy or existing expense snapshots automatically.
 
@@ -243,7 +243,7 @@ Extraction failure fallback: when the primary PDF cannot produce a usable draft,
 
 Usable draft gate: treat an extracted policy draft as usable only when it has at least one top-level category, each extracted top-level category can receive a display name and stable key, and at least one evidence requirement is connected to either a category or common evidence. If this gate fails, preserve the PDF and extraction failure details, then keep the project on the existing category selection and expense card/detail layout until a policy is confirmed.
 
-Preview scope: before confirmation, show a policy application summary only: expense category options, subcategory-bearing categories, evidence requirement counts, dashboard group order, and filter options. Do not render the full dashboard, full expense card UI, CSV file, or CSV column preview in phase 1.
+Preview scope: before confirmation, show a policy application summary only: expense category options, subcategory-bearing categories, evidence requirement counts, dashboard group order, and filter options. Do not render the full dashboard or full expense card UI in phase 1.
 
 Admin review UI: use row-based table editing for top-level categories, subcategories, and evidence requirements. Allow row-level add/edit/delete, connect rows by stable keys, and defer complex tree drag editing or embedded policy editing inside expense screens.
 
@@ -261,4 +261,4 @@ Extraction failure actions: limit actions to primary PDF reupload, source PDF vi
 
 Phase 1 completion gate: PDF upload -> draft or failure fallback -> row-based review/edit -> confirmation -> policy category/subcategory/evidence display on new expense creation -> dashboard top-level category grouping and filters reflect the confirmed policy.
 
-Deferred: automatic policy confirmation, manual policy creation from an empty draft after extraction failure, multi-PDF policy auto-merge, OCR-only image PDF support, CSV export policy integration, custom KPI formulas, custom kanban stages, custom stage movement rules, evidence authenticity verification, external institution integration, and blocking expense save/stage movement based on missing evidence.
+Deferred: automatic policy confirmation, manual policy creation from an empty draft after extraction failure, multi-PDF policy auto-merge, OCR-only image PDF support, custom dashboard formulas, custom kanban stages, custom stage movement rules, evidence authenticity verification, external institution integration, and blocking expense save/stage movement based on missing evidence.

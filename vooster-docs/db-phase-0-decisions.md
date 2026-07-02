@@ -73,7 +73,6 @@ The canonical MVP routes are:
 /projects
 /projects/:projectId
 /projects/:projectId/expenses/:expenseId
-/projects/:projectId/export
 /settings/company
 /_health
 ```

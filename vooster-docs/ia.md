@@ -9,14 +9,13 @@
   - #categories (비목별 지출 목록)
   - #kanban (지출 칸반)
 - /projects/:projectId/expenses/:expenseId (지출 상세)
-- /projects/:projectId/export (CSV 내보내기)
 - /settings/company (기업 추가·수정·사업 등록 전용 플로우, 기본 접근은 /projects로 리다이렉트)
 - /_health (운영 점검용, 비공개)
 
 공개/보호 경로
 - 공개 경로: /login
 - 운영 점검 경로: /_health (업무 데이터 접근 없음, 배포/인프라 레벨 접근 제한 권장)
-- 보호 경로: /projects, /projects/:projectId, /projects/:projectId/expenses/:expenseId, /projects/:projectId/export, /settings/company
+- 보호 경로: /projects, /projects/:projectId, /projects/:projectId/expenses/:expenseId, /settings/company
 - / 는 인증 상태에 따라 마지막 사용 사업 대시보드 또는 /login으로 리다이렉트합니다.
 
 메모
@@ -27,7 +26,7 @@
 ## 2. User Flow (사용자 흐름)
 우선순위 기준으로 3가지 핵심 여정을 정의합니다.
 
-- 핵심 여정 A: 실시간 현황 파악(1분 내)
+- 핵심 여정 A: 사업비 현황 파악
   1) /projects/:projectId 진입 시 #overview 상단 고정 노출
   2) KPI 3종 확인(소진액·잔액·예산소진율) — 임계치에 따라 컬러 상태 표시
   3) KPI 또는 비목별 지출 그룹 클릭 → 자동으로 #categories 또는 #kanban 섹션으로 스크롤 → 관련 필터 자동 적용
@@ -56,7 +55,7 @@
   - 상단 유틸리티 바 제공(탐색이 아닌 작업 중심)
     - 좌측: 프로젝트 스위처(검색 가능, 최근 사용), 기간 필터(협약기간 프리셋)
     - 중앙: 글로벌 검색(/)
-    - 우측: + 지출(Primary), ⋯(내보내기/도움말), 사용자/환경(설정 진입)
+    - 우측: + 지출(Primary), 사용자/환경(설정 진입)
   - 장점: 화면 가로폭 최대 확보(칸반·차트 가독성↑), 전환 비용↓, MVP 러닝커브↓
   - 레퍼런스: Notion의 단일 화면 작업 모델, Linear의 작업 우선 헤더
 
@@ -90,7 +89,6 @@
     - #categories (Depth 3)
     - #kanban (Depth 3)
   - /projects/:projectId/expenses/:expenseId (Depth 3) — 지출 상세 풀페이지
-- /projects/:projectId/export (Depth 2)
 - /settings (Depth 1)
   - /settings/company (Depth 2, 기업 추가·수정·사업 등록 전용)
 - /_health (Depth 1, 운영 전용)
@@ -107,9 +105,8 @@
 | /projects/:projectId #categories | 비목별 지출 목록(비목 그룹, 하위 지출명, 금액, 단계, 그룹별 합계/건수) |
 | /projects/:projectId #kanban | 5단계 칸반(사업비 등록/사전 승인/집행 수행/집행 요청/집행 완료), 칼럼 헤더(개수/합계), 카드(제목·금액·날짜·메타), forward-only 단계 이동 |
 | /projects/:projectId/expenses/:expenseId | 지출 기본정보, 단계 진행상태, 단계별 누적 입력 폼, 비목 정책 패널, 증빙 현황, 변경 히스토리 |
-| 전역 유틸 바 | 프로젝트 스위처, 글로벌 검색, 기간 프리셋, +지출, ⋯(내보내기/도움말), 사용자/환경 |
+| 전역 유틸 바 | 프로젝트 스위처, 글로벌 검색, 기간 프리셋, +지출, 사용자/환경 |
 | 지출 빠른 등록 페이지 | 지출 제목, 비목 선택 드롭다운, 금액, 예상 날짜, 간단 메모, 카드 생성 액션 |
-| /projects/:projectId/export | 필터(기간/비목/단계), 미리보기 테이블, CSV 다운로드, 내보내기 규칙 안내 |
 | /settings/company | 기업 추가·수정 폼, 사업 등록 폼, 조건부 법인번호, 저장 피드백(토스트). 다중 기업 목록은 `/projects`에서 제공 |
 
 텍스트/숫자 가독성
@@ -140,7 +137,6 @@
   - 지출 상세: /projects/:projectId/expenses/:expenseId
   - 섹션 앵커: #overview, #categories, #kanban
   - 필터 파라미터: ?from=YYYY-MM-DD&to=YYYY-MM-DD&category=:id&status=:phase
-  - 내보내기: /projects/:projectId/export?from=…&to=…&category=…&status=…
   - 읽기 쉬운 영문 슬러그 사용, 소문자-케밥케이스
   - 파일 경로는 노출하지 않고 서명 URL 사용(만료 시간 포함)
 
@@ -148,7 +144,6 @@
   - https://app.domain.com/projects/abc123#overview
   - https://app.domain.com/projects/abc123#kanban?status=approved
   - https://app.domain.com/projects/abc123/expenses/exp456
-  - https://app.domain.com/projects/abc123/export?from=2026-06-01&to=2026-06-30
 
 - SEO/보안
   - 메타/헤더: noindex, nofollow, noarchive
@@ -204,12 +199,6 @@
     - ExpenseEvidencePanel
     - ExpenseValidationSection
     - ExpenseHistoryTimeline
-
-- 내보내기
-  - ExportPage (/projects/:projectId/export)
-    - FilterBar (기간/비목/단계)
-    - PreviewTable
-    - DownloadButton (CSV)
 
 - 설정
   - CompanyFlowPage (/settings/company)
@@ -269,7 +258,6 @@
 - Category spend is a vertical category-group list, not horizontal category chips.
 - Real kanban design uses all five canonical stages: `사업비 등록`, `사전 승인`, `집행 수행`, `집행 요청`, `집행 완료`.
 - Expense detail no longer uses a fixed right Checklist panel in the current direction. Stage data, missing fields, evidence, history, and validation should live in a long, full-width detail card that can grow or be reordered as requirements change.
-- Export remains filters -> preview -> download, with selected filters and export readiness shown before CSV download.
 
 ## Current+Color implementation alignment (2026-06-26)
 
@@ -278,4 +266,3 @@
 - `#categories` renders vertical category groups. Groups are collapsed by default, expose category name/count/total/stage summary, and reveal child expenses after expansion.
 - `#kanban` renders all five canonical stages and keeps immediate-forward movement semantics.
 - `/projects/:projectId/expenses/:expenseId` remains a full page. It uses a 5-step stage indicator and a long main detail card for basic info, stage rows, evidence, validation, and history.
-- `/projects/:projectId/export` keeps filters -> preview -> download. Default filters represent all period, all categories, and all stages.

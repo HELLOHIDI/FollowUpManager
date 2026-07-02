@@ -38,9 +38,6 @@ in `program-evidence-policy.md`, use this document for V1.
   the legacy fallback categories.
 - Manual policy creation from an empty policy is excluded from V1. The fallback is
   to continue with legacy categories.
-- CSV extraction/export effects are excluded from this feature and remain a
-  backlog concern.
-
 ## 4. Draft Quality Threshold
 
 - Extraction creates a review draft only when at least two category candidates
