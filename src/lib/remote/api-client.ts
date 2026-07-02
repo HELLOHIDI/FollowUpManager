@@ -47,6 +47,11 @@ type ApiClient = {
     body?: RequestConfig["body"],
     config?: RequestConfig
   ) => Promise<ApiResponse<TData>>;
+  put: <TData = unknown>(
+    path: string,
+    body?: RequestConfig["body"],
+    config?: RequestConfig
+  ) => Promise<ApiResponse<TData>>;
   patch: <TData = unknown>(
     path: string,
     body?: RequestConfig["body"],
@@ -212,6 +217,7 @@ export const createApiClient = ({
     get: (path, config) => request("GET", path, config),
     patch: (path, body, config) => request("PATCH", path, { ...config, body }),
     post: (path, body, config) => request("POST", path, { ...config, body }),
+    put: (path, body, config) => request("PUT", path, { ...config, body }),
   };
 };
 

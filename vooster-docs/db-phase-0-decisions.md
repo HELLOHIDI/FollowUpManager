@@ -1,8 +1,8 @@
-# GrantFollow DB Phase 0 Decisions
+# FuManager DB Phase 0 Decisions
 
 ## Purpose
 
-This document records the Phase 0 decisions for the GrantFollow MVP database setup.
+This document records the Phase 0 decisions for the FuManager MVP database setup.
 It is a pre-implementation baseline, not a migration plan file.
 
 The goal is to make the first database migrations predictable, secure, and aligned
@@ -36,14 +36,14 @@ PRD > IA > Architecture > Design Guide > Guideline > Step-by-step > Clean-code
 - Supabase Auth is used for a single internal account login.
 - Multi-user role and permission management is out of MVP scope.
 - The starter `public.example` table has been removed from the active schema.
-- GrantFollow domain migrations are the active database baseline.
-- `src/lib/supabase/types.ts` reflects the GrantFollow schema.
+- FuManager domain migrations are the active database baseline.
+- `src/lib/supabase/types.ts` reflects the FuManager schema.
 
 ## Decision 1. Security Model
 
 Decision:
 
-- Enable RLS on every GrantFollow domain table.
+- Enable RLS on every FuManager domain table.
 - Allow access only to authenticated users for MVP.
 - Do not introduce company roles, project members, or permission tables in MVP.
 - Use the service-role Supabase client only inside server-side Hono/API code.
@@ -88,7 +88,7 @@ Authenticated / -> first available project dashboard
 Reasoning:
 
 - The IA and architecture center the product around `/projects/:projectId`.
-- The current `/dashboard` route is starter scaffolding, not the GrantFollow domain route.
+- The current `/dashboard` route is starter scaffolding, not the FuManager domain route.
 - The DB should be shaped around company/project/expense resources, not the starter page.
 
 Implementation implication:
@@ -157,7 +157,7 @@ document key
 
 Decision:
 
-GrantFollow's ownership chain is:
+FuManager's ownership chain is:
 
 ```text
 companies
@@ -618,7 +618,7 @@ The following decisions are locked for the first MVP database implementation:
 
 1. Simple reads may use the Supabase client with RLS.
 2. Writes, upload coordination, history creation, and signed URL creation go through Hono APIs.
-3. Every GrantFollow domain table enables RLS.
+3. Every FuManager domain table enables RLS.
 4. MVP RLS policies allow authenticated users to access MVP records.
 5. Role, member, and permission tables are out of scope.
 6. Authenticated root redirect uses the first available project.
@@ -629,13 +629,13 @@ The following decisions are locked for the first MVP database implementation:
 11. Dashboard aggregation starts with views or RPC, not stored aggregate tables.
 12. Expense history stores meaningful operational events, not full audit diffs.
 13. Existing starter migration `0001_create_example_table.sql` has been removed from the active migration set.
-14. GrantFollow migrations start at `0002`.
+14. FuManager migrations start at `0002`.
 
 ## Phase 1 Readiness Checklist
 
 Before writing the Phase 1 SQL files, verify:
 
-- No migration disables RLS for GrantFollow domain tables.
+- No migration disables RLS for FuManager domain tables.
 - No role, member, project member, or permission table is introduced.
 - Money columns use integer won amounts with `bigint`.
 - Status and key fields use `text` with check constraints, not PostgreSQL enum types.

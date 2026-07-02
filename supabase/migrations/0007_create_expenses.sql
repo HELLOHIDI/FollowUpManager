@@ -122,4 +122,4 @@ to authenticated
 using (true);
 
 comment on table public.expenses is
-  'Actual GrantFollow execution and management unit for a project.';
+  'Actual FuManager execution and management unit for a project.';

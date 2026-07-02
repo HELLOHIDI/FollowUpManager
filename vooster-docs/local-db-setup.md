@@ -1,12 +1,12 @@
-# GrantFollow Local DB Setup
+# FuManager Local DB Setup
 
 ## Purpose
 
-This guide explains how to run the GrantFollow Supabase database locally for
+This guide explains how to run the FuManager Supabase database locally for
 development. It follows the approved local setup plan and keeps remote Supabase
 projects untouched.
 
-GrantFollow uses:
+FuManager uses:
 
 - Supabase PostgreSQL for application data
 - Supabase Auth for the single internal login
@@ -164,7 +164,7 @@ After `db reset`, verify:
 - Views: `project_kpi_summary`, `project_category_amount_summary`,
   `project_kanban_stage_summary`, `project_expenses_by_category`,
   `project_expenses_by_stage`
-- RLS enabled on GrantFollow domain tables
+- RLS enabled on FuManager domain tables
 - Authenticated users have read-only table policies; Hono/service-role APIs own writes
 - Private Storage bucket: `expense-evidence`, with `public=false`
 - Evidence metadata cannot reference an expense from a different project

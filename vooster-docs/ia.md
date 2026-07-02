@@ -1,4 +1,4 @@
-﻿# GrantFollow Information Architecture (IA)
+﻿# FuManager Information Architecture (IA)
 
 3→2→1 우선순위(실시간 대시보드 → 지출 입력/증빙 → 온보딩/초기설정)와 “글로벌 내비 없음” + “Supabase Auth 기반 단일 내부 계정” 결정을 반영해, 한 화면에서 빠르게 보고-입력-확인하는 구조에 최적화합니다.
 
@@ -218,7 +218,7 @@
     - SaveAction + Toast
 
 스타일/토큰(Design Guide 준수)
-- 컬러: Primary #5E6AD2, Navi #0F172A, 상태 색(성공/경고/오류/정보), 그레이스케일 G-50~G-900
+- 컬러: Primary #3182F6, Primary Strong #2272EB, Navi #0F172A, 상태 색(성공/경고/오류/정보), 그레이스케일 G-50~G-900
 - 타이포: Pretendard, 숫자 탭울러 적용
 - 레이아웃: 데스크톱 12col, 태블릿 8col, 모바일 4col
 - 스페이싱: 4/8/12/16/24/32/40

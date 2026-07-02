@@ -65,4 +65,4 @@ alter table public.companies
     check (founded_at <= (now() at time zone 'Asia/Seoul')::date);
 
 comment on table public.companies is
-  'Top-level GrantFollow company registration record using the six-field MVP contract.';
+  'Top-level FuManager company registration record using the six-field MVP contract.';

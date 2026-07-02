@@ -1,4 +1,4 @@
-# GrantFollow Technical Requirements Document (TRD)
+# FuManager Technical Requirements Document (TRD)
   
 ## Tech Stack
 
@@ -6,7 +6,7 @@ Next.js 15, Hono.js, Supabase Auth, Supabase PostgreSQL, Supabase Storage, TypeS
 
 ## Architecture Policies
 
-- Product scope: GrantFollow MVP is a government grant expense follow-up dashboard centered on `/projects/:projectId`, with expense detail management at `/projects/:projectId/expenses/:expenseId`.
+- Product scope: FuManager MVP is a government grant expense follow-up dashboard centered on `/projects/:projectId`, with expense detail management at `/projects/:projectId/expenses/:expenseId`.
 - Database: Supabase PostgreSQL is the single MVP application database.
 - File storage: Supabase Storage is used for receipt, tax invoice, approval document, and other evidence uploads. File URLs exposed to the client should use signed URLs when direct access is needed.
 - Authentication: Supabase Auth is used for a single internal account login. Authentication is minimum access control for protecting internal data and is separate from role/permission management.

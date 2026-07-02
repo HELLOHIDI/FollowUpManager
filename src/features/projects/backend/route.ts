@@ -1,13 +1,13 @@
 import type { Hono } from "hono";
 import { failure, respond } from "@/backend/http/response";
 import { getCurrentUser, getLogger, getSupabase, type AppEnv } from "@/backend/hono/context";
-import type { ProjectMutationClientFactory } from "./mutation-client";
-import { CompanyProjectsParamsSchema, MAX_DOCUMENT_SIZE, ProjectDocumentParamsSchema, ProjectInputSchema, ProjectParamsSchema, UploadIntentInputSchema } from "./schema";
-import { completeUpload, createDocumentSignedUrl, createProject, createUploadIntent, deleteProjectDocument, getProject, listProjectDocuments, listProjects, updateProject } from "./service";
+import type { MutationClientFactory } from "@/backend/supabase/client";
+import { CompanyProjectsParamsSchema, MAX_DOCUMENT_SIZE, ProjectDocumentParamsSchema, ProjectDocumentPurposeSchema, ProjectInputSchema, ProjectParamsSchema, SaveProjectEvidenceDocumentsInputSchema, UploadIntentInputSchema } from "./schema";
+import { completeUpload, createDocumentSignedUrl, createProject, createUploadIntent, deleteProjectDocument, getProject, listProjectDocuments, listProjectEvidenceDocuments, listProjectEvidenceTemplateDownloads, listProjects, saveProjectEvidenceTemplateSetup, updateProject } from "./service";
 
 const parseBody = async (request: { json: () => Promise<unknown> }) => request.json().catch(() => null);
 
-export const registerProjectRoutes = (app: Hono<AppEnv>, options: { createProjectMutationClient: ProjectMutationClientFactory }) => {
+export const registerProjectRoutes = (app: Hono<AppEnv>, options: { createProjectMutationClient: MutationClientFactory }) => {
   const invalid = (context: Parameters<typeof respond>[0], code: string, message: string, details?: unknown) => respond(context, failure(400, code, message, details));
   const log = (context: Parameters<typeof respond>[0], route: string, result: { ok: boolean; error?: { code: string } }, ids: Record<string, string> = {}) => {
     if (!result.ok && result.error) getLogger(context).error("Project API request failed", { code: result.error.code, route, ...ids });
@@ -52,7 +52,29 @@ export const registerProjectRoutes = (app: Hono<AppEnv>, options: { createProjec
   app.get("/projects/:projectId/documents", async (context) => {
     const params = ProjectParamsSchema.safeParse({ projectId: context.req.param("projectId") });
     if (!params.success) return invalid(context, "INVALID_PROJECT_PARAMS", "사업 ID를 확인해 주세요.", params.error.flatten());
-    return respond(context, await listProjectDocuments(options.createProjectMutationClient(), params.data.projectId));
+    const purpose = ProjectDocumentPurposeSchema.safeParse(context.req.query("purpose") ?? "institution_template");
+    if (!purpose.success) return invalid(context, "INVALID_PROJECT_DOCUMENT_PURPOSE", "첨부파일 구분을 확인해 주세요.", purpose.error.flatten());
+    return respond(context, await listProjectDocuments(options.createProjectMutationClient(), params.data.projectId, purpose.data));
+  });
+
+  app.get("/projects/:projectId/evidence-documents", async (context) => {
+    const params = ProjectParamsSchema.safeParse({ projectId: context.req.param("projectId") });
+    if (!params.success) return invalid(context, "INVALID_PROJECT_PARAMS", "사업 ID를 확인해 주세요.", params.error.flatten());
+    return respond(context, await listProjectEvidenceDocuments(options.createProjectMutationClient(), params.data.projectId));
+  });
+
+  app.put("/projects/:projectId/evidence-documents", async (context) => {
+    const params = ProjectParamsSchema.safeParse({ projectId: context.req.param("projectId") });
+    if (!params.success) return invalid(context, "INVALID_PROJECT_PARAMS", "사업 ID를 확인해 주세요.", params.error.flatten());
+    const body = SaveProjectEvidenceDocumentsInputSchema.safeParse(await parseBody(context.req));
+    if (!body.success) return invalid(context, "INVALID_PROJECT_TEMPLATE_BODY", "기관 양식 연결 정보를 확인해 주세요.", body.error.flatten());
+    return respond(context, await saveProjectEvidenceTemplateSetup(options.createProjectMutationClient(), params.data.projectId, body.data));
+  });
+
+  app.get("/projects/:projectId/evidence-template-links", async (context) => {
+    const params = ProjectParamsSchema.safeParse({ projectId: context.req.param("projectId") });
+    if (!params.success) return invalid(context, "INVALID_PROJECT_PARAMS", "사업 ID를 확인해 주세요.", params.error.flatten());
+    return respond(context, await listProjectEvidenceTemplateDownloads(options.createProjectMutationClient(), params.data.projectId));
   });
 
   app.post("/projects/:projectId/documents/upload-intents", async (context) => {

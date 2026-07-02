@@ -79,4 +79,4 @@ to authenticated
 using (true);
 
 comment on table public.companies is
-  'Top-level GrantFollow management subject for projects, expenses, and evidence.';
+  'Top-level FuManager management subject for projects, expenses, and evidence.';

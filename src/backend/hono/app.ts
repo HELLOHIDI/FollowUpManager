@@ -6,29 +6,21 @@ import type { AppEnv } from "@/backend/hono/context";
 import { getCurrentUser } from "@/backend/hono/context";
 import type { AuthenticatedClientFactory } from "@/backend/supabase/authenticated-client";
 import {
-  createCompanyMutationClient,
-  type CompanyMutationClientFactory,
-} from "@/features/company/backend/mutation-client";
+  createMutationClient,
+  type MutationClientFactory,
+} from "@/backend/supabase/client";
 import { registerCompanyRoutes } from "@/features/company/backend/route";
-import {
-  createProjectMutationClient,
-  type ProjectMutationClientFactory,
-} from "@/features/projects/backend/mutation-client";
 import { registerProjectRoutes } from "@/features/projects/backend/route";
 import { registerDashboardRoutes } from "@/features/dashboard/backend/route";
-import {
-  createExpenseMutationClient,
-  type ExpenseMutationClientFactory,
-} from "@/features/expenses/backend/mutation-client";
 import { registerExpenseRoutes } from "@/features/expenses/backend/route";
 import { registerProjectExportRoutes } from "@/features/project-export/backend/route";
 import { registerProgramEvidencePolicyRoutes } from "@/features/program-evidence-policy/backend/route";
 
 type CreateHonoAppOptions = {
   createAuthenticatedClient?: AuthenticatedClientFactory;
-  createCompanyMutationClient?: CompanyMutationClientFactory;
-  createProjectMutationClient?: ProjectMutationClientFactory;
-  createExpenseMutationClient?: ExpenseMutationClientFactory;
+  createCompanyMutationClient?: MutationClientFactory;
+  createProjectMutationClient?: MutationClientFactory;
+  createExpenseMutationClient?: MutationClientFactory;
 };
 
 export const createHonoApp = (options: CreateHonoAppOptions = {}) => {
@@ -58,16 +50,16 @@ export const createHonoApp = (options: CreateHonoAppOptions = {}) => {
 
   registerCompanyRoutes(app, {
     createCompanyMutationClient:
-      options.createCompanyMutationClient ?? createCompanyMutationClient,
+      options.createCompanyMutationClient ?? createMutationClient,
   });
   registerProjectRoutes(app, {
     createProjectMutationClient:
-      options.createProjectMutationClient ?? createProjectMutationClient,
+      options.createProjectMutationClient ?? createMutationClient,
   });
   registerDashboardRoutes(app);
   registerExpenseRoutes(app, {
     createExpenseMutationClient:
-      options.createExpenseMutationClient ?? createExpenseMutationClient,
+      options.createExpenseMutationClient ?? createMutationClient,
   });
   registerProgramEvidencePolicyRoutes(app);
   registerProjectExportRoutes(app);

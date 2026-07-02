@@ -65,4 +65,4 @@ to authenticated
 using (true);
 
 comment on table public.expense_history_events is
-  'Operational timeline events for GrantFollow expenses.';
+  'Operational timeline events for FuManager expenses.';

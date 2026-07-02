@@ -1,25 +1,17 @@
 import { z } from "zod";
 import { EXPENSE_FUNDING_SOURCE_KEYS, EXPENSE_STAGES } from "@/features/domain/contracts";
+import {
+  DEFAULT_BLOCKED_UPLOAD_EXTENSIONS,
+  DEFAULT_UPLOAD_MIME_TYPES,
+  getUploadMetadata,
+  type UploadExtension,
+} from "@/lib/file-upload";
 
 const safeAmount = z.number().int().safe().nonnegative();
 export const MAX_EVIDENCE_FILE_SIZE = 20 * 1024 * 1024;
 export const EXPENSE_EVIDENCE_BUCKET = "expense-evidence";
-export const EVIDENCE_MIME_TYPES = {
-  pdf: "application/pdf",
-  doc: "application/msword",
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  hwp: "application/octet-stream",
-  hwpx: "application/octet-stream",
-  xls: "application/vnd.ms-excel",
-  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  csv: "text/csv",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp",
-  zip: "application/zip",
-} as const;
-export const BLOCKED_EVIDENCE_EXTENSIONS = new Set(["exe", "bat", "cmd", "sh", "js", "msi", "dmg", "apk", "app", "scr", "vbs", "jar"]);
+export const EVIDENCE_MIME_TYPES = DEFAULT_UPLOAD_MIME_TYPES;
+export const BLOCKED_EVIDENCE_EXTENSIONS = DEFAULT_BLOCKED_UPLOAD_EXTENSIONS;
 export const EVIDENCE_DOCUMENT_OPTIONS = [
   { key: "tax_invoice", label: "Tax invoice" },
   { key: "credit_card_receipt", label: "Credit card receipt" },
@@ -72,7 +64,7 @@ export const EVIDENCE_DOCUMENT_OPTIONS = [
   { key: "etc", label: "Other" },
 ] as const;
 
-export type EvidenceExtension = keyof typeof EVIDENCE_MIME_TYPES;
+export type EvidenceExtension = UploadExtension;
 
 const nullableDate = z
   .string()
@@ -164,25 +156,12 @@ export const ExpenseEvidenceRequirementStatusInputSchema = z.object({
   waivedReason: z.string().trim().max(500).nullable().optional(),
 });
 
-export const getEvidenceFileMetadata = (input: z.infer<typeof ExpenseEvidenceUploadInputSchema>) => {
-  const extension = input.originalFileName.split(".").pop()?.toLowerCase() as EvidenceExtension | undefined;
-  if (!extension || BLOCKED_EVIDENCE_EXTENSIONS.has(extension) || !(extension in EVIDENCE_MIME_TYPES)) {
-    return null;
-  }
-
-  const canonical = EVIDENCE_MIME_TYPES[extension];
-  const browserMime = input.browserMimeType?.trim().toLowerCase() || null;
-  const aliases: Partial<Record<EvidenceExtension, string[]>> = {
-    hwp: ["application/x-hwp", "application/haansofthwp"],
-    hwpx: ["application/zip"],
-    docx: ["application/zip"],
-    xlsx: ["application/zip"],
-    csv: ["text/plain", "application/vnd.ms-excel"],
-    zip: ["application/x-zip-compressed"],
-  };
-  const accepted = !browserMime || browserMime === "application/octet-stream" || browserMime === canonical || aliases[extension]?.includes(browserMime);
-  return accepted ? { canonicalMimeType: canonical, extension } : null;
-};
+export const getEvidenceFileMetadata = (input: z.infer<typeof ExpenseEvidenceUploadInputSchema>) =>
+  getUploadMetadata({
+    blockedExtensions: BLOCKED_EVIDENCE_EXTENSIONS,
+    browserMimeType: input.browserMimeType,
+    originalFileName: input.originalFileName,
+  });
 
 export const ExpenseCreateInputSchema = z.object({
   title: z.string().trim().min(1),

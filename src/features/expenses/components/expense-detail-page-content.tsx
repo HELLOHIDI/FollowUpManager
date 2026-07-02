@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { CheckCircle2, ExternalLink, Loader2, Trash2, Upload } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Download, ExternalLink, Loader2, Trash2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,12 +39,29 @@ import {
   preApprovalStatuses,
 } from "../lib/expense-detail-policy";
 import { requiresSubcategorySelection } from "../lib/policy-category-options";
+import { getProjectDocumentSignedUrl } from "@/features/projects/api";
+import { useProjectEvidenceDocumentsQuery, useProjectEvidenceTemplateDownloadsQuery } from "@/features/projects/hooks/use-projects";
+import type { ProjectEvidenceTemplateDownload } from "@/features/projects/lib/dto";
 
 type FormValues = ExpenseUpdateInput;
-type DetailEvidenceDocumentOption = { key: string; label: string };
+type DetailEvidenceDocumentOption = { key: string; label: string; source?: "policy" | "custom" };
 
 const selectedOrNone = (value: string | null | undefined) => value ?? "none";
 const noneToNull = (value: string) => (value === "none" ? null : value);
+const downloadProjectTemplate = async (projectId: string, template: ProjectEvidenceTemplateDownload) => {
+  const { signedUrl } = await getProjectDocumentSignedUrl(projectId, template.id);
+  const response = await fetch(signedUrl);
+  if (!response.ok) throw new Error("Template download failed");
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = template.originalFileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
+
 const policyEvidenceOptionsFromSnapshot = (policySnapshot: ExpenseDetailResponse["policySnapshot"]): DetailEvidenceDocumentOption[] => {
   const requirements = policySnapshot?.evidence_requirements;
   if (!Array.isArray(requirements)) return [];
@@ -77,6 +94,8 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   const { toast } = useToast();
   const query = useExpenseDetailQuery(projectId, expenseId);
   const evidenceQuery = useExpenseEvidenceQuery(projectId, expenseId);
+  const projectEvidenceDocumentsQuery = useProjectEvidenceDocumentsQuery(projectId);
+  const templateDownloadsQuery = useProjectEvidenceTemplateDownloadsQuery(projectId);
   const { updateMutation } = useExpenseDetailMutations(projectId, expenseId);
   const evidenceMutations = useExpenseEvidenceMutations(projectId, expenseId);
   const stageMutation = useExpenseStageMutation(projectId);
@@ -142,8 +161,15 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   const currentStageIndex = getExpenseStageIndex(query.data.stageKey);
   const nextStageKey = getNextExpenseStageKey(query.data.stageKey);
   const currentStageLabel = EXPENSE_STAGES[currentStageIndex]?.label ?? query.data.stageKey;
-  const policyDocumentOptions = policyEvidenceOptionsFromSnapshot(query.data.policySnapshot);
-  const usesPolicyChecklist = policyDocumentOptions.length > 0;
+  const projectDocumentOptions = projectEvidenceDocumentsQuery.data?.documentTypes.map((documentType) => ({
+    key: documentType.documentKey,
+    label: documentType.displayName,
+    source: documentType.source,
+  })) ?? [];
+  const snapshotDocumentOptions = policyEvidenceOptionsFromSnapshot(query.data.policySnapshot);
+  const executionRequestDocumentOptions = projectDocumentOptions.length > 0 ? projectDocumentOptions : snapshotDocumentOptions;
+  const templateDownloads = templateDownloadsQuery.data ?? [];
+  const usesPolicyChecklist = (evidenceQuery.data?.requirements?.length ?? 0) > 0;
 
   const handleSave = form.handleSubmit(async (values) => {
     const selectedCategory = query.data.categoryOptions.find((option) => option.categoryKey === values.categoryKey);
@@ -208,7 +234,7 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-lg">지출 상세</CardTitle>
-                <CardDescription>기본 정보, 단계 입력, 증빙을 한 흐름에서 관리합니다.</CardDescription>
+                <CardDescription>기본 정보, 단계 입력과 증빙을 한 흐름에서 관리합니다.</CardDescription>
               </div>
               <Badge variant="info">{currentStageLabel}</Badge>
             </div>
@@ -219,12 +245,20 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
               <PolicyEvidenceChecklist
                 deleteMutation={evidenceMutations.deleteMutation}
                 evidenceQuery={evidenceQuery}
+                projectId={projectId}
                 relinkMutation={evidenceMutations.relinkMutation}
                 signedUrlMutation={evidenceMutations.signedUrlMutation}
+                templateDownloads={templateDownloads}
                 uploadMutation={evidenceMutations.uploadMutation}
                 waiveRequirementMutation={evidenceMutations.waiveRequirementMutation}
               />
-            ) : null}
+            ) : (
+              <PolicyEvidenceSummary
+                policySnapshot={query.data.policySnapshot}
+                projectId={projectId}
+                templateDownloads={templateDownloads}
+              />
+            )}
 
             <div className="space-y-4">
               {EXPENSE_STAGES.map((stage, index) => (
@@ -236,10 +270,12 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
                   evidenceQuery={evidenceQuery}
                   isCurrent={stage.key === query.data.stageKey}
                   isEditable={index <= currentStageIndex}
-                  policyDocumentOptions={policyDocumentOptions}
+                  policyDocumentOptions={stage.key === "execution_request" ? executionRequestDocumentOptions : snapshotDocumentOptions}
+                  projectId={projectId}
                   signedUrlMutation={evidenceMutations.signedUrlMutation}
                   stageKey={stage.key}
                   stageLabel={stage.label}
+                  templateDownloads={templateDownloads}
                   uploadMutation={evidenceMutations.uploadMutation}
                   usesPolicyChecklist={usesPolicyChecklist}
                 />
@@ -359,6 +395,95 @@ function BasicInfoFields({
   );
 }
 
+function PolicyEvidenceSummary({
+  policySnapshot,
+  projectId,
+  templateDownloads,
+}: {
+  policySnapshot: ExpenseDetailResponse["policySnapshot"];
+  projectId: string;
+  templateDownloads: ProjectEvidenceTemplateDownload[];
+}) {
+  const { toast } = useToast();
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  const requirements = policyEvidenceOptionsFromSnapshot(policySnapshot);
+  if (requirements.length === 0) return null;
+
+  const templatesByDocumentKey = new Map<string, ProjectEvidenceTemplateDownload[]>();
+  for (const template of templateDownloads) {
+    templatesByDocumentKey.set(template.documentKey, [...(templatesByDocumentKey.get(template.documentKey) ?? []), template]);
+  }
+
+  const handleDownload = async (template: ProjectEvidenceTemplateDownload) => {
+    setOpeningId(template.id);
+    try {
+      await downloadProjectTemplate(projectId, template);
+    } catch (error) {
+      toast({
+        title: "기관 양식을 다운로드하지 못했습니다.",
+        description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."),
+        variant: "destructive",
+      });
+    } finally {
+      setOpeningId(null);
+    }
+  };
+
+  return (
+    <section className="rounded-md border bg-primary/5 p-4" aria-labelledby="expense-policy-evidence-title">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 id="expense-policy-evidence-title" className="text-sm font-semibold">정책 증빙서류</h2>
+          <p className="mt-1 text-xs text-muted-foreground">확정된 사업 정책에서 이 지출에 저장된 증빙 요구사항입니다.</p>
+        </div>
+        <Badge variant="info">{requirements.length}개</Badge>
+      </div>
+      <ul className="mt-3 divide-y rounded-md border bg-background">
+        {requirements.map((requirement) => {
+          const templates = templatesByDocumentKey.get(requirement.key) ?? [];
+          const isOpen = openKey === requirement.key;
+          const hasTemplates = templates.length > 0;
+          if (!hasTemplates) {
+            return (
+              <li key={requirement.key} className="px-3 py-2 text-sm">
+                <span className="block truncate">{requirement.label}</span>
+              </li>
+            );
+          }
+
+          return (
+            <li key={requirement.key}>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm"
+                onClick={() => setOpenKey(isOpen ? null : requirement.key)}
+                aria-expanded={isOpen}
+              >
+                <span className="min-w-0 truncate">{requirement.label}</span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <Badge variant="info">양식 {templates.length}개</Badge>
+                  {isOpen ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
+                </span>
+              </button>
+              {isOpen ? (
+                <div className="flex flex-wrap gap-2 border-t bg-muted/20 px-3 py-2">
+                  {templates.map((template) => (
+                    <Button key={template.id} type="button" size="sm" variant="outline" onClick={() => void handleDownload(template)} disabled={openingId === template.id}>
+                      {openingId === template.id ? <Loader2 className="mr-2 size-3 animate-spin" /> : <Download className="mr-2 size-3" />}
+                      {template.originalFileName}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function StageStepper({ currentStageIndex }: { currentStageIndex: number }) {
   return (
     <ol className="grid gap-2 rounded-md border bg-card p-3 md:grid-cols-5" aria-label="지출 5단계 진행 상태">
@@ -436,14 +561,18 @@ function ExpenseEvidencePanel({
   documentOptions,
   evidenceQuery,
   fieldId,
+  projectId,
   signedUrlMutation,
+  templateDownloads,
   uploadMutation,
 }: {
   deleteMutation: EvidenceMutation<string, unknown>;
   documentOptions: DetailEvidenceDocumentOption[];
   evidenceQuery: ReturnType<typeof useExpenseEvidenceQuery>;
   fieldId: string;
+  projectId: string;
   signedUrlMutation: EvidenceMutation<string, { signedUrl?: string }>;
+  templateDownloads: ProjectEvidenceTemplateDownload[];
   uploadMutation: EvidenceMutation<{ documentKey: string; file: File; requirementKey?: string | null }, unknown>;
 }) {
   const { toast } = useToast();
@@ -451,6 +580,7 @@ function ExpenseEvidencePanel({
   const [openingId, setOpeningId] = useState<string | null>(null);
   const visibleDocumentKeys = useMemo<Set<string>>(() => new Set(documentOptions.map((option) => option.key)), [documentOptions]);
   const files = evidenceQuery.data?.files.filter((file) => visibleDocumentKeys.has(file.documentKey)) ?? [];
+  const downloads = templateDownloads.filter((template) => template.documentKey === documentKey);
 
   useEffect(() => {
     if (!visibleDocumentKeys.has(documentKey)) {
@@ -490,6 +620,21 @@ function ExpenseEvidencePanel({
     }
   };
 
+  const downloadTemplate = async (template: ProjectEvidenceTemplateDownload) => {
+    setOpeningId(template.id);
+    try {
+      await downloadProjectTemplate(projectId, template);
+    } catch (error) {
+      toast({
+        title: "기관 양식을 다운로드하지 못했습니다.",
+        description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."),
+        variant: "destructive",
+      });
+    } finally {
+      setOpeningId(null);
+    }
+  };
+
   const removeEvidence = async (evidence: ExpenseEvidenceFileResponse) => {
     try {
       await deleteMutation.mutateAsync(evidence.id);
@@ -519,6 +664,20 @@ function ExpenseEvidencePanel({
           </SelectContent>
         </Select>
       </div>
+
+      {downloads.length > 0 ? (
+        <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+          <p className="text-xs font-medium text-muted-foreground">기관 양식</p>
+          <div className="flex flex-wrap gap-2">
+            {downloads.map((template) => (
+              <Button key={template.id} type="button" size="sm" variant="outline" onClick={() => void downloadTemplate(template)} disabled={openingId === template.id}>
+                {openingId === template.id ? <Loader2 className="mr-2 size-3 animate-spin" /> : <Download className="mr-2 size-3" />}
+                {template.originalFileName}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium">
         {uploadMutation.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Upload className="size-4" aria-hidden="true" />}
@@ -599,20 +758,25 @@ function ExpenseEvidencePanel({
 function PolicyEvidenceChecklist({
   deleteMutation,
   evidenceQuery,
+  projectId,
   relinkMutation,
   signedUrlMutation,
+  templateDownloads,
   uploadMutation,
   waiveRequirementMutation,
 }: {
   deleteMutation: EvidenceMutation<string, unknown>;
   evidenceQuery: ReturnType<typeof useExpenseEvidenceQuery>;
+  projectId: string;
   relinkMutation: EvidenceMutation<{ documentKey: string; evidenceId: string; requirementKey: string | null }, unknown>;
   signedUrlMutation: EvidenceMutation<string, { signedUrl?: string }>;
+  templateDownloads: ProjectEvidenceTemplateDownload[];
   uploadMutation: EvidenceMutation<{ documentKey: string; file: File; requirementKey?: string | null }, unknown>;
   waiveRequirementMutation: EvidenceMutation<{ requirementKey: string; waivedReason?: string | null }, unknown>;
 }) {
   const { toast } = useToast();
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const [openTemplateKey, setOpenTemplateKey] = useState<string | null>(null);
   const requirements = evidenceQuery.data?.requirements ?? [];
   const files = useMemo(() => evidenceQuery.data?.files ?? [], [evidenceQuery.data?.files]);
   const unclassifiedFiles = evidenceQuery.data?.unclassifiedFiles ?? [];
@@ -627,6 +791,16 @@ function PolicyEvidenceChecklist({
     }
     return grouped;
   }, [files]);
+
+  const templatesByRequirement = useMemo(() => {
+    const grouped = new Map<string, ProjectEvidenceTemplateDownload[]>();
+    for (const requirement of requirements) {
+      const acceptedKeys = new Set(requirement.acceptedDocuments.map((document) => document.documentKey));
+      const templates = templateDownloads.filter((template) => acceptedKeys.has(template.documentKey));
+      if (templates.length > 0) grouped.set(requirement.requirementKey, templates);
+    }
+    return grouped;
+  }, [requirements, templateDownloads]);
 
   const handleUpload = async (requirementKey: string, documentKey: string, filesToUpload: FileList | null) => {
     for (const file of Array.from(filesToUpload ?? [])) {
@@ -671,6 +845,21 @@ function PolicyEvidenceChecklist({
     }
   };
 
+  const downloadTemplate = async (template: ProjectEvidenceTemplateDownload) => {
+    setOpeningId(template.id);
+    try {
+      await downloadProjectTemplate(projectId, template);
+    } catch (error) {
+      toast({
+        title: "湲곌? ?묒떇???ㅼ슫濡쒕뱶?섏? 紐삵뻽?듬땲??",
+        description: extractApiErrorMessage(error, "?좎떆 ???ㅼ떆 ?쒕룄??二쇱꽭??"),
+        variant: "destructive",
+      });
+    } finally {
+      setOpeningId(null);
+    }
+  };
+
   if (requirements.length === 0) return null;
 
   const uploadedRequirementCount = requirements.filter((requirement) => requirement.status !== "not_uploaded").length;
@@ -690,6 +879,8 @@ function PolicyEvidenceChecklist({
       <div className="mt-4 space-y-3">
         {requirements.map((requirement) => {
           const requirementFiles = filesByRequirement.get(requirement.requirementKey) ?? [];
+          const templates = templatesByRequirement.get(requirement.requirementKey) ?? [];
+          const templatesOpen = openTemplateKey === requirement.requirementKey;
           return (
             <div key={requirement.requirementKey} className="rounded-md border bg-background px-3 py-2">
               <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
@@ -699,6 +890,17 @@ function PolicyEvidenceChecklist({
                     <Badge variant={requirement.status === "uploaded" ? "success" : requirement.status === "waived" ? "secondary" : "outline"}>
                       {requirement.status === "uploaded" ? "업로드됨" : requirement.status === "waived" ? "해당 없음" : "미첨부"}
                     </Badge>
+                    {templates.length > 0 ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-primary"
+                        onClick={() => setOpenTemplateKey(templatesOpen ? null : requirement.requirementKey)}
+                        aria-expanded={templatesOpen}
+                      >
+                        ?묒떇 {templates.length}媛?
+                        {templatesOpen ? <ChevronDown className="size-3" aria-hidden="true" /> : <ChevronRight className="size-3" aria-hidden="true" />}
+                      </button>
+                    ) : null}
                   </div>
                   {requirement.conditionText ? <p className="mt-1 truncate text-xs text-muted-foreground">{requirement.conditionText}</p> : null}
                 </div>
@@ -735,6 +937,24 @@ function PolicyEvidenceChecklist({
                   ))}
               </div>
               </div>
+
+              {templatesOpen ? (
+                <div className="mt-2 flex flex-wrap gap-2 border-t bg-muted/20 pt-2">
+                  {templates.map((template) => (
+                    <Button
+                      key={template.id}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void downloadTemplate(template)}
+                      disabled={openingId === template.id}
+                    >
+                      {openingId === template.id ? <Loader2 className="mr-2 size-3 animate-spin" aria-hidden="true" /> : <Download className="mr-2 size-3" aria-hidden="true" />}
+                      {template.originalFileName}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
 
               {requirementFiles.length > 0 ? (
                 <EvidenceFileList
@@ -835,9 +1055,11 @@ function StageSection({
   isCurrent,
   isEditable,
   policyDocumentOptions,
+  projectId,
   signedUrlMutation,
   stageKey,
   stageLabel,
+  templateDownloads,
   uploadMutation,
   usesPolicyChecklist,
 }: {
@@ -848,29 +1070,50 @@ function StageSection({
   isCurrent: boolean;
   isEditable: boolean;
   policyDocumentOptions: DetailEvidenceDocumentOption[];
+  projectId: string;
   signedUrlMutation: EvidenceMutation<string, { signedUrl?: string }>;
   stageKey: ExpenseStageKey;
   stageLabel: string;
+  templateDownloads: ProjectEvidenceTemplateDownload[];
   uploadMutation: EvidenceMutation<{ documentKey: string; file: File; requirementKey?: string | null }, unknown>;
   usesPolicyChecklist: boolean;
 }) {
+  const [open, setOpen] = useState(isCurrent);
   const copy = expenseStageDetailCopy[stageKey];
   const documentOptions = useMemo<DetailEvidenceDocumentOption[]>(
-    () => policyDocumentOptions.length > 0 ? policyDocumentOptions : evidenceOptionsForStage(stageKey),
+    () => {
+      const options: DetailEvidenceDocumentOption[] = policyDocumentOptions.length > 0
+        ? policyDocumentOptions
+        : evidenceOptionsForStage(stageKey).map((option) => ({ ...option }));
+      return stageKey === "execution_request" ? options : options.filter((option) => option.source !== "custom");
+    },
     [policyDocumentOptions, stageKey],
   );
 
-  return (
-    <details className={cn("rounded-md border p-4", isCurrent ? "border-primary/40 bg-primary/5" : "bg-background")} open>
-      <summary className="mb-4 flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
-        <div>
-          <h3 id={`stage-${stageKey}`} className="text-sm font-semibold">{stageLabel}</h3>
-          <p className="mt-1 text-xs text-muted-foreground">{copy.description}</p>
-        </div>
-        <Badge variant={isCurrent ? "info" : isEditable ? "secondary" : "outline"}>{isCurrent ? "현재 단계" : isEditable ? "입력 가능" : "예정"}</Badge>
-      </summary>
+  useEffect(() => {
+    if (isCurrent) setOpen(true);
+  }, [isCurrent]);
 
-      <div className="space-y-4">
+  return (
+    <section className={cn("rounded-md border p-4", isCurrent ? "border-primary/40 bg-primary/5" : "bg-background")} aria-labelledby={`stage-${stageKey}`}>
+      <button
+        type="button"
+        className="flex w-full items-start justify-between gap-3 text-left"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-controls={`stage-${stageKey}-content`}
+      >
+        <span className="flex min-w-0 gap-2">
+          {open ? <ChevronDown className="mt-0.5 size-4 shrink-0" /> : <ChevronRight className="mt-0.5 size-4 shrink-0" />}
+          <span className="min-w-0">
+            <span id={`stage-${stageKey}`} className="block text-sm font-semibold">{stageLabel}</span>
+            <span className="mt-1 block text-xs text-muted-foreground">{copy.description}</span>
+          </span>
+        </span>
+        <Badge className="shrink-0" variant={isCurrent ? "info" : isEditable ? "secondary" : "outline"}>{isCurrent ? "현재 단계" : isEditable ? "입력 가능" : "예정"}</Badge>
+      </button>
+
+      {open ? <div id={`stage-${stageKey}-content`} className="mt-4 space-y-4">
         <StageStatusFields control={control} isEditable={isEditable} stageKey={stageKey} />
 
         {copy.fields.length > 0 ? (
@@ -894,13 +1137,15 @@ function StageSection({
             documentOptions={documentOptions}
             evidenceQuery={evidenceQuery}
             fieldId={`expense-evidence-document-key-${stageKey}`}
+            projectId={projectId}
             signedUrlMutation={signedUrlMutation}
+            templateDownloads={templateDownloads}
             uploadMutation={uploadMutation}
           />
         </div>
         ) : null}
-      </div>
-    </details>
+      </div> : null}
+    </section>
   );
 }
 

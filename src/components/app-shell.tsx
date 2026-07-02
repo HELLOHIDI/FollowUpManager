@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Download, LogOut, Plus, Search } from "lucide-react";
@@ -33,8 +34,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="border-b bg-card" aria-label="전역 도구">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <Link href={routes.projects} className="mr-1 flex min-h-10 items-center gap-2 rounded-md font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground" aria-hidden="true">G</span>
-            GrantFollow
+            <Image src="/brand/fumanager-logo.png" alt="" width={44} height={29} className="h-8 w-auto object-contain" priority />
+            <span>FuManager</span>
           </Link>
           <Button variant="outline" disabled title="프로젝트 데이터 연결 후 사용할 수 있습니다.">
             기간 선택

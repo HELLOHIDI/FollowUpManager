@@ -887,6 +887,7 @@ export type Database = {
           id: string
           mime_type: string
           original_file_name: string
+          document_purpose: string
           project_id: string
           ready_at: string | null
           storage_bucket: string
@@ -905,6 +906,7 @@ export type Database = {
           id?: string
           mime_type: string
           original_file_name: string
+          document_purpose?: string
           project_id: string
           ready_at?: string | null
           storage_bucket?: string
@@ -923,6 +925,7 @@ export type Database = {
           id?: string
           mime_type?: string
           original_file_name?: string
+          document_purpose?: string
           project_id?: string
           ready_at?: string | null
           storage_bucket?: string

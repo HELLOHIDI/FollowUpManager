@@ -1,26 +1,19 @@
 import { z } from "zod";
+import {
+  DEFAULT_UPLOAD_MIME_TYPES,
+  getUploadMetadata,
+  type UploadExtension,
+} from "@/lib/file-upload";
 
 export const MAX_SAFE_AMOUNT = BigInt("9007199254740991");
 export const MAX_DOCUMENT_SIZE = 20 * 1024 * 1024;
 export const PROJECT_DOCUMENT_BUCKET = "project-documents";
 
-export const DOCUMENT_MIME_TYPES = {
-  pdf: "application/pdf",
-  doc: "application/msword",
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  hwp: "application/octet-stream",
-  hwpx: "application/octet-stream",
-  xls: "application/vnd.ms-excel",
-  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  csv: "text/csv",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp",
-  zip: "application/zip",
-} as const;
+export const DOCUMENT_MIME_TYPES = DEFAULT_UPLOAD_MIME_TYPES;
 
-export type DocumentExtension = keyof typeof DOCUMENT_MIME_TYPES;
+export const ProjectDocumentPurposeSchema = z.enum(["general", "institution_template"]);
+export type ProjectDocumentPurpose = z.infer<typeof ProjectDocumentPurposeSchema>;
+export type DocumentExtension = UploadExtension;
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const PHONE_PATTERN = /^[0-9+()\- ]{7,20}$/;
@@ -50,6 +43,65 @@ export const ProjectDocumentParamsSchema = z.object({
   documentId: z.string().uuid(),
   projectId: z.string().uuid(),
 });
+
+export const ProjectEvidenceDocumentTypeSchema = z.object({
+  categoryKey: z.string().regex(/^[a-z0-9_]+$/).nullable().optional(),
+  categoryName: z.string().trim().nullable().optional(),
+  displayName: z.string().trim().min(1).max(200),
+  documentKey: z.string().regex(/^[a-z0-9_]+$/),
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  sortOrder: z.number().int(),
+  source: z.enum(["policy", "custom"]),
+  stageKey: z.literal("execution_request"),
+  subcategoryKey: z.string().regex(/^[a-z0-9_]+$/).nullable().optional(),
+  subcategoryName: z.string().trim().nullable().optional(),
+});
+
+export const ProjectDocumentTemplateLinkSchema = z.object({
+  documentKey: z.string().regex(/^[a-z0-9_]+$/),
+  documentTypeId: z.string().uuid(),
+  projectDocumentId: z.string().uuid(),
+  sortOrder: z.number().int(),
+});
+
+export const SaveProjectEvidenceDocumentTypeSchema = ProjectEvidenceDocumentTypeSchema.pick({
+  categoryKey: true,
+  categoryName: true,
+  displayName: true,
+  documentKey: true,
+  sortOrder: true,
+  source: true,
+  stageKey: true,
+  subcategoryKey: true,
+  subcategoryName: true,
+}).extend({ id: z.string().uuid().optional() });
+
+export const SaveProjectDocumentTemplateLinkSchema = ProjectDocumentTemplateLinkSchema.pick({
+  documentKey: true,
+  projectDocumentId: true,
+  sortOrder: true,
+}).extend({ documentTypeId: z.string().uuid().optional() });
+
+export const SaveProjectEvidenceDocumentsInputSchema = z.object({
+  documentTypes: z.array(SaveProjectEvidenceDocumentTypeSchema),
+  links: z.array(SaveProjectDocumentTemplateLinkSchema),
+}).strict();
+
+export const ProjectEvidenceTemplateSetupResponseSchema = z.object({
+  documentTypes: z.array(ProjectEvidenceDocumentTypeSchema),
+  links: z.array(ProjectDocumentTemplateLinkSchema),
+});
+
+export const ProjectEvidenceTemplateDownloadSchema = z.object({
+  documentKey: z.string(),
+  documentTypeId: z.string().uuid(),
+  fileSize: z.number(),
+  id: z.string().uuid(),
+  originalFileName: z.string(),
+  sortOrder: z.number(),
+});
+export const ProjectEvidenceTemplateDownloadListSchema = z.array(ProjectEvidenceTemplateDownloadSchema);
 
 export const ProjectInputSchema = z
   .object({
@@ -96,26 +148,14 @@ export const UploadIntentInputSchema = z.object({
     (value) => !value.includes("..") && !/[\\/\u0000-\u001f\u007f]/.test(value),
     "파일명 형식이 올바르지 않습니다."
   ),
+  purpose: ProjectDocumentPurposeSchema.default("institution_template"),
 }).strict();
 
-export const getDocumentMetadata = (input: z.infer<typeof UploadIntentInputSchema>) => {
-  const extension = input.originalFileName.split(".").pop()?.toLowerCase() as DocumentExtension | undefined;
-  if (!extension || !(extension in DOCUMENT_MIME_TYPES)) {
-    return null;
-  }
-  const canonical = DOCUMENT_MIME_TYPES[extension];
-  const browserMime = input.browserMimeType?.trim().toLowerCase() || null;
-  const aliases: Partial<Record<DocumentExtension, string[]>> = {
-    hwp: ["application/x-hwp", "application/haansofthwp"],
-    hwpx: ["application/zip"],
-    docx: ["application/zip"],
-    xlsx: ["application/zip"],
-    csv: ["text/plain", "application/vnd.ms-excel"],
-    zip: ["application/x-zip-compressed"],
-  };
-  const accepted = !browserMime || browserMime === "application/octet-stream" || browserMime === canonical || aliases[extension]?.includes(browserMime);
-  return accepted ? { canonicalMimeType: canonical, extension } : null;
-};
+export const getDocumentMetadata = (input: z.infer<typeof UploadIntentInputSchema>) =>
+  getUploadMetadata({
+    browserMimeType: input.browserMimeType,
+    originalFileName: input.originalFileName,
+  });
 
 export const ProjectResponseSchema = z.object({
   agreementEndDate: z.string(), agreementStartDate: z.string(), assignmentName: z.string(), assignmentNumber: z.string(),
@@ -128,10 +168,16 @@ export const ProjectListResponseSchema = z.array(ProjectResponseSchema);
 
 export const ProjectDocumentResponseSchema = z.object({
   createdAt: z.string(), fileSize: z.number(), id: z.string().uuid(), mimeType: z.string(), originalFileName: z.string(), projectId: z.string().uuid(),
+  purpose: ProjectDocumentPurposeSchema.default("institution_template"),
 });
 export const ProjectDocumentListResponseSchema = z.array(ProjectDocumentResponseSchema);
 
 export type ProjectInput = z.infer<typeof ProjectInputSchema>;
 export type ProjectResponse = z.infer<typeof ProjectResponseSchema>;
 export type ProjectDocumentResponse = z.infer<typeof ProjectDocumentResponseSchema>;
+export type ProjectEvidenceDocumentType = z.infer<typeof ProjectEvidenceDocumentTypeSchema>;
+export type ProjectDocumentTemplateLink = z.infer<typeof ProjectDocumentTemplateLinkSchema>;
+export type ProjectEvidenceTemplateSetupResponse = z.infer<typeof ProjectEvidenceTemplateSetupResponseSchema>;
+export type ProjectEvidenceTemplateDownload = z.infer<typeof ProjectEvidenceTemplateDownloadSchema>;
+export type SaveProjectEvidenceDocumentsInput = z.infer<typeof SaveProjectEvidenceDocumentsInputSchema>;
 export type UploadIntentInput = z.infer<typeof UploadIntentInputSchema>;

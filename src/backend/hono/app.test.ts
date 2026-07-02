@@ -5,6 +5,7 @@ import { parseBearerToken } from "@/backend/middleware/auth";
 import type { Database } from "@/lib/supabase/types";
 
 const serviceClientMocks = vi.hoisted(() => ({
+  createMutationClient: vi.fn(),
   createServiceClient: vi.fn(),
 }));
 
@@ -65,6 +66,7 @@ describe("parseBearerToken", () => {
 
 describe("Hono authentication boundary", () => {
   beforeEach(() => {
+    serviceClientMocks.createMutationClient.mockClear();
     serviceClientMocks.createServiceClient.mockClear();
   });
 
