@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { failure, success, type HandlerResult } from "@/backend/http/response";
-import type { CompanyMutationClientFactory } from "./mutation-client";
+import type { MutationClientFactory } from "@/backend/supabase/client";
 import {
   CompanyResponseSchema,
   CompanyRowSchema,
@@ -162,7 +162,7 @@ export const getCompany = async (
 };
 
 export const createCompany = async (
-  createClient: CompanyMutationClientFactory,
+  createClient: MutationClientFactory,
   input: CompanyInput
 ): Promise<CompanyResult> => {
   const client = createClient();
@@ -180,7 +180,7 @@ export const createCompany = async (
 };
 
 export const updateCompany = async (
-  createClient: CompanyMutationClientFactory,
+  createClient: MutationClientFactory,
   companyId: string,
   input: CompanyInput
 ): Promise<CompanyResult> => {

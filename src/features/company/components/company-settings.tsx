@@ -28,6 +28,7 @@ import {
   useProjectNavigationPrefetch,
 } from "@/features/projects/hooks/use-projects";
 import type { ProjectInput } from "@/features/projects/lib/dto";
+import { uploadProjectDocuments } from "@/features/projects/api";
 import { useCompaniesQuery } from "../hooks/use-companies-query";
 import { useCompanyMutations } from "../hooks/use-company-mutations";
 import {
@@ -343,7 +344,7 @@ export function CompanySettings() {
     }
   });
 
-  const submitProject = async (input: ProjectInput) => {
+  const submitProject = async (input: ProjectInput, files: File[]) => {
     if (!projectCompany) {
       return;
     }
@@ -358,6 +359,7 @@ export function CompanySettings() {
         title: "Project registered.",
         description: `${project.projectName} project setup was created.`,
       });
+      if (files.length > 0) await uploadProjectDocuments(project.id, files, "general");
       setIsProjectDirty(false);
       void prefetchDashboard(project.id);
       router.push(routes.projectSetup(project.id));
@@ -454,6 +456,7 @@ export function CompanySettings() {
                 onDirtyChange={setIsProjectDirty}
                 onSubmit={submitProject}
                 projects={projectsQuery.data ?? []}
+                showAttachments
               />
             </CardContent>
           </Card>

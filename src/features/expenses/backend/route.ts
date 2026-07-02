@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
 import { failure, respond } from "@/backend/http/response";
 import { getCurrentUser, getLogger, getSupabase, type AppEnv } from "@/backend/hono/context";
-import type { ExpenseMutationClientFactory } from "./mutation-client";
+import type { MutationClientFactory } from "@/backend/supabase/client";
 import { expenseErrorCodes } from "./error";
 import {
   ExpenseCreateInputSchema,
@@ -46,7 +46,7 @@ const readOptionalFormString = (value: FormDataEntryValue | null) => {
 
 export const registerExpenseRoutes = (
   app: Hono<AppEnv>,
-  options: { createExpenseMutationClient: ExpenseMutationClientFactory },
+  options: { createExpenseMutationClient: MutationClientFactory },
 ) => {
   app.get("/projects/:projectId/expenses", async (context) => {
     const params = ExpenseParamsSchema.safeParse({

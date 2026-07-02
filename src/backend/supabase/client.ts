@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getAppConfig } from '@/backend/config';
 import type { Database } from '@/lib/supabase/types';
 
 export type ServiceClientConfig = {
@@ -16,3 +17,8 @@ export const createServiceClient = ({
       persistSession: false,
     },
   });
+
+export type MutationClientFactory = () => SupabaseClient<Database>;
+
+export const createMutationClient: MutationClientFactory = () =>
+  createServiceClient(getAppConfig().supabase);

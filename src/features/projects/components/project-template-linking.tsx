@@ -1,6 +1,6 @@
 "use client";
 
-import { GripVertical, Loader2, Plus, Save, Trash2, Upload, X } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical, Loader2, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,15 @@ import { useProjectDocumentsQuery, useProjectEvidenceDocumentsQuery, useProjectM
 import type { ProjectDocumentResponse, ProjectDocumentTemplateLink, ProjectEvidenceDocumentType } from "../lib/dto";
 
 type DraftType = ProjectEvidenceDocumentType | {
+  categoryKey?: string | null;
+  categoryName?: string | null;
   displayName: string;
   documentKey: string;
   sortOrder: number;
   source: "custom";
   stageKey: "execution_request";
+  subcategoryKey?: string | null;
+  subcategoryName?: string | null;
 };
 
 const makeCustomKey = (label: string) => {
@@ -42,6 +46,8 @@ export function ProjectTemplateLinking({
   const [documentTypes, setDocumentTypes] = useState<DraftType[]>([]);
   const [links, setLinks] = useState<Array<Omit<ProjectDocumentTemplateLink, "documentTypeId"> & { documentTypeId?: string }>>([]);
   const [dirty, setDirty] = useState(false);
+  const [openGroupKeys, setOpenGroupKeys] = useState<Set<string>>(new Set());
+  const [openSubgroupKeys, setOpenSubgroupKeys] = useState<Set<string>>(new Set());
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [draggedDocumentId, setDraggedDocumentId] = useState<string | null>(null);
 
@@ -55,8 +61,41 @@ export function ProjectTemplateLinking({
 
   const documents = documentsQuery.data ?? [];
   const linkedIds = useMemo(() => new Set(links.map((link) => link.projectDocumentId)), [links]);
+  const availableDocuments = useMemo(() => documents.filter((document) => !linkedIds.has(document.id)), [documents, linkedIds]);
+  const groupedDocumentTypes = useMemo(() => {
+    const groups = new Map<string, { key: string; name: string; subgroups: Array<{ key: string; name: string; types: DraftType[] }> }>();
+    for (const type of documentTypes) {
+      const key = type.categoryKey || "__uncategorized";
+      const subgroupKey = type.subcategoryKey || "__common";
+      const group = groups.get(key) ?? { key, name: type.categoryName || "비목 미지정", subgroups: [] };
+      let subgroup = group.subgroups.find((item) => item.key === subgroupKey);
+      if (!subgroup) {
+        subgroup = { key: subgroupKey, name: type.subcategoryName || "공통", types: [] };
+        group.subgroups.push(subgroup);
+      }
+      subgroup.types.push(type);
+      groups.set(key, group);
+    }
+    return [...groups.values()];
+  }, [documentTypes]);
 
   const markDirty = () => setDirty(true);
+  const toggleGroup = (key: string) => {
+    setOpenGroupKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+  const toggleSubgroup = (key: string) => {
+    setOpenSubgroupKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
   const addLink = (documentKey: string, document: ProjectDocumentResponse) => {
     setLinks((current) => current.some((link) => linkKey(link.documentKey, link.projectDocumentId) === linkKey(documentKey, document.id))
       ? current
@@ -85,7 +124,7 @@ export function ProjectTemplateLinking({
   const upload = async (files: FileList | null) => {
     for (const file of Array.from(files ?? [])) {
       try {
-        await uploadMutation.mutateAsync({ file, projectId });
+        await uploadMutation.mutateAsync({ file, projectId, purpose: "institution_template" });
       } catch (error) {
         toast({ title: "파일을 추가하지 못했습니다.", description: extractApiErrorMessage(error), variant: "destructive" });
       }
@@ -150,9 +189,9 @@ export function ProjectTemplateLinking({
             </label>
           </div>
           {documentsQuery.isPending ? <Loader2 className="size-5 animate-spin" /> : null}
-          {documents.length === 0 && !documentsQuery.isPending ? <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">등록된 기관 양식 파일이 없습니다.</p> : null}
+          {availableDocuments.length === 0 && !documentsQuery.isPending ? <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">연결 가능한 기관 양식 파일이 없습니다.</p> : null}
           <ul className="space-y-2">
-            {documents.map((document) => (
+            {availableDocuments.map((document) => (
               <li key={document.id} className="rounded-md border p-3" draggable onDragStart={() => setDraggedDocumentId(document.id)} onDragEnd={() => setDraggedDocumentId(null)}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -183,12 +222,43 @@ export function ProjectTemplateLinking({
         <div className="space-y-3">
           {setupQuery.isPending ? <Loader2 className="size-5 animate-spin" /> : null}
           {documentTypes.length === 0 && !setupQuery.isPending ? <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">기관에서 전달받은 양식이 없으면 비워두면 됩니다.</p> : null}
-          {documentTypes.map((type) => {
+          {groupedDocumentTypes.map((group) => (
+            <div key={group.key} className="rounded-md border bg-muted/20 p-3">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-2 text-left"
+                onClick={() => toggleGroup(group.key)}
+                aria-expanded={openGroupKeys.has(group.key)}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  {openGroupKeys.has(group.key) ? <ChevronDown className="size-4 shrink-0" /> : <ChevronRight className="size-4 shrink-0" />}
+                  <span className="truncate text-base font-semibold">{group.name}</span>
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">{group.subgroups.reduce((sum, subgroup) => sum + subgroup.types.length, 0)}개</span>
+              </button>
+              {openGroupKeys.has(group.key) ? <div className="mt-3 space-y-3">
+          {group.subgroups.map((subgroup) => (
+            <div key={subgroup.key} className={group.subgroups.length > 1 || subgroup.key !== "__common" ? "space-y-2 rounded-md border bg-background/70 p-2" : "space-y-2"}>
+              {group.subgroups.length > 1 || subgroup.key !== "__common" ? (
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 px-1 text-left"
+                  onClick={() => toggleSubgroup(`${group.key}:${subgroup.key}`)}
+                  aria-expanded={openSubgroupKeys.has(`${group.key}:${subgroup.key}`)}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    {openSubgroupKeys.has(`${group.key}:${subgroup.key}`) ? <ChevronDown className="size-4 shrink-0" /> : <ChevronRight className="size-4 shrink-0" />}
+                    <span className="truncate text-sm font-medium">{subgroup.name}</span>
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{subgroup.types.length}개</span>
+                </button>
+              ) : null}
+          {(group.subgroups.length > 1 || subgroup.key !== "__common") && !openSubgroupKeys.has(`${group.key}:${subgroup.key}`) ? null : subgroup.types.map((type) => {
             const typeLinks = links.filter((link) => link.documentKey === type.documentKey);
             return (
               <div
                 key={type.documentKey}
-                className="rounded-md border p-3"
+                className="rounded-md border bg-background p-3"
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
                   event.preventDefault();
@@ -198,10 +268,8 @@ export function ProjectTemplateLinking({
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <Input aria-label="증빙서류명" value={type.displayName} onChange={(event) => renameType(type.documentKey, event.target.value)} />
-                  <Badge variant={type.source === "policy" ? "secondary" : "outline"}>{type.source === "policy" ? "정책" : "추가"}</Badge>
                 </div>
-                <div className="mt-3 grid gap-2">
-                  {typeLinks.length === 0 ? <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">연결된 양식이 없습니다.</p> : null}
+                {typeLinks.length > 0 ? <div className="mt-2 grid gap-2 border-t pt-2">
                   {typeLinks.map((link) => {
                     const document = documents.find((item) => item.id === link.projectDocumentId);
                     if (!document) return null;
@@ -214,17 +282,15 @@ export function ProjectTemplateLinking({
                       </div>
                     );
                   })}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {documents.map((document) => (
-                    <Button key={document.id} size="sm" type="button" variant="outline" onClick={() => addLink(type.documentKey, document)}>
-                      {document.originalFileName}
-                    </Button>
-                  ))}
-                </div>
+                </div> : null}
               </div>
             );
           })}
+            </div>
+          ))}
+              </div> : null}
+            </div>
+          ))}
         </div>
       </div>
     </section>

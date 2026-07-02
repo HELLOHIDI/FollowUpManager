@@ -156,7 +156,7 @@ const mockLoadedQueries = (overrides: Partial<typeof detailData> = {}, mutateAsy
 };
 
 describe("ExpenseDetailPageContent", () => {
-  it("returns to the operation dashboard and renders the long-card stage flow", () => {
+  it("returns to the operation dashboard and renders collapsible stage sections", () => {
     mockLoadedQueries();
 
     render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
@@ -168,23 +168,58 @@ describe("ExpenseDetailPageContent", () => {
     expect(screen.getAllByText("집행 수행").length).toBeGreaterThan(0);
     expect(screen.getAllByText("집행 요청").length).toBeGreaterThan(0);
     expect(screen.getAllByText("집행 완료").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("파일 추가")).toHaveLength(5);
-    expect(screen.getByText("검증 메시지")).toBeInTheDocument();
-    expect(screen.getByText("변경 이력")).toBeInTheDocument();
+    expect(screen.getAllByText("파일 추가")).toHaveLength(1);
+    const preApprovalButton = screen.getAllByText("사전 승인").map((node) => node.closest("button")).find(Boolean);
+    expect(preApprovalButton).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(preApprovalButton as HTMLButtonElement);
+    expect(screen.getAllByText("파일 추가")).toHaveLength(2);
+    expect(screen.queryByText("검증 메시지")).not.toBeInTheDocument();
+    expect(screen.queryByText("변경 이력")).not.toBeInTheDocument();
     expect(screen.queryByText("Checklist")).not.toBeInTheDocument();
     expect(screen.queryByText("현재 요약")).not.toBeInTheDocument();
   });
 
-  it("keeps evidence, validation, and history inside the main detail flow", () => {
+  it("keeps stage evidence in the main detail flow without validation or history sections", () => {
     mockLoadedQueries();
 
     render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
 
     const detailCard = screen.getByText("지출 상세").closest("section");
     expect(detailCard).not.toBeNull();
-    expect(within(detailCard as HTMLElement).getAllByText("증빙 파일")).toHaveLength(5);
-    expect(within(detailCard as HTMLElement).getByText("검증 메시지")).toBeInTheDocument();
-    expect(within(detailCard as HTMLElement).getByText("변경 이력")).toBeInTheDocument();
+    expect(within(detailCard as HTMLElement).getAllByText("증빙 파일")).toHaveLength(1);
+    expect(within(detailCard as HTMLElement).queryByText("검증 메시지")).not.toBeInTheDocument();
+    expect(within(detailCard as HTMLElement).queryByText("변경 이력")).not.toBeInTheDocument();
+  });
+
+  it("shows linked institution templates inside a single policy evidence row", () => {
+    mockLoadedQueries({
+      policySnapshot: {
+        evidence_requirements: [
+          { evidence_key: "tax_invoice", evidence_name: "세금계산서" },
+          { evidence_key: "contract", evidence_name: "계약서" },
+        ],
+      },
+    });
+    projectQueryMocks.useProjectEvidenceTemplateDownloadsQuery.mockReturnValue({
+      data: [{
+        documentKey: "contract",
+        documentTypeId: "66666666-6666-4666-8666-666666666666",
+        fileSize: 1024,
+        id: "77777777-7777-4777-8777-777777777777",
+        originalFileName: "기관_계약서_양식.docx",
+        sortOrder: 0,
+      }],
+      isError: false,
+      isPending: false,
+    });
+
+    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
+
+    expect(screen.getByText("양식 1개")).toBeInTheDocument();
+    expect(screen.queryByText("기관_계약서_양식.docx")).not.toBeInTheDocument();
+    const contractRow = screen.getAllByText("계약서").map((node) => node.closest("button")).find(Boolean);
+    fireEvent.click(contractRow as HTMLButtonElement);
+    expect(screen.getByText("기관_계약서_양식.docx")).toBeInTheDocument();
   });
 
   it("keeps non-execution stages on snapshot evidence options when project templates exist", () => {
@@ -215,6 +250,9 @@ describe("ExpenseDetailPageContent", () => {
     render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
 
     expect(screen.getAllByText("Pre approval form").length).toBeGreaterThan(0);
+    const executionRequestButton = screen.getAllByText("집행 요청").map((node) => node.closest("button")).find(Boolean);
+    expect(executionRequestButton).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(executionRequestButton as HTMLButtonElement);
     expect(screen.getAllByText("Execution template").length).toBeGreaterThan(0);
   });
 

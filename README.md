@@ -33,7 +33,6 @@ bun dev
 - [Prettier](https://prettier.io)
 - [Shadcn UI](https://ui.shadcn.com)
 - [Lucide Icon](https://lucide.dev)
-- [date-fns](https://date-fns.org)
 - [Zod](https://zod.dev)
 - [React Query](https://tanstack.com/query/latest)
 - [React Hook Form](https://react-hook-form.com)

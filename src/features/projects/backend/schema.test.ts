@@ -43,6 +43,8 @@ describe("project evidence template schemas", () => {
   it("accepts multiple manual template links per evidence document type", () => {
     const input = SaveProjectEvidenceDocumentsInputSchema.parse({
       documentTypes: [{
+        categoryKey: "materials",
+        categoryName: "재료비",
         displayName: "거래명세서",
         documentKey: "transaction_statement",
         sortOrder: 0,
@@ -64,6 +66,17 @@ describe("project evidence template schemas", () => {
     });
 
     expect(input.links).toHaveLength(2);
+    expect(input.documentTypes[0]?.categoryName).toBe("재료비");
+  });
+
+  it("defaults uploaded project documents to institution templates", () => {
+    const input = UploadIntentInputSchema.parse({
+      browserMimeType: "application/pdf",
+      fileSize: 10,
+      originalFileName: "양식.pdf",
+    });
+
+    expect(input.purpose).toBe("institution_template");
   });
 
   it("keeps empty institution template state valid", () => {
