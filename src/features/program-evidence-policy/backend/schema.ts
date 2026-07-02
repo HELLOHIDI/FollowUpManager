@@ -27,6 +27,10 @@ export const PolicyReviewStatusSchema = z.enum([
 export const EvidenceRequirementTypeSchema = z.enum(["required", "conditional", "optional"]);
 export const EvidenceFulfillmentTypeSchema = z.enum(["single", "any_of", "all_of"]);
 export const PolicyDocumentRoleSchema = z.enum(["primary", "reference"]);
+export const AcceptedEvidenceDocumentSchema = z.object({
+  documentKey: z.string().trim().regex(/^[a-z0-9_]+$/),
+  label: z.string().trim().min(1),
+});
 
 export const PolicyParamsSchema = z.object({
   projectId: z.string().uuid(),
@@ -94,6 +98,7 @@ export const PolicyEvidenceRequirementInputSchema = z.object({
   fulfillmentType: EvidenceFulfillmentTypeSchema,
   conditionText: z.string().trim().nullable().optional(),
   documentKey: z.string().trim().regex(/^[a-z0-9_]+$/).nullable().optional(),
+  acceptedDocuments: z.array(AcceptedEvidenceDocumentSchema).optional(),
   sortOrder: z.number().int().default(0),
   reviewStatus: PolicyReviewStatusSchema,
   sourceReference: SourceReferenceSchema.default({}),

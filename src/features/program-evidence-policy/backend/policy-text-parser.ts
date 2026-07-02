@@ -305,10 +305,15 @@ export const tablePolicyParser: PolicyParser = {
           }
 
           const evidenceKeyBase = toStablePolicyKey(`${parsedCategory.categoryName}_${group.groupName ?? "common"}_${evidenceName}`, "evidence");
+          const documentKey = uniqueKey(toStablePolicyKey(evidenceName, "document"), documentKeys);
           evidenceRequirements.push({
+            acceptedDocuments: [{
+              documentKey,
+              label: evidenceName,
+            }],
             categoryKey,
             conditionText: conditionalKeywordPattern.test(evidenceLine) ? evidenceLine : null,
-            documentKey: uniqueKey(toStablePolicyKey(evidenceName, "document"), documentKeys),
+            documentKey,
             evidenceKey: uniqueKey(evidenceKeyBase, evidenceKeys),
             evidenceName,
             fulfillmentType: "single",

@@ -146,6 +146,16 @@ export const ExpenseEvidenceUploadInputSchema = z
   })
   .strict();
 
+export const ExpenseEvidenceRelinkInputSchema = z.object({
+  documentKey: ExpenseEvidenceDocumentKeySchema,
+  requirementKey: z.string().trim().min(1).max(100).nullable(),
+});
+
+export const ExpenseEvidenceRequirementStatusInputSchema = z.object({
+  status: z.literal("waived"),
+  waivedReason: z.string().trim().max(500).nullable().optional(),
+});
+
 export const getEvidenceFileMetadata = (input: z.infer<typeof ExpenseEvidenceUploadInputSchema>) =>
   getUploadMetadata({
     blockedExtensions: BLOCKED_EVIDENCE_EXTENSIONS,
@@ -267,6 +277,27 @@ export const ExpenseHistoryResponseSchema = z.object({
 });
 
 export const ExpenseEvidenceDuplicateStatusSchema = z.enum(["none", "possible_duplicate"]);
+export const ExpenseEvidenceRequirementStatusSchema = z.enum(["not_uploaded", "uploaded", "waived"]);
+
+export const ExpenseEvidenceAcceptedDocumentSchema = z.object({
+  documentKey: z.string().trim().min(1),
+  label: z.string().trim().min(1),
+  uploaded: z.boolean(),
+});
+
+export const ExpenseEvidenceRequirementSchema = z.object({
+  requirementKey: z.string().trim().min(1),
+  evidenceName: z.string().trim().min(1),
+  requirementType: z.enum(["required", "conditional", "optional"]),
+  fulfillmentType: z.enum(["single", "any_of", "all_of"]),
+  conditionText: z.string().nullable(),
+  acceptedDocuments: z.array(ExpenseEvidenceAcceptedDocumentSchema),
+  status: ExpenseEvidenceRequirementStatusSchema,
+  uploadedCount: z.number().int().nonnegative(),
+  waivedReason: z.string().nullable(),
+  changedAt: z.string().nullable(),
+  changedBy: z.string().uuid().nullable(),
+});
 
 export const ExpenseEvidenceFileResponseSchema = z.object({
   id: z.string().uuid(),
@@ -284,6 +315,9 @@ export const ExpenseEvidenceFileResponseSchema = z.object({
 
 export const ExpenseEvidenceListResponseSchema = z.object({
   files: z.array(ExpenseEvidenceFileResponseSchema),
+  policySnapshotHash: z.string().nullable().default(null),
+  requirements: z.array(ExpenseEvidenceRequirementSchema).default([]),
+  unclassifiedFiles: z.array(ExpenseEvidenceFileResponseSchema).default([]),
 });
 
 export const ExpenseEvidenceSignedUrlResponseSchema = z.object({
@@ -302,6 +336,8 @@ export type ExpenseResponse = z.infer<typeof ExpenseResponseSchema>;
 export type ExpenseDetailResponse = z.infer<typeof ExpenseDetailResponseSchema>;
 export type ExpenseHistoryResponse = z.infer<typeof ExpenseHistoryResponseSchema>;
 export type ExpenseEvidenceUploadInput = z.infer<typeof ExpenseEvidenceUploadInputSchema>;
+export type ExpenseEvidenceRelinkInput = z.infer<typeof ExpenseEvidenceRelinkInputSchema>;
+export type ExpenseEvidenceRequirementStatusInput = z.infer<typeof ExpenseEvidenceRequirementStatusInputSchema>;
 export type ExpenseEvidenceFileResponse = z.infer<typeof ExpenseEvidenceFileResponseSchema>;
 export type ExpenseEvidenceListResponse = z.infer<typeof ExpenseEvidenceListResponseSchema>;
 export type ExpenseEvidenceSignedUrlResponse = z.infer<typeof ExpenseEvidenceSignedUrlResponseSchema>;

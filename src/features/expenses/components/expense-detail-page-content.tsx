@@ -70,6 +70,17 @@ const policyEvidenceOptionsFromSnapshot = (policySnapshot: ExpenseDetailResponse
   for (const requirement of requirements) {
     if (!requirement || typeof requirement !== "object" || Array.isArray(requirement)) continue;
     const row = requirement as Record<string, unknown>;
+    const acceptedDocuments = Array.isArray(row.accepted_documents) ? row.accepted_documents : [];
+    for (const document of acceptedDocuments) {
+      if (!document || typeof document !== "object" || Array.isArray(document)) continue;
+      const accepted = document as Record<string, unknown>;
+      const acceptedKey = typeof accepted.documentKey === "string" ? accepted.documentKey : null;
+      if (!acceptedKey) continue;
+      uniqueOptions.set(acceptedKey, {
+        key: acceptedKey,
+        label: typeof accepted.label === "string" ? accepted.label : acceptedKey,
+      });
+    }
     const key = typeof row.document_key === "string" ? row.document_key : typeof row.evidence_key === "string" ? row.evidence_key : null;
     if (!key) continue;
     const label = typeof row.evidence_name === "string" ? row.evidence_name : key;
@@ -158,6 +169,7 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   const snapshotDocumentOptions = policyEvidenceOptionsFromSnapshot(query.data.policySnapshot);
   const executionRequestDocumentOptions = projectDocumentOptions.length > 0 ? projectDocumentOptions : snapshotDocumentOptions;
   const templateDownloads = templateDownloadsQuery.data ?? [];
+  const usesPolicyChecklist = (evidenceQuery.data?.requirements?.length ?? 0) > 0;
 
   const handleSave = form.handleSubmit(async (values) => {
     const selectedCategory = query.data.categoryOptions.find((option) => option.categoryKey === values.categoryKey);
@@ -229,7 +241,24 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
           </CardHeader>
           <CardContent className="space-y-6">
             <BasicInfoFields form={form} categoryOptions={query.data.categoryOptions} />
-            <PolicyEvidenceSummary policySnapshot={query.data.policySnapshot} projectId={projectId} templateDownloads={templateDownloads} />
+            {usesPolicyChecklist ? (
+              <PolicyEvidenceChecklist
+                deleteMutation={evidenceMutations.deleteMutation}
+                evidenceQuery={evidenceQuery}
+                projectId={projectId}
+                relinkMutation={evidenceMutations.relinkMutation}
+                signedUrlMutation={evidenceMutations.signedUrlMutation}
+                templateDownloads={templateDownloads}
+                uploadMutation={evidenceMutations.uploadMutation}
+                waiveRequirementMutation={evidenceMutations.waiveRequirementMutation}
+              />
+            ) : (
+              <PolicyEvidenceSummary
+                policySnapshot={query.data.policySnapshot}
+                projectId={projectId}
+                templateDownloads={templateDownloads}
+              />
+            )}
 
             <div className="space-y-4">
               {EXPENSE_STAGES.map((stage, index) => (
@@ -248,10 +277,10 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
                   stageLabel={stage.label}
                   templateDownloads={templateDownloads}
                   uploadMutation={evidenceMutations.uploadMutation}
+                  usesPolicyChecklist={usesPolicyChecklist}
                 />
               ))}
             </div>
-
           </CardContent>
         </Card>
       </div>
@@ -726,6 +755,298 @@ function ExpenseEvidencePanel({
   );
 }
 
+function PolicyEvidenceChecklist({
+  deleteMutation,
+  evidenceQuery,
+  projectId,
+  relinkMutation,
+  signedUrlMutation,
+  templateDownloads,
+  uploadMutation,
+  waiveRequirementMutation,
+}: {
+  deleteMutation: EvidenceMutation<string, unknown>;
+  evidenceQuery: ReturnType<typeof useExpenseEvidenceQuery>;
+  projectId: string;
+  relinkMutation: EvidenceMutation<{ documentKey: string; evidenceId: string; requirementKey: string | null }, unknown>;
+  signedUrlMutation: EvidenceMutation<string, { signedUrl?: string }>;
+  templateDownloads: ProjectEvidenceTemplateDownload[];
+  uploadMutation: EvidenceMutation<{ documentKey: string; file: File; requirementKey?: string | null }, unknown>;
+  waiveRequirementMutation: EvidenceMutation<{ requirementKey: string; waivedReason?: string | null }, unknown>;
+}) {
+  const { toast } = useToast();
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  const [openTemplateKey, setOpenTemplateKey] = useState<string | null>(null);
+  const requirements = evidenceQuery.data?.requirements ?? [];
+  const files = useMemo(() => evidenceQuery.data?.files ?? [], [evidenceQuery.data?.files]);
+  const unclassifiedFiles = evidenceQuery.data?.unclassifiedFiles ?? [];
+
+  const filesByRequirement = useMemo(() => {
+    const grouped = new Map<string, ExpenseEvidenceFileResponse[]>();
+    for (const file of files) {
+      if (!file.requirementKey) continue;
+      const list = grouped.get(file.requirementKey) ?? [];
+      list.push(file);
+      grouped.set(file.requirementKey, list);
+    }
+    return grouped;
+  }, [files]);
+
+  const templatesByRequirement = useMemo(() => {
+    const grouped = new Map<string, ProjectEvidenceTemplateDownload[]>();
+    for (const requirement of requirements) {
+      const acceptedKeys = new Set(requirement.acceptedDocuments.map((document) => document.documentKey));
+      const templates = templateDownloads.filter((template) => acceptedKeys.has(template.documentKey));
+      if (templates.length > 0) grouped.set(requirement.requirementKey, templates);
+    }
+    return grouped;
+  }, [requirements, templateDownloads]);
+
+  const handleUpload = async (requirementKey: string, documentKey: string, filesToUpload: FileList | null) => {
+    for (const file of Array.from(filesToUpload ?? [])) {
+      try {
+        await uploadMutation.mutateAsync({ documentKey, file, requirementKey });
+      } catch (error) {
+        toast({
+          title: "증빙을 추가하지 못했습니다.",
+          description: extractApiErrorMessage(error, "파일 형식과 크기를 확인해 주세요."),
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const openEvidence = async (evidence: ExpenseEvidenceFileResponse) => {
+    setOpeningId(evidence.id);
+    try {
+      const { signedUrl } = await signedUrlMutation.mutateAsync(evidence.id);
+      if (!signedUrl) throw new Error("Missing signed URL");
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast({
+        title: "증빙을 열지 못했습니다.",
+        description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."),
+        variant: "destructive",
+      });
+    } finally {
+      setOpeningId(null);
+    }
+  };
+
+  const removeEvidence = async (evidence: ExpenseEvidenceFileResponse) => {
+    try {
+      await deleteMutation.mutateAsync(evidence.id);
+    } catch (error) {
+      toast({
+        title: "증빙을 삭제하지 못했습니다.",
+        description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."),
+        variant: "destructive",
+      });
+    }
+  };
+
+  const downloadTemplate = async (template: ProjectEvidenceTemplateDownload) => {
+    setOpeningId(template.id);
+    try {
+      await downloadProjectTemplate(projectId, template);
+    } catch (error) {
+      toast({
+        title: "湲곌? ?묒떇???ㅼ슫濡쒕뱶?섏? 紐삵뻽?듬땲??",
+        description: extractApiErrorMessage(error, "?좎떆 ???ㅼ떆 ?쒕룄??二쇱꽭??"),
+        variant: "destructive",
+      });
+    } finally {
+      setOpeningId(null);
+    }
+  };
+
+  if (requirements.length === 0) return null;
+
+  const uploadedRequirementCount = requirements.filter((requirement) => requirement.status !== "not_uploaded").length;
+
+  return (
+    <details className="rounded-md border bg-background p-4" open>
+      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+        <div>
+          <h2 className="text-sm font-semibold">정책 증빙서류</h2>
+          <p className="mt-1 text-xs text-muted-foreground">사업 정책의 증빙서류 목록에서 바로 파일을 첨부합니다.</p>
+        </div>
+        <Badge variant="info">
+          증빙 {uploadedRequirementCount}/{requirements.length}
+        </Badge>
+      </summary>
+
+      <div className="mt-4 space-y-3">
+        {requirements.map((requirement) => {
+          const requirementFiles = filesByRequirement.get(requirement.requirementKey) ?? [];
+          const templates = templatesByRequirement.get(requirement.requirementKey) ?? [];
+          const templatesOpen = openTemplateKey === requirement.requirementKey;
+          return (
+            <div key={requirement.requirementKey} className="rounded-md border bg-background px-3 py-2">
+              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate text-sm font-medium">{requirement.evidenceName}</h3>
+                    <Badge variant={requirement.status === "uploaded" ? "success" : requirement.status === "waived" ? "secondary" : "outline"}>
+                      {requirement.status === "uploaded" ? "업로드됨" : requirement.status === "waived" ? "해당 없음" : "미첨부"}
+                    </Badge>
+                    {templates.length > 0 ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-primary"
+                        onClick={() => setOpenTemplateKey(templatesOpen ? null : requirement.requirementKey)}
+                        aria-expanded={templatesOpen}
+                      >
+                        ?묒떇 {templates.length}媛?
+                        {templatesOpen ? <ChevronDown className="size-3" aria-hidden="true" /> : <ChevronRight className="size-3" aria-hidden="true" />}
+                      </button>
+                    ) : null}
+                  </div>
+                  {requirement.conditionText ? <p className="mt-1 truncate text-xs text-muted-foreground">{requirement.conditionText}</p> : null}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                  {requirement.requirementType === "conditional" && requirement.status !== "waived" ? (
+                    <Button
+                      disabled={waiveRequirementMutation.isPending}
+                      onClick={() => void waiveRequirementMutation.mutateAsync({ requirementKey: requirement.requirementKey })}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      해당 없음
+                    </Button>
+                  ) : null}
+                  {requirement.acceptedDocuments.map((document) => (
+                    <label key={document.documentKey} className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium">
+                      {uploadMutation.isPending ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Upload className="size-3.5" aria-hidden="true" />}
+                      파일 선택
+                      <Input
+                        className="sr-only"
+                        disabled={uploadMutation.isPending}
+                        multiple
+                        type="file"
+                        accept=".pdf,.doc,.docx,.hwp,.hwpx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp,.zip"
+                        onChange={(event) => {
+                          void handleUpload(requirement.requirementKey, document.documentKey, event.target.files).finally(() => {
+                            event.target.value = "";
+                          });
+                        }}
+                      />
+                    </label>
+                  ))}
+              </div>
+              </div>
+
+              {templatesOpen ? (
+                <div className="mt-2 flex flex-wrap gap-2 border-t bg-muted/20 pt-2">
+                  {templates.map((template) => (
+                    <Button
+                      key={template.id}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void downloadTemplate(template)}
+                      disabled={openingId === template.id}
+                    >
+                      {openingId === template.id ? <Loader2 className="mr-2 size-3 animate-spin" aria-hidden="true" /> : <Download className="mr-2 size-3" aria-hidden="true" />}
+                      {template.originalFileName}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+
+              {requirementFiles.length > 0 ? (
+                <EvidenceFileList
+                  deleteMutation={deleteMutation}
+                  files={requirementFiles}
+                  onOpen={openEvidence}
+                  onRemove={removeEvidence}
+                  openingId={openingId}
+                />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      {unclassifiedFiles.length > 0 ? (
+        <div className="mt-4 rounded-md border border-dashed p-3">
+          <h3 className="text-sm font-semibold">미분류 첨부</h3>
+          <ul className="mt-2 space-y-2">
+            {unclassifiedFiles.map((file) => (
+              <li key={file.id} className="rounded-md bg-muted/40 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-sm font-medium">{file.originalFileName}</span>
+                  <div className="flex flex-wrap gap-2">
+                    {requirements.flatMap((requirement) =>
+                      requirement.acceptedDocuments.map((document) => (
+                        <Button
+                          disabled={relinkMutation.isPending}
+                          key={requirement.requirementKey + "-" + document.documentKey}
+                          onClick={() => void relinkMutation.mutateAsync({
+                            documentKey: document.documentKey,
+                            evidenceId: file.id,
+                            requirementKey: requirement.requirementKey,
+                          })}
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                        >
+                          {requirement.evidenceName}
+                        </Button>
+                      )),
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </details>
+  );
+}
+
+function EvidenceFileList({
+  deleteMutation,
+  files,
+  onOpen,
+  onRemove,
+  openingId,
+}: {
+  deleteMutation: EvidenceMutation<string, unknown>;
+  files: ExpenseEvidenceFileResponse[];
+  onOpen: (evidence: ExpenseEvidenceFileResponse) => void;
+  onRemove: (evidence: ExpenseEvidenceFileResponse) => void;
+  openingId: string | null;
+}) {
+  return (
+    <ul className="mt-3 divide-y rounded-md border">
+      {files.map((evidence) => (
+        <li className="flex items-center justify-between gap-3 p-3" key={evidence.id}>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{evidence.originalFileName}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {Math.ceil(evidence.fileSize / 1024).toLocaleString("ko-KR")}KB · {new Date(evidence.uploadedAt).toLocaleDateString("ko-KR")}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-1">
+            <Button aria-label={`${evidence.originalFileName} 열기`} disabled={openingId === evidence.id} onClick={() => onOpen(evidence)} size="sm" type="button" variant="ghost">
+              {openingId === evidence.id ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <ExternalLink className="size-4" aria-hidden="true" />}
+              열기
+            </Button>
+            <Button aria-label={`${evidence.originalFileName} 삭제`} disabled={deleteMutation.isPending} onClick={() => onRemove(evidence)} size="sm" type="button" variant="ghost">
+              <Trash2 className="size-4" aria-hidden="true" />
+              삭제
+            </Button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function StageSection({
   control,
   deleteMutation,
@@ -740,6 +1061,7 @@ function StageSection({
   stageLabel,
   templateDownloads,
   uploadMutation,
+  usesPolicyChecklist,
 }: {
   control: ReturnType<typeof useForm<FormValues>>["control"];
   deleteMutation: EvidenceMutation<string, unknown>;
@@ -754,6 +1076,7 @@ function StageSection({
   stageLabel: string;
   templateDownloads: ProjectEvidenceTemplateDownload[];
   uploadMutation: EvidenceMutation<{ documentKey: string; file: File; requirementKey?: string | null }, unknown>;
+  usesPolicyChecklist: boolean;
 }) {
   const [open, setOpen] = useState(isCurrent);
   const copy = expenseStageDetailCopy[stageKey];
@@ -803,6 +1126,7 @@ function StageSection({
           </div>
         ) : null}
 
+        {!usesPolicyChecklist ? (
         <div className="border-t pt-4">
           <div className="mb-3">
             <h4 className="text-sm font-semibold">증빙 파일</h4>
@@ -819,6 +1143,7 @@ function StageSection({
             uploadMutation={uploadMutation}
           />
         </div>
+        ) : null}
       </div> : null}
     </section>
   );
