@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  serverExternalPackages: ["@napi-rs/canvas", "pdf-parse"],
 };
 
 export default nextConfig;

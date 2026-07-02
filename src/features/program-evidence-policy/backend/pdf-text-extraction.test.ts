@@ -22,6 +22,12 @@ vi.mock("pdf-parse", () => {
   return { PDFParse };
 });
 
+vi.mock("@napi-rs/canvas", () => ({
+  DOMMatrix: class DOMMatrix {},
+  ImageData: class ImageData {},
+  Path2D: class Path2D {},
+}));
+
 import {
   extractPolicyPdfText,
   isUsablePolicyText,
