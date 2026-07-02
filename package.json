@@ -12,7 +12,6 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "github:ship": "powershell -ExecutionPolicy Bypass -File scripts/github-issue-pr-ci-merge.ps1",
     "test:project-storage": "powershell -ExecutionPolicy Bypass -File scripts/test-project-storage.ps1",
     "test:all": "npm run test && npm run test:e2e",
     "typecheck": "tsc --noEmit",
