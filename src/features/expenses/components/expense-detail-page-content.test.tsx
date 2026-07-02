@@ -353,7 +353,7 @@ describe("ExpenseDetailPageContent", () => {
       file,
       requirementKey: "payment_bundle",
     }));
-    expect(screen.queryAllByText("?뚯씪 異붽?")).toHaveLength(0);
+    expect(screen.queryAllByText("파일 추가")).toHaveLength(0);
   });
 
   it("opens and deletes uploaded policy evidence files", async () => {

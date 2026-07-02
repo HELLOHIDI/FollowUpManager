@@ -230,7 +230,7 @@ export const registerExpenseRoutes = (
       evidenceId: context.req.param("evidenceId"),
     });
     if (!params.success) {
-      return respond(context, failure(400, expenseErrorCodes.invalidParams, "?꾨줈?앺듃, 吏異? 利앸튃 ID瑜??뺤씤??二쇱꽭??"));
+      return respond(context, failure(400, expenseErrorCodes.invalidParams, "프로젝트, 지출, 증빙 ID를 확인해 주세요."));
     }
     const body = ExpenseEvidenceRelinkInputSchema.safeParse(await parseBody(context.req));
     if (!body.success) {
@@ -256,7 +256,7 @@ export const registerExpenseRoutes = (
       requirementKey: context.req.param("requirementKey"),
     });
     if (!params.success) {
-      return respond(context, failure(400, expenseErrorCodes.invalidParams, "?꾨줈?앺듃, 吏異? 利앸튃 ID瑜??뺤씤??二쇱꽭??"));
+      return respond(context, failure(400, expenseErrorCodes.invalidParams, "프로젝트, 지출, 증빙 ID를 확인해 주세요."));
     }
     const body = ExpenseEvidenceRequirementStatusInputSchema.safeParse(await parseBody(context.req));
     if (!body.success) {

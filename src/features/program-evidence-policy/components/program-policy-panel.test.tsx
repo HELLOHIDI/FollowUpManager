@@ -158,7 +158,7 @@ describe("ProgramPolicyPanel", () => {
     render(<ProgramPolicyPanel projectId={projectId} />);
 
     const confirmButton = screen.getAllByRole("button").find((button) =>
-      button.textContent?.includes("정책 확정") || button.textContent?.includes("?뺤콉 ?뺤젙"),
+      button.textContent?.includes("정책 확정"),
     );
     expect(confirmButton).toBeDefined();
     expect(confirmButton).toBeEnabled();
