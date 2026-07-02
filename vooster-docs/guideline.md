@@ -13,14 +13,13 @@
     
     use following libraries for specific functionalities:
     
-    1. `date-fns`: For efficient date and time handling.
-    2. `@tanstack/react-query`: For server state management.
-    3. `lucide-react`: For customizable icons.
-    4. `zod`: For schema validation and data integrity.
-    5. `shadcn-ui`: For pre-built accessible UI components.
-    6. `tailwindcss`: For utility-first CSS styling.
-    7. `supabase`: For a backend-as-a-service solution.
-    8. `react-hook-form`: For form validation and state management.
+    1. `@tanstack/react-query`: For server state management.
+    2. `lucide-react`: For customizable icons.
+    3. `zod`: For schema validation and data integrity.
+    4. `shadcn-ui`: For pre-built accessible UI components.
+    5. `tailwindcss`: For utility-first CSS styling.
+    6. `supabase`: For a backend-as-a-service solution.
+    7. `react-hook-form`: For form validation and state management.
     
     ## Directory Structure
     

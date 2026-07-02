@@ -5,7 +5,7 @@ import {
   getSupabase,
   type AppEnv,
 } from "@/backend/hono/context";
-import type { CompanyMutationClientFactory } from "./mutation-client";
+import type { MutationClientFactory } from "@/backend/supabase/client";
 import { CompanyInputSchema, CompanyParamsSchema } from "./schema";
 import {
   createCompany,
@@ -15,7 +15,7 @@ import {
 } from "./service";
 
 type CompanyRouteOptions = {
-  createCompanyMutationClient: CompanyMutationClientFactory;
+  createCompanyMutationClient: MutationClientFactory;
 };
 
 const parseBody = async (request: { json: () => Promise<unknown> }) =>

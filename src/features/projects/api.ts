@@ -1,23 +1,23 @@
 "use client";
 
 import { apiClient } from "@/lib/remote/api-client";
-import { ProjectDocumentListResponseSchema, ProjectDocumentResponseSchema, ProjectEvidenceTemplateDownloadListSchema, ProjectEvidenceTemplateSetupResponseSchema, ProjectListResponseSchema, ProjectResponseSchema, type ProjectInput, type SaveProjectEvidenceDocumentsInput } from "./lib/dto";
+import { ProjectDocumentListResponseSchema, ProjectDocumentResponseSchema, ProjectEvidenceTemplateDownloadListSchema, ProjectEvidenceTemplateSetupResponseSchema, ProjectListResponseSchema, ProjectResponseSchema, type ProjectDocumentPurpose, type ProjectInput, type SaveProjectEvidenceDocumentsInput } from "./lib/dto";
 import { uploadSignedFile } from "./lib/signed-upload";
 
 export const fetchCompanyProjects = async (companyId: string) => ProjectListResponseSchema.parse((await apiClient.get(`/api/companies/${companyId}/projects`)).data);
 export const fetchProject = async (projectId: string) => ProjectResponseSchema.parse((await apiClient.get(`/api/projects/${projectId}`)).data);
 export const createProjectRequest = async ({ companyId, input }: { companyId: string; input: ProjectInput }) => ProjectResponseSchema.parse((await apiClient.post(`/api/companies/${companyId}/projects`, input)).data);
 export const updateProjectRequest = async ({ projectId, input }: { projectId: string; input: ProjectInput }) => ProjectResponseSchema.parse((await apiClient.patch(`/api/projects/${projectId}`, input)).data);
-export const fetchProjectDocuments = async (projectId: string) => ProjectDocumentListResponseSchema.parse((await apiClient.get(`/api/projects/${projectId}/documents`)).data);
+export const fetchProjectDocuments = async (projectId: string, purpose: ProjectDocumentPurpose = "institution_template") => ProjectDocumentListResponseSchema.parse((await apiClient.get(`/api/projects/${projectId}/documents?purpose=${purpose}`)).data);
 export const fetchProjectEvidenceDocuments = async (projectId: string) => ProjectEvidenceTemplateSetupResponseSchema.parse((await apiClient.get(`/api/projects/${projectId}/evidence-documents`)).data);
 export const saveProjectEvidenceDocuments = async ({ input, projectId }: { input: SaveProjectEvidenceDocumentsInput; projectId: string }) => ProjectEvidenceTemplateSetupResponseSchema.parse((await apiClient.put(`/api/projects/${projectId}/evidence-documents`, input)).data);
 export const fetchProjectEvidenceTemplateDownloads = async (projectId: string) => ProjectEvidenceTemplateDownloadListSchema.parse((await apiClient.get(`/api/projects/${projectId}/evidence-template-links`)).data);
 
-export const uploadProjectDocument = async (projectId: string, file: File) => {
+export const uploadProjectDocument = async (projectId: string, file: File, purpose: ProjectDocumentPurpose = "institution_template") => {
   let documentId: string | null = null;
   try {
     const intent = (await apiClient.post(`/api/projects/${projectId}/documents/upload-intents`, {
-      browserMimeType: file.type || null, fileSize: file.size, originalFileName: file.name,
+      browserMimeType: file.type || null, fileSize: file.size, originalFileName: file.name, purpose,
     })).data as { canonicalMimeType: string; documentId: string; path: string; signedUrl: string; token: string };
     documentId = intent.documentId;
     await uploadSignedFile({ canonicalMimeType: intent.canonicalMimeType, file, signedUrl: intent.signedUrl });
@@ -32,13 +32,13 @@ export const uploadProjectDocument = async (projectId: string, file: File) => {
   }
 };
 
-export const uploadProjectDocuments = async (projectId: string, files: File[]) => {
+export const uploadProjectDocuments = async (projectId: string, files: File[], purpose: ProjectDocumentPurpose = "institution_template") => {
   let cursor = 0;
   let failed = 0;
   const workers = Array.from({ length: Math.min(3, files.length) }, async () => {
     while (cursor < files.length) {
       const file = files[cursor++];
-      try { await uploadProjectDocument(projectId, file); } catch { failed += 1; }
+      try { await uploadProjectDocument(projectId, file, purpose); } catch { failed += 1; }
     }
   });
   await Promise.all(workers);

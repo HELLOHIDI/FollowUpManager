@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { CheckCircle2, ExternalLink, Loader2, Trash2, Upload } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Download, ExternalLink, Loader2, Trash2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +28,6 @@ import {
   useExpenseEvidenceQuery,
   useExpenseDetailMutations,
   useExpenseDetailQuery,
-  useExpenseHistoryQuery,
   useExpenseStageMutation,
 } from "../hooks/use-expenses-query";
 import {
@@ -49,6 +48,20 @@ type DetailEvidenceDocumentOption = { key: string; label: string; source?: "poli
 
 const selectedOrNone = (value: string | null | undefined) => value ?? "none";
 const noneToNull = (value: string) => (value === "none" ? null : value);
+const downloadProjectTemplate = async (projectId: string, template: ProjectEvidenceTemplateDownload) => {
+  const { signedUrl } = await getProjectDocumentSignedUrl(projectId, template.id);
+  const response = await fetch(signedUrl);
+  if (!response.ok) throw new Error("Template download failed");
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = template.originalFileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
+
 const policyEvidenceOptionsFromSnapshot = (policySnapshot: ExpenseDetailResponse["policySnapshot"]): DetailEvidenceDocumentOption[] => {
   const requirements = policySnapshot?.evidence_requirements;
   if (!Array.isArray(requirements)) return [];
@@ -70,7 +83,6 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   const { toast } = useToast();
   const query = useExpenseDetailQuery(projectId, expenseId);
   const evidenceQuery = useExpenseEvidenceQuery(projectId, expenseId);
-  const historyQuery = useExpenseHistoryQuery(projectId, expenseId);
   const projectEvidenceDocumentsQuery = useProjectEvidenceDocumentsQuery(projectId);
   const templateDownloadsQuery = useProjectEvidenceTemplateDownloadsQuery(projectId);
   const { updateMutation } = useExpenseDetailMutations(projectId, expenseId);
@@ -210,14 +222,14 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-lg">지출 상세</CardTitle>
-                <CardDescription>기본 정보, 단계 입력, 증빙과 변경 이력을 한 흐름에서 관리합니다.</CardDescription>
+                <CardDescription>기본 정보, 단계 입력과 증빙을 한 흐름에서 관리합니다.</CardDescription>
               </div>
               <Badge variant="info">{currentStageLabel}</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
             <BasicInfoFields form={form} categoryOptions={query.data.categoryOptions} />
-            <PolicyEvidenceSummary policySnapshot={query.data.policySnapshot} />
+            <PolicyEvidenceSummary policySnapshot={query.data.policySnapshot} projectId={projectId} templateDownloads={templateDownloads} />
 
             <div className="space-y-4">
               {EXPENSE_STAGES.map((stage, index) => (
@@ -240,8 +252,6 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
               ))}
             </div>
 
-            <ValidationSection />
-            <HistorySection historyQuery={historyQuery} />
           </CardContent>
         </Card>
       </div>
@@ -356,9 +366,40 @@ function BasicInfoFields({
   );
 }
 
-function PolicyEvidenceSummary({ policySnapshot }: { policySnapshot: ExpenseDetailResponse["policySnapshot"] }) {
+function PolicyEvidenceSummary({
+  policySnapshot,
+  projectId,
+  templateDownloads,
+}: {
+  policySnapshot: ExpenseDetailResponse["policySnapshot"];
+  projectId: string;
+  templateDownloads: ProjectEvidenceTemplateDownload[];
+}) {
+  const { toast } = useToast();
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
   const requirements = policyEvidenceOptionsFromSnapshot(policySnapshot);
   if (requirements.length === 0) return null;
+
+  const templatesByDocumentKey = new Map<string, ProjectEvidenceTemplateDownload[]>();
+  for (const template of templateDownloads) {
+    templatesByDocumentKey.set(template.documentKey, [...(templatesByDocumentKey.get(template.documentKey) ?? []), template]);
+  }
+
+  const handleDownload = async (template: ProjectEvidenceTemplateDownload) => {
+    setOpeningId(template.id);
+    try {
+      await downloadProjectTemplate(projectId, template);
+    } catch (error) {
+      toast({
+        title: "기관 양식을 다운로드하지 못했습니다.",
+        description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."),
+        variant: "destructive",
+      });
+    } finally {
+      setOpeningId(null);
+    }
+  };
 
   return (
     <section className="rounded-md border bg-primary/5 p-4" aria-labelledby="expense-policy-evidence-title">
@@ -369,12 +410,46 @@ function PolicyEvidenceSummary({ policySnapshot }: { policySnapshot: ExpenseDeta
         </div>
         <Badge variant="info">{requirements.length}개</Badge>
       </div>
-      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-        {requirements.map((requirement) => (
-          <li key={requirement.key} className="rounded-md border bg-background px-3 py-2 text-sm">
-            {requirement.label}
-          </li>
-        ))}
+      <ul className="mt-3 divide-y rounded-md border bg-background">
+        {requirements.map((requirement) => {
+          const templates = templatesByDocumentKey.get(requirement.key) ?? [];
+          const isOpen = openKey === requirement.key;
+          const hasTemplates = templates.length > 0;
+          if (!hasTemplates) {
+            return (
+              <li key={requirement.key} className="px-3 py-2 text-sm">
+                <span className="block truncate">{requirement.label}</span>
+              </li>
+            );
+          }
+
+          return (
+            <li key={requirement.key}>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm"
+                onClick={() => setOpenKey(isOpen ? null : requirement.key)}
+                aria-expanded={isOpen}
+              >
+                <span className="min-w-0 truncate">{requirement.label}</span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <Badge variant="info">양식 {templates.length}개</Badge>
+                  {isOpen ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
+                </span>
+              </button>
+              {isOpen ? (
+                <div className="flex flex-wrap gap-2 border-t bg-muted/20 px-3 py-2">
+                  {templates.map((template) => (
+                    <Button key={template.id} type="button" size="sm" variant="outline" onClick={() => void handleDownload(template)} disabled={openingId === template.id}>
+                      {openingId === template.id ? <Loader2 className="mr-2 size-3 animate-spin" /> : <Download className="mr-2 size-3" />}
+                      {template.originalFileName}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -516,14 +591,13 @@ function ExpenseEvidencePanel({
     }
   };
 
-  const openTemplate = async (template: ProjectEvidenceTemplateDownload) => {
+  const downloadTemplate = async (template: ProjectEvidenceTemplateDownload) => {
     setOpeningId(template.id);
     try {
-      const { signedUrl } = await getProjectDocumentSignedUrl(projectId, template.id);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
+      await downloadProjectTemplate(projectId, template);
     } catch (error) {
       toast({
-        title: "기관 양식을 열지 못했습니다.",
+        title: "기관 양식을 다운로드하지 못했습니다.",
         description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."),
         variant: "destructive",
       });
@@ -567,8 +641,8 @@ function ExpenseEvidencePanel({
           <p className="text-xs font-medium text-muted-foreground">기관 양식</p>
           <div className="flex flex-wrap gap-2">
             {downloads.map((template) => (
-              <Button key={template.id} type="button" size="sm" variant="outline" onClick={() => void openTemplate(template)} disabled={openingId === template.id}>
-                {openingId === template.id ? <Loader2 className="mr-2 size-3 animate-spin" /> : <ExternalLink className="mr-2 size-3" />}
+              <Button key={template.id} type="button" size="sm" variant="outline" onClick={() => void downloadTemplate(template)} disabled={openingId === template.id}>
+                {openingId === template.id ? <Loader2 className="mr-2 size-3 animate-spin" /> : <Download className="mr-2 size-3" />}
                 {template.originalFileName}
               </Button>
             ))}
@@ -681,6 +755,7 @@ function StageSection({
   templateDownloads: ProjectEvidenceTemplateDownload[];
   uploadMutation: EvidenceMutation<{ documentKey: string; file: File; requirementKey?: string | null }, unknown>;
 }) {
+  const [open, setOpen] = useState(isCurrent);
   const copy = expenseStageDetailCopy[stageKey];
   const documentOptions = useMemo<DetailEvidenceDocumentOption[]>(
     () => {
@@ -692,17 +767,30 @@ function StageSection({
     [policyDocumentOptions, stageKey],
   );
 
+  useEffect(() => {
+    if (isCurrent) setOpen(true);
+  }, [isCurrent]);
+
   return (
     <section className={cn("rounded-md border p-4", isCurrent ? "border-primary/40 bg-primary/5" : "bg-background")} aria-labelledby={`stage-${stageKey}`}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 id={`stage-${stageKey}`} className="text-sm font-semibold">{stageLabel}</h3>
-          <p className="mt-1 text-xs text-muted-foreground">{copy.description}</p>
-        </div>
-        <Badge variant={isCurrent ? "info" : isEditable ? "secondary" : "outline"}>{isCurrent ? "현재 단계" : isEditable ? "입력 가능" : "예정"}</Badge>
-      </div>
+      <button
+        type="button"
+        className="flex w-full items-start justify-between gap-3 text-left"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-controls={`stage-${stageKey}-content`}
+      >
+        <span className="flex min-w-0 gap-2">
+          {open ? <ChevronDown className="mt-0.5 size-4 shrink-0" /> : <ChevronRight className="mt-0.5 size-4 shrink-0" />}
+          <span className="min-w-0">
+            <span id={`stage-${stageKey}`} className="block text-sm font-semibold">{stageLabel}</span>
+            <span className="mt-1 block text-xs text-muted-foreground">{copy.description}</span>
+          </span>
+        </span>
+        <Badge className="shrink-0" variant={isCurrent ? "info" : isEditable ? "secondary" : "outline"}>{isCurrent ? "현재 단계" : isEditable ? "입력 가능" : "예정"}</Badge>
+      </button>
 
-      <div className="space-y-4">
+      {open ? <div id={`stage-${stageKey}-content`} className="mt-4 space-y-4">
         <StageStatusFields control={control} isEditable={isEditable} stageKey={stageKey} />
 
         {copy.fields.length > 0 ? (
@@ -731,7 +819,7 @@ function StageSection({
             uploadMutation={uploadMutation}
           />
         </div>
-      </div>
+      </div> : null}
     </section>
   );
 }
@@ -811,44 +899,4 @@ function StageStatusFields({
   }
 
   return null;
-}
-
-function ValidationSection() {
-  return (
-    <section className="rounded-md border border-warning/30 bg-warning/10 p-4" aria-labelledby="expense-validation-title">
-      <h2 id="expense-validation-title" className="text-sm font-semibold">검증 메시지</h2>
-      <p className="mt-1 text-sm text-muted-foreground">단계별 필수 입력과 증빙 검증 메시지는 이 영역에 누적됩니다.</p>
-    </section>
-  );
-}
-
-function HistorySection({
-  historyQuery,
-}: {
-  historyQuery: ReturnType<typeof useExpenseHistoryQuery>;
-}) {
-  return (
-    <section className="rounded-md border p-4" aria-labelledby="expense-history-title">
-      <h2 id="expense-history-title" className="text-sm font-semibold">변경 이력</h2>
-      {historyQuery.isPending ? (
-        <p className="mt-2 text-sm text-muted-foreground">변경 이력을 불러오는 중입니다.</p>
-      ) : null}
-      {historyQuery.isError ? (
-        <p className="mt-2 text-sm text-destructive" role="alert">변경 이력을 불러오지 못했습니다.</p>
-      ) : null}
-      {!historyQuery.isPending && !historyQuery.isError && (historyQuery.data?.events.length ?? 0) === 0 ? (
-        <p className="mt-2 text-sm text-muted-foreground">아직 기록된 변경 이력이 없습니다.</p>
-      ) : null}
-      {historyQuery.data?.events.length ? (
-        <ul className="mt-3 space-y-2">
-          {historyQuery.data.events.map((event) => (
-            <li key={event.id} className="rounded-md bg-muted/40 p-3 text-sm">
-              <p className="font-medium">{event.summary}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{new Date(event.changedAt).toLocaleString("ko-KR")}</p>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </section>
-  );
 }
