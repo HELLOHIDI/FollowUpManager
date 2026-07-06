@@ -15,7 +15,7 @@ Next.js 15, Hono.js, Supabase Auth, Supabase PostgreSQL, Supabase Storage, TypeS
 
 - Public route: `/login`.
 - Operational route: `/_health` is for health checks and should be access-controlled at the deployment or infrastructure layer when exposed.
-- Protected routes: `/projects`, `/projects/:projectId`, `/projects/:projectId/expenses/:expenseId`, `/projects/:projectId/export`, `/settings/company`.
+- Protected routes: `/projects`, `/projects/:projectId`, `/projects/:projectId/expenses/:expenseId`, `/settings/company`.
 - Root route `/` redirects to the last used project dashboard when authenticated. If unauthenticated, it should redirect to `/login`.
 - Protected routes should be enforced by `middleware.ts` with Supabase Auth session checks.
 

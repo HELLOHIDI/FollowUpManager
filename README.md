@@ -4,6 +4,20 @@
 
 GitHub 브랜치, 커밋, PR 운영 규칙은 [CONTRIBUTING.md](./CONTRIBUTING.md)를 따릅니다.
 
+## Deployment
+
+GitHub Actions runs CI on pull requests and deploys with Vercel CLI:
+
+- Pull requests to `main` create a Vercel Preview deployment.
+- Pushes to `main` create a Vercel Production deployment.
+- Vercel deployment steps are skipped until all required secrets are configured.
+
+Required GitHub repository secrets:
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
+
 ## Getting Started
 
 개발 서버를 실행합니다.<br/>

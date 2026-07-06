@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ApiError, createApiClient, extractApiErrorCode } from "./api-client";
+import { ApiError, createApiClient, extractApiErrorCode, extractApiErrorMessage } from "./api-client";
 
 vi.mock("@/lib/supabase/browser-client", () => ({
   getSupabaseBrowserClient: vi.fn(),
@@ -45,6 +45,24 @@ describe("authenticated API client", () => {
     expect(extractApiErrorCode(error)).toBe(
       "COMPANY_REGISTRATION_NUMBER_CONFLICT"
     );
+  });
+
+  it("uses the server error message for failed requests", async () => {
+    const { authClient } = createAuthClientStub();
+    const fetcher = vi.fn(async () =>
+      jsonResponse(409, { error: { code: "POLICY_EXTRACTION_FAILED", message: "정책 PDF에서 텍스트를 추출하지 못했습니다." } }, "API Request failed")
+    );
+    const client = createApiClient({ fetcher, getAuthClient: () => authClient });
+
+    await expect(client.post("/api/example")).rejects.toMatchObject({
+      message: "정책 PDF에서 텍스트를 추출하지 못했습니다.",
+    });
+
+    try {
+      await client.post("/api/example");
+    } catch (error) {
+      expect(extractApiErrorMessage(error)).toBe("정책 PDF에서 텍스트를 추출하지 못했습니다.");
+    }
   });
 
   it("attaches the current access token", async () => {

@@ -9,9 +9,9 @@ FuManager는 정부지원사업을 수행하는 10인 이하 스타트업 PM/팀
 - 기관별 보고서 작성을 위해 데이터를 다시 정리해야 해 시간이 많이 든다.
 
 ### 3. 목표
-1. PM/팀장이 실시간 잔액·소진률을 1분 내 확인할 수 있다.
-2. 비목별 지출 입력 시간을 기존 대비 80% 단축한다.
-3. 데이터 정확도 95% 이상(중복·누락 없는 입력).
+1. PM/팀장이 사업비 잔액·소진률과 비목별 지출 현황을 한 화면에서 확인할 수 있다.
+2. 지출 발생 시 비목·금액·단계·증빙을 누락 없이 기록하고 보완할 수 있다.
+3. 사업별 정책 문서를 기준으로 필요한 비목과 증빙 요건을 관리할 수 있다.
 
 ### 4. 주요 사용자
 - 정부지원사업을 운영하는 스타트업(10인 이하)의 PM/팀장(내부 사용자만 사용).
@@ -20,7 +20,7 @@ FuManager는 정부지원사업을 수행하는 10인 이하 스타트업 PM/팀
 1. 프로젝트 Kick-off 시 회사·사업·비목 정보를 등록한다.
 2. 지출 발생 즉시 항목·금액을 빠르게 등록하고, 지출 상세 화면에서 단계별 정보와 증빙파일을 보완한다.
 3. 대시보드에서 잔액·소진률과 비목별 지출 현황을 실시간으로 확인한다.
-4. 월말에 대시보드 데이터를 토대로 보고서를 작성한다.
+4. 필요 시 대시보드와 상세 데이터를 참고해 외부 보고 자료를 작성한다.
 
 ### 6. 기능 요구사항 (MVP)
 | 분류 | 기능 | 우선도 |
@@ -39,10 +39,10 @@ FuManager는 정부지원사업을 수행하는 10인 이하 스타트업 PM/팀
 - 초기 50명 이하 사용자, 1만 건 미만 트랜잭션을 가정.
 - 배포는 Vercel, GitHub Actions CI/CD.
 
-### 8. 성공 지표 (KPI)
-- DAU 5명 이상 유지(내부 사용자).
-- 월간 집계 시간 80% 감소(설문 및 인터뷰).
-- 사용 시작 2주 내 지출 입력 누락률 5건 이하.
+### 8. 판단 기준
+- 등록한 사업의 예산·잔액·집행 단계가 현재 데이터 기준으로 일관되게 표시된다.
+- 지출 상세에서 단계별 입력값, 증빙 파일, 변경 이력을 확인하고 보완할 수 있다.
+- 정책 PDF가 확정된 사업은 정책 기준 비목·하위비목·증빙 요건이 신규 지출에 반영된다.
 
 ### 9. 일정(4주 MVP)
 1주차: 요구사항 확정, 데이터 모델 설계, 프로젝트 세팅
@@ -57,7 +57,6 @@ FuManager는 정부지원사업을 수행하는 10인 이하 스타트업 PM/팀
 
 ### 11. 향후 로드맵(후순위)
 - 예산 초과 실시간 알림(이메일/슬랙)
-- 자동 정산 보고서 PDF 출력
 - OCR 기반 증빙 자동 입력
 - 역할/권한 다중 계정 관리
 ## Operation Dashboard Slice 1 contract (2026-06-23)
@@ -66,4 +65,4 @@ FuManager는 정부지원사업을 수행하는 10인 이하 스타트업 PM/팀
 - KPI values are total project budget, completed spend, remaining budget, and budget burn ratio. Completed spend includes only active `execution_completed` expenses.
 - The five ordered expense stages are `budget_registration` (사업비 등록), `pre_approval` (사전 승인), `execution_in_progress` (집행 수행), `execution_request` (집행 요청), and `execution_completed` (집행 완료).
 - `expenses.amount` is the only current amount. Category groups are created only by active expenses and show category name, expense count, total amount, and child title/amount/stage.
-- Search, filters, quick registration, kanban behavior, mutations, evidence, detail editing, and export are outside this slice.
+- Search, filters, quick registration, kanban behavior, mutations, evidence, and detail editing are outside this slice.

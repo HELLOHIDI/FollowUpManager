@@ -2,7 +2,7 @@
 
 ## 1. Overall Mood (전체적인 무드)
 - 컨셉: Trustworthy & Professional(차분한 컬러, 정돈된 레이아웃)
-- 의도: PRD의 핵심 목표인 “1분 내 잔액·소진률 확인”, “입력 80% 단축”, “데이터 정확도 95%+”를 달성하기 위해 가독성을 최우선으로 한 정보 설계와 안정적인 쿨 톤 팔레트를 채택합니다.
+- 의도: 사업비 잔액·소진률, 비목별 지출, 단계별 증빙 상태를 명확히 확인할 수 있도록 가독성을 최우선으로 한 정보 설계와 안정적인 쿨 톤 팔레트를 채택합니다.
 - 사용자 여정 반영:
   - 온보딩: 이번 Slice는 `/settings/company`의 기업 등록·수정까지만 제공하며 대시보드 연결은 후속 Slice에서 제공
   - 사업 생성 후: KPI 카드와 차트가 0 기준으로 생성, 비목 보드(노션형)에서 빠르게 예산 구조 확정
@@ -66,7 +66,7 @@
 - UtilityBar 구성
   - 좌측: `ProjectSwitcher`, `DateRangePreset`
   - 중앙: `GlobalSearch`
-  - 우측: `+ 지출` 버튼, 내보내기/설정 메뉴
+  - 우측: `+ 지출` 버튼, 설정 메뉴
 - LocalNavPills 구성: `#overview`, `#categories`, `#kanban` 앵커 기반 이동과 Scrollspy 상태 표시
 - 대시보드 섹션 순서
   1) KPI 카드(3개): 소진액, 잔액, 예산소진율
@@ -172,7 +172,7 @@
   - 지출 상세 편집은 드로어가 아니라 풀페이지 레이아웃을 사용합니다.
   - 지출 상세 풀페이지는 데스크톱 12컬럼 기준 본문 8컬럼, 우측 sticky 패널 4컬럼을 권장합니다.
 - 네비게이션
-  - UtilityBar: 프로젝트 스위처, 기간 필터, 검색, `+ 지출`, 내보내기/설정 메뉴를 한 줄에 배치합니다.
+  - UtilityBar: 프로젝트 스위처, 기간 필터, 검색, `+ 지출`, 설정 메뉴를 한 줄에 배치합니다.
   - LocalNavPills: 개요, 비목별 지출, 지출 칸반 섹션을 앵커로 이동하며 현재 섹션은 Primary 상태로 표시합니다.
   - 좌측 고정 사이드바는 MVP 이후 다중 제품/조직 단위 확장이 필요할 때만 재검토합니다.
 - 토스트/배지
@@ -195,9 +195,6 @@
   - 새 사업 등록(과제명/기관/총예산/기간) → 해당 대시보드 생성
 - 지출
   - +지출 → 빠른 등록 페이지 → 카드 생성 → 카드 클릭 → 지출 상세 풀페이지 이동 → 일정/거래처/단계별 입력/증빙 보완 → forward-only 단계 이동 → 집행 완료 시 대시보드 자동 반영
-- 내보내기(CSV)
-  - 기간/비목/단계 필터 반영, 기본은 모든 단계 포함(운영 방식에 맞춰 선택)
-
 ## 12. 마이크로카피 가이드
 - 톤: 친절·직관·지시형(불필요한 수식어 최소화)
 - 예시
@@ -215,7 +212,6 @@
 - Category spend is a vertical category-group list. Each group is collapsed by default and expands with an accessible `aria-expanded` control.
 - Category stage summaries are computed from child expense counts in canonical stage order and omit zero-count stages.
 - Expense detail uses a full-width long-card flow after the 5-step stepper. Do not introduce a fixed right Checklist panel.
-- Export remains filters -> preview -> download. Default filters mean all period, all categories, and all stages. Do not expand CSV policy in this UI slice.
 ## Operation Dashboard Slice 1 presentation (2026-06-23)
 
 - KPI cards use 3/2/1 columns on desktop/tablet/mobile. Won values use right-aligned tabular numerals.
@@ -248,6 +244,3 @@ current workflow shape and make it stronger with a clearer visual system:
 - Expense detail fields, evidence, history, and validation should be modeled as
   rows or sections inside the long card so later requirements can add, remove, or
   reorder them without redesigning a side panel.
-- Export keeps the current filters -> preview -> download flow, with selected
-  filters shown as chips, a clearer preview table, and a stronger CSV download
-  CTA.

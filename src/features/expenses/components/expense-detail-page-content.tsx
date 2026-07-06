@@ -851,8 +851,8 @@ function PolicyEvidenceChecklist({
       await downloadProjectTemplate(projectId, template);
     } catch (error) {
       toast({
-        title: "湲곌? ?묒떇???ㅼ슫濡쒕뱶?섏? 紐삵뻽?듬땲??",
-        description: extractApiErrorMessage(error, "?좎떆 ???ㅼ떆 ?쒕룄??二쇱꽭??"),
+        title: "기관 양식을 다운로드하지 못했습니다.",
+        description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."),
         variant: "destructive",
       });
     } finally {
@@ -897,7 +897,7 @@ function PolicyEvidenceChecklist({
                         onClick={() => setOpenTemplateKey(templatesOpen ? null : requirement.requirementKey)}
                         aria-expanded={templatesOpen}
                       >
-                        ?묒떇 {templates.length}媛?
+                        양식 {templates.length}개
                         {templatesOpen ? <ChevronDown className="size-3" aria-hidden="true" /> : <ChevronRight className="size-3" aria-hidden="true" />}
                       </button>
                     ) : null}

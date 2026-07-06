@@ -1,7 +1,6 @@
 import "server-only";
-import path from "path";
-import { pathToFileURL } from "url";
-import { PDFParse } from "pdf-parse";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 export const TEXT_EXTRACTION_INSUFFICIENT = "TEXT_EXTRACTION_INSUFFICIENT" as const;
 export const POLICY_PDF_TEXT_EXTRACTION_FAILED = "POLICY_PDF_TEXT_EXTRACTION_FAILED" as const;
@@ -81,19 +80,43 @@ export const isUsablePolicyText = (text: string) =>
   normalizeExtractedText(text).replace(/\s/g, "").length >= MIN_USABLE_POLICY_TEXT_LENGTH;
 
 let isPdfWorkerConfigured = false;
+const PDF_WORKER_MODULE = "pdfjs-dist/legacy/build/pdf.worker.mjs";
 
-const configurePdfWorker = () => {
+type PDFParseConstructor = {
+  new (options: { data: Uint8Array }): {
+    destroy: () => Promise<unknown>;
+    getTable: () => Promise<unknown>;
+    getText: (options: { lineEnforce: boolean; pageJoiner: string }) => Promise<{ text?: string }>;
+  };
+  setWorker: (workerSrc?: string) => string;
+};
+
+const getPDFParse = async (): Promise<PDFParseConstructor> => {
+  const canvas = await import("@napi-rs/canvas");
+  const globals = globalThis as Record<string, unknown>;
+  globals.DOMMatrix ??= canvas.DOMMatrix;
+  globals.ImageData ??= canvas.ImageData;
+  globals.Path2D ??= canvas.Path2D;
+
+  return (await import("pdf-parse")).PDFParse as PDFParseConstructor;
+};
+
+const configurePdfWorker = async () => {
+  const PDFParse = await getPDFParse();
   if (isPdfWorkerConfigured) {
-    return;
+    return PDFParse;
   }
 
-  const workerPath = path.join(process.cwd(), "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs");
-  PDFParse.setWorker(pathToFileURL(workerPath).href);
+  const workerSrc = typeof import.meta.resolve === "function"
+    ? import.meta.resolve(PDF_WORKER_MODULE)
+    : pathToFileURL(path.join(process.cwd(), "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs")).href;
+  PDFParse.setWorker(workerSrc);
   isPdfWorkerConfigured = true;
+  return PDFParse;
 };
 
 export const extractPolicyPdfText = async (data: ArrayBuffer | Uint8Array): Promise<PolicyPdfTextExtractionResult> => {
-  configurePdfWorker();
+  const PDFParse = await configurePdfWorker();
 
   const parser = new PDFParse({ data: data instanceof Uint8Array ? data : new Uint8Array(data) });
 
