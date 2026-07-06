@@ -16,7 +16,7 @@ export const registerProjectRoutes = (app: Hono<AppEnv>, options: { createProjec
   app.get("/companies/:companyId/projects", async (context) => {
     const params = CompanyProjectsParamsSchema.safeParse({ companyId: context.req.param("companyId") });
     if (!params.success) return invalid(context, "INVALID_PROJECT_PARAMS", "기업 ID를 확인해 주세요.", params.error.flatten());
-    const result = await listProjects(getSupabase(context), params.data.companyId);
+    const result = await listProjects(options.createProjectMutationClient(), params.data.companyId);
     log(context, "GET /companies/:companyId/projects", result, params.data);
     return respond(context, result);
   });
