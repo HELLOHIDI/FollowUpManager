@@ -54,6 +54,19 @@ export const registerCompanyRoutes = (
     ["COMPANY_FETCH_ERROR", "COMPANY_WRITE_ERROR"].includes(
       result.error?.code ?? ""
     );
+  const runMutation = async <T>(
+    context: Parameters<typeof respond>[0],
+    mutation: (createClient: MutationClientFactory) => Promise<T & { ok: boolean }>
+  ) => {
+    try {
+      const serviceResult = await mutation(options.createCompanyMutationClient);
+      return shouldRetryWithAuthenticatedClient(serviceResult)
+        ? mutation(authenticatedMutationClient(context))
+        : serviceResult;
+    } catch {
+      return mutation(authenticatedMutationClient(context));
+    }
+  };
 
   app.get("/companies", async (context) => {
     const result = await listCompanies(getSupabase(context));
@@ -78,13 +91,9 @@ export const registerCompanyRoutes = (
       );
     }
 
-    const serviceResult = await createCompany(
-      options.createCompanyMutationClient,
-      parsedBody.data
+    const result = await runMutation(context, (createClient) =>
+      createCompany(createClient, parsedBody.data)
     );
-    const result = shouldRetryWithAuthenticatedClient(serviceResult)
-      ? await createCompany(authenticatedMutationClient(context), parsedBody.data)
-      : serviceResult;
     logCompanyFailure(getLogger(context), "POST /companies", result);
     return respond(context, result);
   });
@@ -152,18 +161,9 @@ export const registerCompanyRoutes = (
       );
     }
 
-    const serviceResult = await updateCompany(
-      options.createCompanyMutationClient,
-      parsedParams.data.companyId,
-      parsedBody.data
+    const result = await runMutation(context, (createClient) =>
+      updateCompany(createClient, parsedParams.data.companyId, parsedBody.data)
     );
-    const result = shouldRetryWithAuthenticatedClient(serviceResult)
-      ? await updateCompany(
-          authenticatedMutationClient(context),
-          parsedParams.data.companyId,
-          parsedBody.data
-        )
-      : serviceResult;
     logCompanyFailure(
       getLogger(context),
       "PATCH /companies/:companyId",
