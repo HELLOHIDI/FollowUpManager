@@ -42,6 +42,19 @@ export const registerCompanyRoutes = (
   app: Hono<AppEnv>,
   options: CompanyRouteOptions
 ) => {
+  const authenticatedMutationClient = (context: Parameters<typeof respond>[0]) =>
+    () => getSupabase(context);
+  const shouldRetryWithAuthenticatedClient = (result: {
+    error?: { code: string };
+    ok: boolean;
+    status?: number;
+  }) =>
+    !result.ok &&
+    result.status === 500 &&
+    ["COMPANY_FETCH_ERROR", "COMPANY_WRITE_ERROR"].includes(
+      result.error?.code ?? ""
+    );
+
   app.get("/companies", async (context) => {
     const result = await listCompanies(getSupabase(context));
     logCompanyFailure(getLogger(context), "GET /companies", result);
@@ -65,10 +78,13 @@ export const registerCompanyRoutes = (
       );
     }
 
-    const result = await createCompany(
+    const serviceResult = await createCompany(
       options.createCompanyMutationClient,
       parsedBody.data
     );
+    const result = shouldRetryWithAuthenticatedClient(serviceResult)
+      ? await createCompany(authenticatedMutationClient(context), parsedBody.data)
+      : serviceResult;
     logCompanyFailure(getLogger(context), "POST /companies", result);
     return respond(context, result);
   });
@@ -136,11 +152,18 @@ export const registerCompanyRoutes = (
       );
     }
 
-    const result = await updateCompany(
+    const serviceResult = await updateCompany(
       options.createCompanyMutationClient,
       parsedParams.data.companyId,
       parsedBody.data
     );
+    const result = shouldRetryWithAuthenticatedClient(serviceResult)
+      ? await updateCompany(
+          authenticatedMutationClient(context),
+          parsedParams.data.companyId,
+          parsedBody.data
+        )
+      : serviceResult;
     logCompanyFailure(
       getLogger(context),
       "PATCH /companies/:companyId",
