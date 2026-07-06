@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { routes } from "@/constants/routes";
 import { useToast } from "@/hooks/use-toast";
 import { extractApiErrorMessage } from "@/lib/remote/api-client";
@@ -27,31 +26,6 @@ const createEmptyDraft = (): PolicyDraftUpdateInput => ({
   subcategories: [],
 });
 
-const formatBlockingError = (error: string, draft: PolicyDraftUpdateInput) => {
-  const categoryReviewPrefix = "Category requires admin review: ";
-  if (error.startsWith(categoryReviewPrefix)) {
-    const categoryKey = error.slice(categoryReviewPrefix.length);
-    const categoryName = draft.categories.find((category) => category.categoryKey === categoryKey)?.categoryName;
-    return `비목 검토가 필요합니다: ${categoryName || "이름 없는 비목"}`;
-  }
-
-  const evidenceReviewPrefix = "Evidence requires admin review: ";
-  if (error.startsWith(evidenceReviewPrefix)) {
-    const evidenceKey = error.slice(evidenceReviewPrefix.length);
-    const evidenceName = draft.evidenceRequirements.find((evidence) => evidence.evidenceKey === evidenceKey)?.evidenceName;
-    return `증빙서류 검토가 필요합니다: ${evidenceName || "이름 없는 증빙서류"}`;
-  }
-
-  const subcategoryReviewPrefix = "Subcategory requires admin review: ";
-  if (error.startsWith(subcategoryReviewPrefix)) {
-    const subcategoryKey = error.slice(subcategoryReviewPrefix.length);
-    const subcategoryName = draft.subcategories.find((subcategory) => subcategory.subcategoryKey === subcategoryKey)?.subcategoryName;
-    return `하위항목 검토가 필요합니다: ${subcategoryName || "이름 없는 하위항목"}`;
-  }
-
-  return error.replace(/\b(?:category|subcategory|evidence|document)_[a-z0-9_]+\b/g, "내부 항목");
-};
-
 export function ProgramPolicyPanel({
   projectId,
   redirectOnConfirm = false,
@@ -66,7 +40,6 @@ export function ProgramPolicyPanel({
   const draftQuery = usePolicyDraftDetailQuery(projectId, latestVersionId);
   const mutations = useProgramPolicyMutations(projectId, latestVersionId);
   const [draft, setDraft] = useState<PolicyDraftUpdateInput>(createEmptyDraft);
-  const [extractedText, setExtractedText] = useState("");
 
   useEffect(() => {
     if (!draftQuery.data) return;
@@ -109,7 +82,6 @@ export function ProgramPolicyPanel({
     });
   }, [draftQuery.data]);
 
-  const blockingErrors = useMemo(() => draftQuery.data?.blockingErrors ?? [], [draftQuery.data?.blockingErrors]);
   const canEditDraft = draftQuery.data
     ? draftQuery.data.version.status !== "confirmed"
       && draftQuery.data.version.status !== "archived"
@@ -117,16 +89,11 @@ export function ProgramPolicyPanel({
     : false;
   const canConfirm = Boolean(latestVersionId && canEditDraft);
   const latestStatus = statusQuery.data?.operationStatus ?? "legacy_fallback";
-  const versionRows = statusQuery.data?.versions ?? [];
   const summary = useMemo(() => ({
     categories: draft.categories.length,
     evidence: draft.evidenceRequirements.length,
     subcategories: draft.subcategories.length,
   }), [draft]);
-  const displayBlockingErrors = useMemo(
-    () => blockingErrors.map((error) => formatBlockingError(error, draft)),
-    [blockingErrors, draft],
-  );
 
   const showExtractionError = (error: unknown) => {
     toast({
@@ -138,7 +105,7 @@ export function ProgramPolicyPanel({
 
   const onExtract = async (versionId: string) => {
     try {
-      await mutations.extractMutation.mutateAsync({ extractedText: extractedText || null, versionId });
+      await mutations.extractMutation.mutateAsync({ extractedText: null, versionId });
       toast({ title: "정책 초안을 추출했습니다.", description: "추출된 비목과 증빙서류를 검토해 주세요." });
     } catch (error) {
       showExtractionError(error);
@@ -210,11 +177,6 @@ export function ProgramPolicyPanel({
               기본 비목으로 시작
             </Button>
           </div>
-          <Textarea
-            placeholder="PDF 텍스트 추출이 실패했을 때만 추출된 텍스트를 붙여 넣어 다시 시도합니다."
-            value={extractedText}
-            onChange={(event) => setExtractedText(event.target.value)}
-          />
           {latestStatus === "legacy_fallback" ? (
             <p className="text-sm text-muted-foreground">확정된 정책이 아직 없습니다. 세팅하지 않으면 기존 비목과 지출카드 레이아웃을 그대로 사용합니다.</p>
           ) : null}
@@ -253,13 +215,6 @@ export function ProgramPolicyPanel({
               </div>
             </div>
 
-            {blockingErrors.length > 0 ? (
-              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                <p className="mb-2 font-medium">검토 필요 항목이 있어도 정책 확정은 가능합니다. 확정 전 표 내용만 한 번 더 확인해 주세요.</p>
-                {displayBlockingErrors.slice(0, 5).map((error, index) => <p key={`${error}-${index}`}>{error}</p>)}
-              </div>
-            ) : null}
-
             {canEditDraft ? (
               <PolicyRowEditor draft={draft} onChange={setDraft} />
             ) : (
@@ -270,18 +225,6 @@ export function ProgramPolicyPanel({
           </div>
         ) : null}
 
-        <div className="grid gap-2">
-          <p className="text-sm font-medium">버전</p>
-          <div className="grid gap-2">
-            {versionRows.length === 0 ? <p className="text-sm text-muted-foreground">아직 정책 버전이 없습니다.</p> : null}
-            {versionRows.map((version) => (
-              <div key={version.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
-                <span>v{version.versionNumber} · {version.status}</span>
-                <span className="text-muted-foreground">{version.confirmedAt ? `confirmed ${version.confirmedAt.slice(0, 10)}` : version.createdAt.slice(0, 10)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </CardContent>
     </Card>
   );
