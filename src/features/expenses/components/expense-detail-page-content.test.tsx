@@ -176,6 +176,7 @@ describe("ExpenseDetailPageContent", () => {
     render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
 
     expect(screen.getByRole("link", { name: "돌아가기" })).toHaveAttribute("href", `/projects/${projectId}`);
+    expect(screen.queryByText(`지출 ${expenseId}`)).not.toBeInTheDocument();
     expect(screen.getByText("지출 상세")).toBeInTheDocument();
     expect(screen.getAllByText("사업비 등록").length).toBeGreaterThan(0);
     expect(screen.getAllByText("사전 승인").length).toBeGreaterThan(0);

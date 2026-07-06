@@ -208,7 +208,6 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   return (
     <>
       <PageHeading
-        eyebrow={`지출 ${expenseId}`}
         title={query.data.title}
         description={`${currentStageLabel} 단계의 지출 상세 정보를 관리합니다.`}
         backHref={routes.project(projectId)}
