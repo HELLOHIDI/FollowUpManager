@@ -16,6 +16,7 @@ import {
   waiveExpenseEvidenceRequirementRequest,
 } from "../api";
 import { dashboardKeys } from "@/features/dashboard/hooks/dashboard-keys";
+import type { DashboardResponse } from "@/features/dashboard/backend/schema";
 import type { ExpenseDetailResponse, ExpenseResponse } from "../backend/schema";
 import { expenseKeys } from "./expense-keys";
 
@@ -144,6 +145,44 @@ export const useExpenseStageMutation = (projectId: string) => {
   return useMutation({
     mutationFn: ({ expenseId, input }: Omit<Parameters<typeof updateExpenseStageRequest>[0], "projectId">) =>
       updateExpenseStageRequest({ projectId, expenseId, input }),
+    onMutate: async ({ expenseId, input }) => {
+      const queryKey = dashboardKeys.project(projectId);
+      await queryClient.cancelQueries({ queryKey });
+      const previousDashboard = queryClient.getQueryData<DashboardResponse>(queryKey);
+      queryClient.setQueryData<DashboardResponse>(queryKey, (current) => {
+        if (!current) return current;
+
+        const categories = current.categories.map((category) => ({
+          ...category,
+          expenses: category.expenses.map((expense) =>
+            expense.id === expenseId ? { ...expense, stageKey: input.targetStageKey } : expense,
+          ),
+        }));
+        const spentAmount = categories.reduce(
+          (total, category) =>
+            total + category.expenses.reduce((categoryTotal, expense) =>
+              categoryTotal + (expense.stageKey === "execution_completed" ? expense.amount : 0), 0),
+          0,
+        );
+
+        return {
+          ...current,
+          categories,
+          kpis: {
+            ...current.kpis,
+            burnRatio: current.kpis.totalBudget > 0 ? spentAmount / current.kpis.totalBudget : 0,
+            remainingAmount: current.kpis.totalBudget - spentAmount,
+            spentAmount,
+          },
+        };
+      });
+      return { previousDashboard };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousDashboard) {
+        queryClient.setQueryData(dashboardKeys.project(projectId), context.previousDashboard);
+      }
+    },
     onSuccess: (expense) => {
       queryClient.setQueryData<ExpenseDetailResponse>(expenseKeys.detail(projectId, expense.id), (current) =>
         current ? { ...current, ...expense, categoryOptions: current.categoryOptions } : current,

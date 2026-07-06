@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type DragEvent } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { routes } from "@/constants/routes";
 import { isImmediateForwardExpenseStage, type ExpenseStageKey } from "@/features/domain/contracts";
 import { useExpenseDetailPrefetch, useExpenseStageMutation } from "@/features/expenses/hooks/use-expenses-query";
 import type { DashboardResponse } from "../backend/schema";
@@ -207,6 +208,16 @@ export function DashboardKanbanBoard({
                   ) : null}
                 </li>
               ))}
+              {column.stageKey === "budget_registration" ? (
+                <li className="pt-1">
+                  <Button asChild className="w-full justify-center" variant="outline">
+                    <Link href={routes.projectExpenses(projectId)}>
+                      <Plus className="mr-2 size-4" aria-hidden="true" />
+                      지출 등록
+                    </Link>
+                  </Button>
+                </li>
+              ) : null}
             </ul>
           </section>
         ))}

@@ -142,10 +142,11 @@ describe("ProgramPolicyPanel", () => {
     expect(screen.getByDisplayValue("Materials")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Tech transfer")).toBeInTheDocument();
     expect(screen.getByText("공통(자동 포함)")).toBeInTheDocument();
-    expect(screen.getByText("비목 검토가 필요합니다: Materials")).toBeInTheDocument();
-    expect(screen.getByText("하위항목 검토가 필요합니다: Tech transfer")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Payment request (statement continuation)")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Tech transfer contract")).toBeInTheDocument();
+    expect(screen.queryByText("검토 필요 항목이 있어도 정책 확정은 가능합니다. 확정 전 표 내용만 한 번 더 확인해 주세요.")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("PDF 텍스트 추출이 실패했을 때만 추출된 텍스트를 붙여 넣어 다시 시도합니다.")).not.toBeInTheDocument();
+    expect(screen.queryByText("버전")).not.toBeInTheDocument();
     expect(screen.queryByText("category_ec9eaceb")).not.toBeInTheDocument();
     expect(screen.queryByText("subcategory_abcd1234")).not.toBeInTheDocument();
     expect(screen.queryByText("evidence_abcd1234")).not.toBeInTheDocument();

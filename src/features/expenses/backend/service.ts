@@ -205,6 +205,11 @@ const toDatabaseStageFields = (stageFields: ExpenseUpdateInput["stageFields"]) =
       .filter(([, value]) => value !== null && value !== ""),
   );
 
+const toDatabaseStageFieldsWithFundingSource = (input: ExpenseUpdateInput) => ({
+  ...toDatabaseStageFields(input.stageFields),
+  funding_source_key: input.fundingSourceKey,
+});
+
 const mapCategoryOptions = (rows: Array<{ category_key: string; category_name: string }>) =>
   rows
     .map((row) => ({
@@ -594,6 +599,36 @@ const isStaleStageError = (error: unknown) => {
   const details = typeof candidate.details === "string" ? candidate.details : "";
 
   return candidate.code === "P0002" && `${message} ${details}`.includes("EXPENSE_NOT_FOUND_OR_STALE_STAGE");
+};
+
+const directUpdateExpenseRow = async (
+  client: SupabaseClient<Database>,
+  projectId: string,
+  expenseId: string,
+  values: Record<string, unknown>,
+) => {
+  const updateWithFundingSource = await (client as SupabaseClient<any>)
+    .from("expenses")
+    .update(values)
+    .eq("id", expenseId)
+    .eq("project_id", projectId)
+    .is("deleted_at", null)
+    .select(selectExpenseDetailColumns)
+    .maybeSingle();
+
+  if (!isMissingFundingSourceColumnError(updateWithFundingSource.error)) {
+    return updateWithFundingSource;
+  }
+
+  const { funding_source_key: _fundingSourceKey, ...legacyValues } = values;
+  return (client as SupabaseClient<any>)
+    .from("expenses")
+    .update(legacyValues)
+    .eq("id", expenseId)
+    .eq("project_id", projectId)
+    .is("deleted_at", null)
+    .select(selectLegacyExpenseDetailColumns)
+    .maybeSingle();
 };
 
 const isProjectNotFoundRpcError = (error: unknown) => {
@@ -1019,32 +1054,34 @@ export const updateExpense = async (
 ): Promise<HandlerResult<ExpenseResponse, ExpenseErrorCode>> => {
   const parsed = ExpenseUpdateInputSchema.safeParse(input);
   if (!parsed.success) {
-    return failure(400, expenseErrorCodes.invalidBody, "지출 입력값을 확인해 주세요.", parsed.error.flatten());
+    return failure(400, expenseErrorCodes.invalidBody, "Invalid expense input.", parsed.error.flatten());
   }
 
   const { data: existingRow, error: fetchError } = await fetchExpenseDetailRow(client, projectId, expenseId);
 
   if (fetchError) {
-    return failure(500, expenseErrorCodes.fetchError, "지출을 수정하지 못했습니다.");
+    return failure(500, expenseErrorCodes.fetchError, "Failed to update expense.");
   }
 
   if (!existingRow || existingRow.deleted_at) {
-    return failure(404, expenseErrorCodes.notFound, "지출을 찾을 수 없습니다.");
+    return failure(404, expenseErrorCodes.notFound, "Expense was not found.");
   }
 
   const existing = mapExpenseResponse(existingRow);
   if (!existing.success) {
-    return failure(409, expenseErrorCodes.integrity, "지출 응답 형식을 확인해 주세요.");
+    return failure(409, expenseErrorCodes.integrity, "Invalid expense response.");
   }
 
   const resolvedCategory = await resolveExpenseCategory(client, projectId, parsed.data.categoryKey, parsed.data.subcategoryKey);
   if (resolvedCategory.kind === "error") {
-    return failure(500, expenseErrorCodes.fetchError, "지출을 수정하지 못했습니다.");
+    return failure(500, expenseErrorCodes.fetchError, "Failed to update expense.");
   }
 
   if (resolvedCategory.kind === "unavailable") {
-    return failure(409, expenseErrorCodes.categoryMismatch, "선택한 비목을 사용할 수 없습니다.");
+    return failure(409, expenseErrorCodes.categoryMismatch, "Selected category is not available.");
   }
+
+  const stageFields = toDatabaseStageFieldsWithFundingSource(parsed.data);
 
   if (resolvedCategory.kind === "policy") {
     const { data, error } = await (client as SupabaseClient<any>).rpc("update_policy_expense_with_history", {
@@ -1057,27 +1094,50 @@ export const updateExpense = async (
       p_expected_spend_date: parsed.data.expectedSpendDate,
       p_expense_id: expenseId,
       p_funding_source_key: parsed.data.fundingSourceKey,
-      p_history_summary: "지출 정보를 수정했습니다.",
+      p_history_summary: "Expense details updated.",
       p_memo: parsed.data.memo,
       p_policy_snapshot: resolvedCategory.policySnapshot as Json,
       p_policy_version_id: resolvedCategory.policyVersionId,
       p_pre_approval_status: parsed.data.preApprovalStatus,
       p_project_id: projectId,
-      p_stage_fields: toDatabaseStageFields(parsed.data.stageFields) as Json,
+      p_stage_fields: stageFields as Json,
       p_subcategory_key: resolvedCategory.subcategoryKey,
       p_subcategory_name: resolvedCategory.subcategoryName,
       p_title: parsed.data.title,
       p_vendor_name: parsed.data.vendorName,
     });
 
-    if (error || !data) {
-      return failure(500, expenseErrorCodes.fetchError, "지출을 수정하지 못했습니다.");
+    const updateResult = error
+      ? await directUpdateExpenseRow(client, projectId, expenseId, {
+          amount: parsed.data.amount,
+          category_key: resolvedCategory.categoryKey,
+          expected_spend_date: parsed.data.expectedSpendDate,
+          execution_progress_status: parsed.data.executionProgressStatus,
+          execution_request_date: parsed.data.executionRequestDate,
+          execution_request_status: parsed.data.executionRequestStatus,
+          funding_source_key: parsed.data.fundingSourceKey,
+          memo: parsed.data.memo,
+          policy_snapshot: resolvedCategory.policySnapshot,
+          policy_version_id: resolvedCategory.policyVersionId,
+          pre_approval_status: parsed.data.preApprovalStatus,
+          project_budget_category_id: null,
+          stage_fields: stageFields,
+          subcategory_key: resolvedCategory.subcategoryKey,
+          subcategory_name: resolvedCategory.subcategoryName,
+          title: parsed.data.title,
+          updated_at: new Date().toISOString(),
+          vendor_name: parsed.data.vendorName,
+        })
+      : { data, error };
+
+    if (updateResult.error || !updateResult.data) {
+      return failure(500, expenseErrorCodes.fetchError, "Failed to update expense.");
     }
 
-    const response = mapExpenseResponse(data);
+    const response = mapExpenseResponse(updateResult.data);
     return response.success
       ? success(response.data)
-      : failure(409, expenseErrorCodes.integrity, "지출 응답 형식을 확인해 주세요.");
+      : failure(409, expenseErrorCodes.integrity, "Invalid expense response.");
   }
 
   const { data, error } = await client.rpc("update_expense_with_history", {
@@ -1090,26 +1150,48 @@ export const updateExpense = async (
     p_expected_spend_date: parsed.data.expectedSpendDate,
     p_expense_id: expenseId,
     p_funding_source_key: parsed.data.fundingSourceKey,
-    p_history_summary: "지출 정보를 수정했습니다.",
+    p_history_summary: "Expense details updated.",
     p_memo: parsed.data.memo,
     p_pre_approval_status: parsed.data.preApprovalStatus,
     p_project_budget_category_id: resolvedCategory.projectBudgetCategoryId,
     p_project_id: projectId,
-    p_stage_fields: toDatabaseStageFields(parsed.data.stageFields) as Json,
+    p_stage_fields: stageFields as Json,
     p_title: parsed.data.title,
     p_vendor_name: parsed.data.vendorName,
   });
 
-  if (error || !data) {
-    return failure(500, expenseErrorCodes.fetchError, "지출을 수정하지 못했습니다.");
+  const updateResult = error
+    ? await directUpdateExpenseRow(client, projectId, expenseId, {
+        amount: parsed.data.amount,
+        category_key: parsed.data.categoryKey,
+        expected_spend_date: parsed.data.expectedSpendDate,
+        execution_progress_status: parsed.data.executionProgressStatus,
+        execution_request_date: parsed.data.executionRequestDate,
+        execution_request_status: parsed.data.executionRequestStatus,
+        funding_source_key: parsed.data.fundingSourceKey,
+        memo: parsed.data.memo,
+        policy_snapshot: null,
+        policy_version_id: null,
+        pre_approval_status: parsed.data.preApprovalStatus,
+        project_budget_category_id: resolvedCategory.projectBudgetCategoryId,
+        stage_fields: stageFields,
+        subcategory_key: null,
+        subcategory_name: null,
+        title: parsed.data.title,
+        updated_at: new Date().toISOString(),
+        vendor_name: parsed.data.vendorName,
+      })
+    : { data, error };
+
+  if (updateResult.error || !updateResult.data) {
+    return failure(500, expenseErrorCodes.fetchError, "Failed to update expense.");
   }
 
-  const response = mapExpenseResponse(data);
+  const response = mapExpenseResponse(updateResult.data);
   return response.success
     ? success(response.data)
-    : failure(409, expenseErrorCodes.integrity, "지출 응답 형식을 확인해 주세요.");
+    : failure(409, expenseErrorCodes.integrity, "Invalid expense response.");
 };
-
 export const updateExpenseStage = async (
   client: SupabaseClient<Database>,
   projectId: string,
