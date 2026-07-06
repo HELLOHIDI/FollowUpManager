@@ -77,6 +77,10 @@ describe("DashboardKanbanBoard", () => {
       "href",
       `/projects/${projectId}/expenses/22222222-2222-4222-8222-222222222222`,
     );
+    expect(within(screen.getByTestId("kanban-column-budget_registration")).getByRole("link", { name: "지출 등록" })).toHaveAttribute(
+      "href",
+      `/projects/${projectId}/expenses`,
+    );
   });
 
   it("prefetches expense detail on card link intent", async () => {
