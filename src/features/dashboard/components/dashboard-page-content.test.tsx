@@ -19,7 +19,6 @@ vi.mock("@/components/product-shell", () => ({
       {action}
     </div>
   ),
-  LocalNavPills: () => <nav data-testid="local-nav" />,
   PageHeading: ({ eyebrow, title, description }: { eyebrow?: string; title: string; description: string }) => (
     <header>
       {eyebrow ? <span>{eyebrow}</span> : null}
@@ -106,7 +105,7 @@ describe("DashboardPageContent", () => {
     renderPage({ data: baseData, error: null, isLoading: false });
 
     expect(screen.getByRole("heading", { name: "Dashboard Project" })).toBeInTheDocument();
-    expect(screen.getByTestId("local-nav")).toBeInTheDocument();
+    expect(screen.queryByTestId("local-nav")).not.toBeInTheDocument();
     expect(screen.getByTestId("dashboard-kpis")).toHaveTextContent("100");
     expect(screen.getByTestId("category-expense-list")).toHaveTextContent("");
     expect(screen.getByTestId("dashboard-kanban-board")).toHaveTextContent(projectId);
