@@ -8,7 +8,6 @@ import {
   Loader2,
   Plus,
   Settings,
-  Trash2,
 } from "lucide-react";
 import { PageHeading } from "@/components/product-shell";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,6 @@ import {
 } from "@/components/ui/card";
 import { routes } from "@/constants/routes";
 import { useCompaniesQuery } from "@/features/company/hooks/use-companies-query";
-import { useCompanyMutations } from "@/features/company/hooks/use-company-mutations";
 import {
   COMPANY_ACCOUNT_MANAGER_OPTIONS,
   formatBusinessRegistrationNumber,
@@ -29,10 +27,8 @@ import {
 } from "@/features/company/lib/dto";
 import {
   useCompanyProjectsQuery,
-  useProjectMutations,
   useProjectNavigationPrefetch,
 } from "@/features/projects/hooks/use-projects";
-import { useToast } from "@/hooks/use-toast";
 
 export default function ProjectsPage() {
   const companiesQuery = useCompaniesQuery();
@@ -81,14 +77,14 @@ export default function ProjectsPage() {
       ) : companies.length === 0 ? (
         <EmptyCompanyState />
       ) : (
-        <div className="grid gap-4">
+        <div className="-mx-4 overflow-x-auto px-4 pb-3">
           <section
-            className="grid gap-4 xl:grid-cols-2"
+            className="flex w-max gap-4"
             aria-label="담당자별 기업과 사업"
           >
             {managerSections.map((manager) => (
               <section
-                className="grid content-start gap-3 rounded-lg border bg-card p-3"
+                className="grid w-80 shrink-0 content-start gap-3 rounded-lg border bg-card p-3"
                 key={manager.name}
                 aria-labelledby={`manager-${manager.name}`}
               >
@@ -178,34 +174,12 @@ function EmptyCompanyState() {
 
 function CompanyProjectCard({ company }: { company: CompanyResponse }) {
   const projectsQuery = useCompanyProjectsQuery(company.id);
-  const { deleteMutation: deleteCompanyMutation } = useCompanyMutations();
-  const { deleteMutation: deleteProjectMutation } = useProjectMutations();
   const { prefetchDashboard, prefetchProject } = useProjectNavigationPrefetch();
-  const { toast } = useToast();
   const projects = projectsQuery.data ?? [];
-  const deleteCompany = async () => {
-    if (!confirm(`${company.companyName} 기업과 연결된 사업을 삭제할까요?`)) return;
-    try {
-      await deleteCompanyMutation.mutateAsync(company.id);
-      toast({ title: "기업을 삭제했습니다.", description: `${company.companyName} 기업을 목록에서 숨겼습니다.` });
-    } catch {
-      toast({ title: "기업을 삭제하지 못했습니다.", variant: "destructive" });
-    }
-  };
-  const deleteProject = async (project: { id?: string; projectName?: string }) => {
-    if (!project.id || !project.projectName) return;
-    if (!confirm(`${project.projectName} 사업을 삭제할까요?`)) return;
-    try {
-      await deleteProjectMutation.mutateAsync({ companyId: company.id, projectId: project.id });
-      toast({ title: "사업을 삭제했습니다.", description: `${project.projectName} 사업을 목록에서 숨겼습니다.` });
-    } catch {
-      toast({ title: "사업을 삭제하지 못했습니다.", variant: "destructive" });
-    }
-  };
 
   return (
-    <Card className="shadow-none">
-      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <Card className="rounded-md shadow-none">
+      <CardHeader className="gap-3 p-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span
@@ -218,7 +192,7 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               <CardTitle className="truncate text-lg" role="heading" aria-level={2}>
                 {company.companyName}
               </CardTitle>
-              <CardDescription className="mt-1 tabular-nums">
+              <CardDescription className="mt-1 truncate tabular-nums">
                 사업자등록번호{" "}
                 {formatBusinessRegistrationNumber(
                   company.businessRegistrationNumber,
@@ -227,7 +201,7 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
             </div>
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button asChild size="sm" variant="outline">
             <Link href={routes.companyProjectCreate(company.id, routes.projects)}>
               <Plus className="size-4" aria-hidden="true" />
@@ -240,19 +214,9 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               기업 정보 수정
             </Link>
           </Button>
-          <Button
-            disabled={deleteCompanyMutation.isPending}
-            onClick={() => void deleteCompany()}
-            size="sm"
-            type="button"
-            variant="weak-danger"
-          >
-            <Trash2 className="size-4" aria-hidden="true" />
-            기업 삭제
-          </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4 pt-0">
         {projectsQuery.isPending ? (
           <div className="flex items-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -289,12 +253,12 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
           </div>
         ) : (
           <ul
-            className="divide-y rounded-md border"
+            className="grid gap-2"
             aria-label={`${company.companyName} 사업 목록`}
           >
             {projects.map((project) => (
               <li
-                className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                className="grid gap-3 rounded-md border p-3"
                 key={project.id}
               >
                 <div className="min-w-0">
@@ -304,8 +268,8 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
                     {project.agreementEndDate}
                   </p>
                 </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  <Button asChild>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button asChild size="sm">
                     <Link
                       href={routes.project(project.id)}
                       onFocus={() => void prefetchDashboard(project.id)}
@@ -315,7 +279,7 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
                       대시보드
                     </Link>
                   </Button>
-                  <Button asChild variant="outline">
+                  <Button asChild size="sm" variant="outline">
                     <Link
                       href={routes.projectManagement(project.id)}
                       onFocus={() => void prefetchProject(project.id)}
@@ -324,15 +288,6 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
                       <Settings className="size-4" aria-hidden="true" />
                       관리
                     </Link>
-                  </Button>
-                  <Button
-                    disabled={deleteProjectMutation.isPending}
-                    onClick={() => void deleteProject(project)}
-                    type="button"
-                    variant="weak-danger"
-                  >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                    사업 삭제
                   </Button>
                 </div>
               </li>

@@ -161,6 +161,8 @@ describe("ProjectsPage", () => {
       "href",
       `/settings/company?companyId=${registeredCompany.id}&returnTo=%2Fprojects`,
     );
+    expect(screen.queryByRole("button", { name: /기업 삭제/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /사업 삭제/ })).not.toBeInTheDocument();
     expect(dashboardLink).toHaveAttribute(
       "href",
       `/projects/${registeredProject.id}`,
