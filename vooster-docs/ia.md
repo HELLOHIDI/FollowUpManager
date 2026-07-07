@@ -37,7 +37,7 @@
   2) `/projects/:projectId/expenses` 빠른 등록 페이지에서 지출 제목, 비목 선택, 금액, 예상 날짜, 간단 메모 입력
   3) 저장(Cmd/Ctrl+S) → 카드가 #kanban의 ‘사업비 등록’ 칼럼에 생성
   4) 카드 클릭 시 지출 상세 풀페이지 이동 → 예상 지출일, 거래처명, 메모, 단계별 업무절차 보완
-  5) 기업양식과 필요 증빙서류를 참조 전용으로 확인
+  5) 기업양식에서 정책 증빙서류에 연결된 양식을 보기/다운로드로 확인
   6) 상세 풀페이지 또는 칸반에서 5단계 간 자유 이동(사업비 등록 ↔ 사전 승인 ↔ 집행 수행 ↔ 집행 요청 ↔ 집행 완료)
   7) 소프트 게이트 안내 확인 후 이동, 저장 시 KPI·차트 실시간 반영(#overview에 즉시 업데이트)
 
@@ -104,7 +104,7 @@
 | /projects/:projectId #overview | KPI 카드(소진액·잔액·예산소진율), 기간 필터, 누적/기간 대비 시각화, 임계치 상태 배지 |
 | /projects/:projectId #categories | 비목별 지출 목록(비목 그룹, 하위 지출명, 금액, 단계, 그룹별 합계/건수) |
 | /projects/:projectId #kanban | 5단계 칸반(사업비 등록/사전 승인/집행 수행/집행 요청/집행 완료), 칼럼 헤더(개수/합계), 카드(제목·금액·날짜·메타), 모든 다른 단계로 드래그 이동 |
-| /projects/:projectId/expenses/:expenseId | 지출 기본정보, 좌측 vertical stepper, 우측 selected-stage 업무절차 workbench, 기업양식 토글, 필요 증빙서류 참조 |
+| /projects/:projectId/expenses/:expenseId | 지출 기본정보, 좌측 vertical stepper, 우측 selected-stage 업무절차 workbench, 정책 증빙서류 기준 기업양식 토글 |
 | 전역 유틸 바 | 프로젝트 스위처, 글로벌 검색, 기간 프리셋, +지출, 사용자/환경 |
 | 지출 빠른 등록 페이지 | 지출 제목, 비목 선택 드롭다운, 금액, 예상 날짜, 간단 메모, 카드 생성 액션 |
 | /settings/company | 기업 추가·수정 폼, 사업 등록 폼, 조건부 법인번호, 저장 피드백(토스트). 다중 기업 목록은 `/projects`에서 제공 |
@@ -127,7 +127,7 @@
 - 피드백: Skeleton 로딩, 토스트(성공 3초, 오류 수동 닫기), 필드 인라인 에러
 - 단축키: N(새 지출), /(검색), Cmd/Ctrl+S(저장), 1–4(섹션 점프)
 - 포커스/접근성: 2px Primary 포커스 링, aria-label/aria-current, 스크린리더 레이블(비목/잔액/소진률 명시)
-- 지출 상세의 증빙서류 영역은 참조 전용이다. 이 화면에서는 파일 첨부, 삭제, zip 다운로드를 제공하지 않는다.
+- 지출 상세는 필요 증빙서류를 별도 섹션으로 반복 표시하지 않고, 기업양식 토글에서 연결된 양식의 보기/다운로드만 제공한다.
 
 ## 7. URL Structure (URL 구조)
 일관·가독·딥링크를 우선하며, 내부툴 특성상 SEO는 차단 지향(그래도 명명 규칙은 유지).
@@ -248,7 +248,7 @@
 - Stage movement persists any different canonical stage. The mutation receives `targetStageKey`; same-stage movement is a UI no-op.
 - Stage control includes drag-and-drop plus an accessible stage selector/keyboard path that uses the same mutation.
 - Soft-gate UI, missing-info toast/badge guidance, and custom per-project stage rules remain deferred.
-- `/projects/:projectId/expenses/:expenseId`: detailed edit flow, selected-stage workbench, enterprise forms, and read-only evidence references remain on the full page.
+- `/projects/:projectId/expenses/:expenseId`: detailed edit flow, selected-stage workbench, and evidence-scoped enterprise forms remain on the full page.
 - Slice 3 does not move quick registration back into kanban; `/projects/:projectId/expenses` remains the entry point.
 
 ## Figma Current+Color IA alignment (2026-06-26)

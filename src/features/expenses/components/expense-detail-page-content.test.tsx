@@ -7,8 +7,6 @@ import { ExpenseDetailPageContent } from "./expense-detail-page-content";
 const queryMocks = vi.hoisted(() => ({
   useExpenseDetailMutations: vi.fn(),
   useExpenseDetailQuery: vi.fn(),
-  useExpenseEvidenceMutations: vi.fn(),
-  useExpenseEvidenceQuery: vi.fn(),
   useExpenseHistoryQuery: vi.fn(),
   useExpenseStageMutation: vi.fn(),
 }));
@@ -105,8 +103,6 @@ const detailData: ExpenseDetailResponse = {
 const mockLoadedQueries = (
   overrides: Partial<ExpenseDetailResponse> = {},
   mutateAsync = vi.fn(),
-  evidenceData: Record<string, unknown> = { files: [], policySnapshotHash: null, requirements: [], unclassifiedFiles: [] },
-  evidenceMutations: Record<string, unknown> = {},
 ) => {
   queryMocks.useExpenseDetailQuery.mockReturnValue({
     data: { ...detailData, ...overrides },
@@ -118,40 +114,11 @@ const mockLoadedQueries = (
     isError: false,
     isPending: false,
   });
-  queryMocks.useExpenseEvidenceQuery.mockReturnValue({
-    data: evidenceData,
-    isError: false,
-    isPending: false,
-    refetch: vi.fn(),
-  });
   queryMocks.useExpenseDetailMutations.mockReturnValue({
     updateMutation: {
       isPending: false,
       mutateAsync,
     },
-  });
-  queryMocks.useExpenseEvidenceMutations.mockReturnValue({
-    deleteMutation: {
-      isPending: false,
-      mutateAsync: vi.fn(),
-    },
-    relinkMutation: {
-      isPending: false,
-      mutateAsync: vi.fn(),
-    },
-    signedUrlMutation: {
-      isPending: false,
-      mutateAsync: vi.fn(),
-    },
-    uploadMutation: {
-      isPending: false,
-      mutateAsync: vi.fn(),
-    },
-    waiveRequirementMutation: {
-      isPending: false,
-      mutateAsync: vi.fn(),
-    },
-    ...evidenceMutations,
   });
   queryMocks.useExpenseStageMutation.mockReturnValue({
     isPending: false,
@@ -170,7 +137,7 @@ const mockLoadedQueries = (
 };
 
 describe("ExpenseDetailPageContent", () => {
-  it("renders the vertical stepper workbench with read-only evidence", () => {
+  it("renders the vertical stepper workbench without a separate evidence section", () => {
     mockLoadedQueries({
       policySnapshot: {
         evidence_requirements: [
@@ -188,8 +155,8 @@ describe("ExpenseDetailPageContent", () => {
     expect(screen.getByLabelText("\uc0ac\uc804 \uc900\ube44")).toBeInTheDocument();
     expect(screen.getByLabelText("\ub2f4\ub2f9\uc790 \ud655\uc778")).toBeInTheDocument();
     expect(screen.getByText("\uae30\uc5c5\uc591\uc2dd")).toBeInTheDocument();
-    expect(screen.getByText("\ud544\uc694 \uc99d\ube59\uc11c\ub958")).toBeInTheDocument();
-    expect(screen.getAllByText("Payment bundle").length).toBeGreaterThan(0);
+    expect(screen.queryByText("\ud544\uc694 \uc99d\ube59\uc11c\ub958")).not.toBeInTheDocument();
+    expect(screen.queryByText("Payment bundle")).not.toBeInTheDocument();
     expect(screen.queryByText("\ud30c\uc77c \uc120\ud0dd")).not.toBeInTheDocument();
     expect(screen.queryByText("\ud30c\uc77c \ucd94\uac00")).not.toBeInTheDocument();
     expect(screen.queryByText("\uc0ad\uc81c")).not.toBeInTheDocument();
@@ -219,16 +186,32 @@ describe("ExpenseDetailPageContent", () => {
   });
 
   it("keeps enterprise forms collapsed by default and exposes rows after opening", () => {
-    mockLoadedQueries();
+    mockLoadedQueries({
+      policySnapshot: {
+        evidence_requirements: [
+          { accepted_documents: [{ documentKey: "contract", label: "Contract" }], evidence_key: "payment_bundle", evidence_name: "Payment bundle" },
+        ],
+      },
+    });
     projectQueryMocks.useProjectEvidenceTemplateDownloadsQuery.mockReturnValue({
-      data: [{
-        documentKey: "contract",
-        documentTypeId: "66666666-6666-4666-8666-666666666666",
-        fileSize: 1024,
-        id: "77777777-7777-4777-8777-777777777777",
-        originalFileName: "company-form.docx",
-        sortOrder: 0,
-      }],
+      data: [
+        {
+          documentKey: "contract",
+          documentTypeId: "66666666-6666-4666-8666-666666666666",
+          fileSize: 1024,
+          id: "77777777-7777-4777-8777-777777777777",
+          originalFileName: "company-form.docx",
+          sortOrder: 0,
+        },
+        {
+          documentKey: "unrelated",
+          documentTypeId: "88888888-8888-4888-8888-888888888888",
+          fileSize: 1024,
+          id: "99999999-9999-4999-8999-999999999999",
+          originalFileName: "unrelated-form.docx",
+          sortOrder: 1,
+        },
+      ],
       isError: false,
       isPending: false,
     });
@@ -238,6 +221,7 @@ describe("ExpenseDetailPageContent", () => {
     expect(screen.queryByText("company-form.docx")).not.toBeVisible();
     fireEvent.click(screen.getByText("\uae30\uc5c5\uc591\uc2dd"));
     expect(screen.getByText("company-form.docx")).toBeVisible();
+    expect(screen.queryByText("unrelated-form.docx")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "company-form.docx \ubcf4\uae30" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "company-form.docx \ub2e4\uc6b4\ub85c\ub4dc" })).toBeInTheDocument();
   });
@@ -283,64 +267,12 @@ describe("ExpenseDetailPageContent", () => {
     );
   });
 
-  it("opens uploaded evidence as read-only without delete controls", async () => {
-    const signedUrlMutateAsync = vi.fn().mockResolvedValue({ signedUrl: "https://example.test/receipt.pdf" });
-    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-    mockLoadedQueries(
-      {
-        policySnapshot: {
-          evidence_requirements: [{
-            accepted_documents: [{ documentKey: "receipt", label: "Receipt" }],
-            evidence_key: "payment_bundle",
-            evidence_name: "Payment bundle",
-          }],
-        },
-      },
-      vi.fn(),
-      {
-        files: [{
-          documentKey: "receipt",
-          duplicateStatus: "unique",
-          expenseId,
-          fileExtension: "pdf",
-          fileSize: 1024,
-          id: "33333333-3333-4333-8333-333333333333",
-          mimeType: "application/pdf",
-          originalFileName: "receipt.pdf",
-          projectId,
-          requirementKey: "payment_bundle",
-          uploadedAt: "2026-07-01T00:00:00.000Z",
-        }],
-        policySnapshotHash: "hash",
-        requirements: [{
-          acceptedDocuments: [{ documentKey: "receipt", label: "Receipt", uploaded: true }],
-          changedAt: null,
-          changedBy: null,
-          conditionText: null,
-          evidenceName: "Payment bundle",
-          fulfillmentType: "single",
-          requirementKey: "payment_bundle",
-          requirementType: "required",
-          status: "uploaded",
-          uploadedCount: 1,
-          waivedReason: null,
-        }],
-        unclassifiedFiles: [],
-      },
-      {
-        signedUrlMutation: {
-          isPending: false,
-          mutateAsync: signedUrlMutateAsync,
-        },
-      },
-    );
+  it("does not render uploaded evidence rows in the workbench", () => {
+    mockLoadedQueries();
 
     render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
 
+    expect(screen.queryByText("\ud544\uc694 \uc99d\ube59\uc11c\ub958")).not.toBeInTheDocument();
     expect(screen.queryByText("\uc0ad\uc81c")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "receipt.pdf" }));
-    await waitFor(() => expect(signedUrlMutateAsync).toHaveBeenCalledWith("33333333-3333-4333-8333-333333333333"));
-    expect(openSpy).toHaveBeenCalledWith("https://example.test/receipt.pdf", "_blank", "noopener,noreferrer");
-    openSpy.mockRestore();
   });
 });

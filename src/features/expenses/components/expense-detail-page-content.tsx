@@ -21,10 +21,8 @@ import { routes } from "@/constants/routes";
 import { extractApiErrorMessage } from "@/lib/remote/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { type ExpenseDetailResponse, type ExpenseEvidenceFileResponse, type ExpenseUpdateInput } from "../backend/schema";
+import { type ExpenseDetailResponse, type ExpenseUpdateInput } from "../backend/schema";
 import {
-  useExpenseEvidenceMutations,
-  useExpenseEvidenceQuery,
   useExpenseDetailMutations,
   useExpenseDetailQuery,
   useExpenseStageMutation,
@@ -44,10 +42,6 @@ import type { ProjectEvidenceTemplateDownload } from "@/features/projects/lib/dt
 
 type FormValues = ExpenseUpdateInput;
 type DetailEvidenceDocumentOption = { key: string; label: string; source?: "policy" | "custom" };
-type EvidenceMutation<TVariables, TData> = {
-  isPending: boolean;
-  mutateAsync: (variables: TVariables) => Promise<TData>;
-};
 
 const selectedOrNone = (value: string | null | undefined) => value ?? "none";
 const noneToNull = (value: string) => (value === "none" ? null : value);
@@ -97,10 +91,8 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   const { toast } = useToast();
   const [selectedStageKey, setSelectedStageKey] = useState<ExpenseStageKey | null>(null);
   const query = useExpenseDetailQuery(projectId, expenseId);
-  const evidenceQuery = useExpenseEvidenceQuery(projectId, expenseId);
   const templateDownloadsQuery = useProjectEvidenceTemplateDownloadsQuery(projectId);
   const { updateMutation } = useExpenseDetailMutations(projectId, expenseId);
-  const { signedUrlMutation } = useExpenseEvidenceMutations(projectId, expenseId);
   const stageMutation = useExpenseStageMutation(projectId);
 
   const form = useForm<FormValues>({
@@ -168,7 +160,8 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   const selectedStageIndex = getExpenseStageIndex(selectedStage);
   const selectedStageLabel = EXPENSE_STAGES[selectedStageIndex]?.label ?? selectedStage;
   const snapshotDocumentOptions = policyEvidenceOptionsFromSnapshot(query.data.policySnapshot);
-  const templateDownloads = templateDownloadsQuery.data ?? [];
+  const requiredDocumentKeys = new Set(snapshotDocumentOptions.map((option) => option.key));
+  const templateDownloads = (templateDownloadsQuery.data ?? []).filter((template) => requiredDocumentKeys.has(template.documentKey));
 
   const handleSave = form.handleSubmit(async (values) => {
     const selectedCategory = query.data.categoryOptions.find((option) => option.categoryKey === values.categoryKey);
@@ -243,7 +236,7 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
           </CardHeader>
           <CardContent className="space-y-6">
             <BasicInfoFields form={form} categoryOptions={query.data.categoryOptions} />
-            <EnterpriseFormsToggle projectId={projectId} signedUrlMutation={signedUrlMutation} templateDownloads={templateDownloads} />
+            <EnterpriseFormsToggle projectId={projectId} templateDownloads={templateDownloads} />
             <StageSection
               control={form.control}
               form={form}
@@ -251,12 +244,6 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
               isEditable
               stageKey={selectedStage}
               stageLabel={selectedStageLabel}
-            />
-            <ReadOnlyEvidenceRequirements
-              evidenceQuery={evidenceQuery}
-              policySnapshot={query.data.policySnapshot}
-              signedUrlMutation={signedUrlMutation}
-              snapshotDocumentOptions={snapshotDocumentOptions}
             />
           </CardContent>
         </Card>
@@ -458,11 +445,9 @@ function DateInput({
 
 function EnterpriseFormsToggle({
   projectId,
-  signedUrlMutation,
   templateDownloads,
 }: {
   projectId: string;
-  signedUrlMutation: EvidenceMutation<string, { signedUrl?: string }>;
   templateDownloads: ProjectEvidenceTemplateDownload[];
 }) {
   const { toast } = useToast();
@@ -515,7 +500,7 @@ function EnterpriseFormsToggle({
           <div key={template.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
             <span className="min-w-0 truncate text-sm font-medium">{template.originalFileName}</span>
             <span className="flex shrink-0 gap-2">
-              <Button type="button" size="sm" variant="outline" aria-label={`${template.originalFileName} 보기`} onClick={() => void openTemplate(template)} disabled={openingId === template.id || signedUrlMutation.isPending}>
+              <Button type="button" size="sm" variant="outline" aria-label={`${template.originalFileName} 보기`} onClick={() => void openTemplate(template)} disabled={openingId === template.id}>
                 <ExternalLink className="mr-2 size-3" aria-hidden="true" />
                 보기
               </Button>
@@ -528,96 +513,6 @@ function EnterpriseFormsToggle({
         ))}
       </div>
     </details>
-  );
-}
-
-function ReadOnlyEvidenceRequirements({
-  evidenceQuery,
-  policySnapshot,
-  signedUrlMutation,
-  snapshotDocumentOptions,
-}: {
-  evidenceQuery: ReturnType<typeof useExpenseEvidenceQuery>;
-  policySnapshot: ExpenseDetailResponse["policySnapshot"];
-  signedUrlMutation: EvidenceMutation<string, { signedUrl?: string }>;
-  snapshotDocumentOptions: DetailEvidenceDocumentOption[];
-}) {
-  const { toast } = useToast();
-  const [openingId, setOpeningId] = useState<string | null>(null);
-  const requirements = evidenceQuery.data?.requirements?.length
-    ? evidenceQuery.data.requirements
-    : policyEvidenceOptionsFromSnapshot(policySnapshot).map((option) => ({
-    acceptedDocuments: [{ documentKey: option.key, label: option.label }],
-    conditionText: null,
-    evidenceName: option.label,
-    requirementKey: option.key,
-    requirementType: "required",
-  }));
-  const files = evidenceQuery.data?.files ?? [];
-
-  const openEvidence = async (evidence: ExpenseEvidenceFileResponse) => {
-    setOpeningId(evidence.id);
-    try {
-      const { signedUrl } = await signedUrlMutation.mutateAsync(evidence.id);
-      if (!signedUrl) throw new Error("Missing signed URL");
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      toast({
-        title: "증빙서류를 열지 못했습니다",
-        description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."),
-        variant: "destructive",
-      });
-    } finally {
-      setOpeningId(null);
-    }
-  };
-
-  const optionsByKey = new Map(snapshotDocumentOptions.map((option) => [option.key, option.label]));
-
-  return (
-    <section className="rounded-md border bg-background p-4" aria-labelledby="read-only-evidence-title">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 id="read-only-evidence-title" className="text-sm font-semibold">필요 증빙서류</h2>
-          <p className="mt-1 text-xs text-muted-foreground">정책 기준 증빙은 참조 전용입니다. 이 화면에서는 파일을 첨부하지 않습니다.</p>
-        </div>
-        <Badge variant="neutral">참조</Badge>
-      </div>
-      <div className="mt-4 divide-y rounded-md border">
-        {requirements.length === 0 ? (
-          <p className="px-3 py-2 text-sm text-muted-foreground">등록된 증빙 요구사항이 없습니다.</p>
-        ) : requirements.map((requirement) => {
-          const acceptedKeys = new Set(requirement.acceptedDocuments.map((document) => document.documentKey));
-          const requirementFiles = files.filter((file) => file.requirementKey === requirement.requirementKey || acceptedKeys.has(file.documentKey));
-          return (
-            <div key={requirement.requirementKey} className="space-y-2 px-3 py-2">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{requirement.evidenceName}</p>
-                  {requirement.conditionText ? <p className="mt-1 text-xs text-muted-foreground">{requirement.conditionText}</p> : null}
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {requirement.acceptedDocuments.map((document) => document.label ?? optionsByKey.get(document.documentKey) ?? document.documentKey).join(", ")}
-                  </p>
-                </div>
-                <Badge variant={requirement.requirementType === "conditional" ? "secondary" : "outline"}>
-                  {requirement.requirementType === "conditional" ? "조건부" : "필수"}
-                </Badge>
-              </div>
-              {requirementFiles.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {requirementFiles.map((file) => (
-                    <Button key={file.id} type="button" size="sm" variant="outline" onClick={() => void openEvidence(file)} disabled={openingId === file.id}>
-                      {openingId === file.id ? <Loader2 className="mr-2 size-3 animate-spin" aria-hidden="true" /> : <ExternalLink className="mr-2 size-3" aria-hidden="true" />}
-                      {file.originalFileName}
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-    </section>
   );
 }
 

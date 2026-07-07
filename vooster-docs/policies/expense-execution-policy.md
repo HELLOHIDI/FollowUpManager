@@ -1,6 +1,6 @@
 # Expense Execution Policy
 
-> 2026-07-07 update: 지출 상세는 좌측 vertical progress stepper와 우측 selected-stage workbench를 기준으로 한다. 단계 이동은 전/후/건너뛰기 모두 허용하며, `이 단계로 이동` 버튼으로만 저장한다. 상세 화면의 증빙서류는 참조 전용이고 파일 첨부·삭제·zip 다운로드는 제공하지 않는다.
+> 2026-07-07 update: 지출 상세는 좌측 vertical progress stepper와 우측 selected-stage workbench를 기준으로 한다. 단계 이동은 전/후/건너뛰기 모두 허용하며, `이 단계로 이동` 버튼으로만 저장한다. 기업양식은 현재 정책 증빙서류에 연결된 양식만 보기/다운로드로 제공하고, 필요 증빙서류는 별도 섹션으로 반복 표시하지 않는다.
 
 ## 1. 문서 역할
 

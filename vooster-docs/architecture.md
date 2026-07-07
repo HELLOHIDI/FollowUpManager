@@ -24,7 +24,7 @@ Next.js 15, Hono.js, Supabase Auth, Supabase PostgreSQL, Supabase Storage, TypeS
 - Expense procedures are stored in existing `expenses.stage_fields.procedures` for V1. Do not add a procedure table until cross-expense querying, audit evidence, editable definitions, per-procedure permissions, or SQL analytics require it.
 - Stage mutation accepts any different canonical expense stage and keeps the current-stage RPC parameter for stale-state protection.
 - Same-stage movement is a UI no-op and should not create history.
-- Evidence upload/storage APIs remain available, but the expense detail workbench exposes evidence requirements as read-only reference rows.
+- Evidence upload/storage APIs remain available, but the expense detail workbench does not render a separate evidence-requirement section; enterprise forms are filtered by the current policy evidence document keys.
 - Project template downloads remain the source for enterprise forms; the workbench exposes view/download only.
 
 ## Directory Structure
