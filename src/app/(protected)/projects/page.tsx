@@ -8,7 +8,6 @@ import {
   Loader2,
   Plus,
   Settings,
-  Trash2,
 } from "lucide-react";
 import { PageHeading } from "@/components/product-shell";
 import { Button } from "@/components/ui/button";
@@ -21,17 +20,14 @@ import {
 } from "@/components/ui/card";
 import { routes } from "@/constants/routes";
 import { useCompaniesQuery } from "@/features/company/hooks/use-companies-query";
-import { useCompanyMutations } from "@/features/company/hooks/use-company-mutations";
 import {
   formatBusinessRegistrationNumber,
   type CompanyResponse,
 } from "@/features/company/lib/dto";
 import {
   useCompanyProjectsQuery,
-  useProjectMutations,
   useProjectNavigationPrefetch,
 } from "@/features/projects/hooks/use-projects";
-import { useToast } from "@/hooks/use-toast";
 
 export default function ProjectsPage() {
   const companiesQuery = useCompaniesQuery();
@@ -140,30 +136,8 @@ function EmptyCompanyState() {
 
 function CompanyProjectCard({ company }: { company: CompanyResponse }) {
   const projectsQuery = useCompanyProjectsQuery(company.id);
-  const { deleteMutation: deleteCompanyMutation } = useCompanyMutations();
-  const { deleteMutation: deleteProjectMutation } = useProjectMutations();
   const { prefetchDashboard, prefetchProject } = useProjectNavigationPrefetch();
-  const { toast } = useToast();
   const projects = projectsQuery.data ?? [];
-  const deleteCompany = async () => {
-    if (!confirm(`${company.companyName} 기업과 연결된 사업을 삭제할까요?`)) return;
-    try {
-      await deleteCompanyMutation.mutateAsync(company.id);
-      toast({ title: "기업을 삭제했습니다.", description: `${company.companyName} 기업을 목록에서 숨겼습니다.` });
-    } catch {
-      toast({ title: "기업을 삭제하지 못했습니다.", variant: "destructive" });
-    }
-  };
-  const deleteProject = async (project: { id?: string; projectName?: string }) => {
-    if (!project.id || !project.projectName) return;
-    if (!confirm(`${project.projectName} 사업을 삭제할까요?`)) return;
-    try {
-      await deleteProjectMutation.mutateAsync({ companyId: company.id, projectId: project.id });
-      toast({ title: "사업을 삭제했습니다.", description: `${project.projectName} 사업을 목록에서 숨겼습니다.` });
-    } catch {
-      toast({ title: "사업을 삭제하지 못했습니다.", variant: "destructive" });
-    }
-  };
 
   return (
     <Card className="shadow-none">
@@ -201,16 +175,6 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               <Settings className="size-4" aria-hidden="true" />
               기업 정보 수정
             </Link>
-          </Button>
-          <Button
-            disabled={deleteCompanyMutation.isPending}
-            onClick={() => void deleteCompany()}
-            size="sm"
-            type="button"
-            variant="weak-danger"
-          >
-            <Trash2 className="size-4" aria-hidden="true" />
-            기업 삭제
           </Button>
         </div>
       </CardHeader>
@@ -286,15 +250,6 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
                       <Settings className="size-4" aria-hidden="true" />
                       관리
                     </Link>
-                  </Button>
-                  <Button
-                    disabled={deleteProjectMutation.isPending}
-                    onClick={() => void deleteProject(project)}
-                    type="button"
-                    variant="weak-danger"
-                  >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                    사업 삭제
                   </Button>
                 </div>
               </li>

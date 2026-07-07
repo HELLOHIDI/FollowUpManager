@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, type UseFormReturn, useForm } from "react-hook-form";
@@ -81,12 +81,14 @@ function CompanyForm({
   businessType,
   form,
   isSubmitting,
+  onDelete,
   onSubmit,
   submitLabel,
 }: {
   businessType: CompanyInput["businessType"];
   form: UseFormReturn<CompanyInput>;
   isSubmitting: boolean;
+  onDelete?: () => void;
   onSubmit: () => void;
   submitLabel: string;
 }) {
@@ -177,12 +179,25 @@ function CompanyForm({
             ? "필수 정보가 모두 입력되었습니다."
             : "필수 정보를 입력하면 저장할 수 있습니다."}
         </p>
-        <Button type="submit" disabled={!form.formState.isValid || isSubmitting}>
-          {isSubmitting ? (
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+        <div className="flex flex-wrap justify-end gap-2">
+          {onDelete ? (
+            <Button
+              disabled={isSubmitting}
+              onClick={onDelete}
+              type="button"
+              variant="weak-danger"
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+              기업 삭제
+            </Button>
           ) : null}
-          {submitLabel}
-        </Button>
+          <Button type="submit" disabled={!form.formState.isValid || isSubmitting}>
+            {isSubmitting ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : null}
+            {submitLabel}
+          </Button>
+        </div>
       </div>
     </form>
   );
@@ -192,7 +207,7 @@ export function CompanySettings() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const companiesQuery = useCompaniesQuery();
-  const { createMutation, updateMutation } = useCompanyMutations();
+  const { createMutation, deleteMutation, updateMutation } = useCompanyMutations();
   const { toast } = useToast();
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [projectCompanyId, setProjectCompanyId] = useState<string | null>(null);
@@ -232,7 +247,8 @@ export function CompanySettings() {
     projectCompanyId ?? "",
     Boolean(projectCompanyId),
   );
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  const isSubmitting =
+    createMutation.isPending || deleteMutation.isPending || updateMutation.isPending;
 
   useEffect(() => {
     if (!isFocusedCompanyForm && !isFocusedProjectCreate) {
@@ -343,6 +359,26 @@ export function CompanySettings() {
       });
     }
   });
+
+  const deleteCompany = async () => {
+    if (!focusedEditCompany) return;
+    if (!confirm(`${focusedEditCompany.companyName} 기업과 연결된 사업을 삭제할까요?`)) return;
+
+    try {
+      await deleteMutation.mutateAsync(focusedEditCompany.id);
+      toast({
+        title: "기업을 삭제했습니다.",
+        description: `${focusedEditCompany.companyName} 기업을 목록에서 숨겼습니다.`,
+      });
+      router.push(safeReturnTo ?? routes.projects);
+    } catch (error) {
+      toast({
+        title: "기업을 삭제하지 못했습니다.",
+        description: extractApiErrorMessage(error),
+        variant: "destructive",
+      });
+    }
+  };
 
   const submitProject = async (input: ProjectInput, files: File[]) => {
     if (!projectCompany) {
@@ -547,6 +583,7 @@ export function CompanySettings() {
                 businessType={businessType}
                 form={form}
                 isSubmitting={isSubmitting}
+                onDelete={focusedEditCompany ? () => void deleteCompany() : undefined}
                 onSubmit={submit}
                 submitLabel={
                   isFocusedCreate ? "기업 추가하기" : "기업 정보 수정"

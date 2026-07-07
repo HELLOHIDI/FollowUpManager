@@ -1,8 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { PageHeading } from "@/components/product-shell";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { routes } from "@/constants/routes";
 import { useCompaniesQuery } from "@/features/company/hooks/use-companies-query";
 import { useToast } from "@/hooks/use-toast";
 import { extractApiErrorCode, extractApiErrorMessage } from "@/lib/remote/api-client";
@@ -13,9 +17,10 @@ import { useDirtyNavigationGuard } from "../hooks/use-dirty-navigation-guard";
 import { useProjectMutations, useProjectQuery } from "../hooks/use-projects";
 
 export function ProjectManagement({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const projectQuery = useProjectQuery(projectId);
   const companiesQuery = useCompaniesQuery();
-  const { updateMutation } = useProjectMutations();
+  const { deleteMutation, updateMutation } = useProjectMutations();
   const { toast } = useToast();
   const [projectDirty, setProjectDirty] = useState(false);
   const [templateDirty, setTemplateDirty] = useState(false);
@@ -29,9 +34,46 @@ export function ProjectManagement({ projectId }: { projectId: string }) {
   if (projectQuery.isPending) return <p>사업 정보를 불러오는 중입니다.</p>;
   if (!project || !values) return <p role="alert">사업 정보를 불러오지 못했습니다.</p>;
 
+  const deleteProject = async () => {
+    if (!confirm(`${project.projectName} 사업을 삭제할까요?`)) return;
+
+    try {
+      await deleteMutation.mutateAsync({
+        companyId: project.companyId,
+        projectId: project.id,
+      });
+      toast({
+        title: "사업을 삭제했습니다.",
+        description: `${project.projectName} 사업을 목록에서 숨겼습니다.`,
+      });
+      router.push(routes.projects);
+    } catch (error) {
+      toast({
+        title: "사업을 삭제하지 못했습니다.",
+        description: extractApiErrorMessage(error),
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <>
-      <PageHeading eyebrow="설정" title="사업 관리" description="사업 정보와 증빙서류, 기관 양식을 관리합니다." />
+      <PageHeading
+        eyebrow="설정"
+        title="사업 관리"
+        description="사업 정보와 증빙서류, 기관 양식을 관리합니다."
+        actions={
+          <Button
+            disabled={deleteMutation.isPending}
+            onClick={() => void deleteProject()}
+            type="button"
+            variant="weak-danger"
+          >
+            <Trash2 className="size-4" aria-hidden="true" />
+            사업 삭제
+          </Button>
+        }
+      />
       <Card className="shadow-none">
         <CardHeader>
           <CardTitle className="text-lg">사업 정보 수정</CardTitle>
