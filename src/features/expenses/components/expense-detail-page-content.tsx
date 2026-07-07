@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { CheckCircle2, ChevronDown, Download, ExternalLink, Loader2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,14 +52,11 @@ const firstNumberIn = (value: string) => {
 const enterpriseFormsCopy = {
   download: "\uB2E4\uC6B4\uB85C\uB4DC",
   downloadFailed: "\uAE30\uC5C5\uC591\uC2DD\uC744 \uB2E4\uC6B4\uB85C\uB4DC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
-  description: "\uD544\uC694 \uC9D1\uD589\uC11C\uB958\uBCC4\uB85C \uC5F0\uACB0\uB41C \uAE30\uC5C5\uC591\uC2DD\uC744 \uBCF4\uAE30\uC640 \uB2E4\uC6B4\uB85C\uB4DC\uB85C \uD655\uC778\uD569\uB2C8\uB2E4.",
+  description: "\uD544\uC694 \uC9D1\uD589\uC11C\uB958\uBCC4\uB85C \uC5F0\uACB0\uB41C \uAE30\uC5C5\uC591\uC2DD\uC744 \uB2E4\uC6B4\uB85C\uB4DC\uB85C \uD655\uC778\uD569\uB2C8\uB2E4.",
   noRequirements: "\uB4F1\uB85D\uB41C \uC9D1\uD589\uC11C\uB958 \uAE30\uC900\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
-  noTemplates: "\uC5F0\uACB0\uB41C \uAE30\uC5C5\uC591\uC2DD\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
   retry: "\uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.",
   title: "\uAE30\uC5C5\uC591\uC2DD",
   unit: "\uAC1C",
-  view: "\uBCF4\uAE30",
-  viewFailed: "\uAE30\uC5C5\uC591\uC2DD\uC744 \uC5F4\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
 };
 const compareTemplateNames = (left: ProjectEvidenceTemplateDownload, right: ProjectEvidenceTemplateDownload) => {
   const numberDiff = firstNumberIn(left.originalFileName) - firstNumberIn(right.originalFileName);
@@ -481,22 +478,6 @@ function EnterpriseFormsToggle({
   const { toast } = useToast();
   const [openingId, setOpeningId] = useState<string | null>(null);
 
-  const openTemplate = async (template: ProjectEvidenceTemplateDownload) => {
-    setOpeningId(template.id);
-    try {
-      const { signedUrl } = await getProjectDocumentSignedUrl(projectId, template.id);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      toast({
-        title: enterpriseFormsCopy.viewFailed,
-        description: extractApiErrorMessage(error, enterpriseFormsCopy.retry),
-        variant: "destructive",
-      });
-    } finally {
-      setOpeningId(null);
-    }
-  };
-
   const downloadTemplate = async (template: ProjectEvidenceTemplateDownload, fileName: string) => {
     setOpeningId(template.id);
     try {
@@ -528,40 +509,46 @@ function EnterpriseFormsToggle({
           const templates = templateDownloads
             .filter((template) => requirement.documentKeys.includes(template.documentKey))
             .sort(compareTemplateNames);
+          if (templates.length === 0) {
+            return (
+              <div key={requirement.key} className="px-3 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{requirement.label}</p>
+                    {requirement.conditionText ? <p className="mt-1 truncate text-xs text-muted-foreground">{requirement.conditionText}</p> : null}
+                  </div>
+                  <Badge variant="outline">0{enterpriseFormsCopy.unit}</Badge>
+                </div>
+              </div>
+            );
+          }
           return (
-            <div key={requirement.key} className="space-y-2 px-3 py-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
+            <details key={requirement.key} className="group px-3 py-3">
+              <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-2 [&::-webkit-details-marker]:hidden">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{requirement.label}</p>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden="true" />
+                    <span className="truncate text-sm font-medium">{requirement.label}</span>
+                  </span>
                   {requirement.conditionText ? <p className="mt-1 truncate text-xs text-muted-foreground">{requirement.conditionText}</p> : null}
                 </div>
-                <Badge variant={templates.length > 0 ? "secondary" : "outline"}>{templates.length}{enterpriseFormsCopy.unit}</Badge>
+                <Badge variant="secondary">{templates.length}{enterpriseFormsCopy.unit}</Badge>
+              </summary>
+              <div className="mt-3 space-y-2 border-l-2 border-primary/30 pl-3">
+                {templates.map((template) => {
+                  const fileName = template.originalFileName;
+                  return (
+                    <div key={template.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-primary/5 px-3 py-2">
+                      <span className="min-w-0 truncate text-sm">{fileName}</span>
+                      <Button type="button" size="sm" variant="outline" aria-label={`${fileName} ${enterpriseFormsCopy.download}`} onClick={() => void downloadTemplate(template, fileName)} disabled={openingId === template.id}>
+                        {openingId === template.id ? <Loader2 className="mr-2 size-3 animate-spin" aria-hidden="true" /> : <Download className="mr-2 size-3" aria-hidden="true" />}
+                        {enterpriseFormsCopy.download}
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
-              {templates.length === 0 ? (
-                <p className="rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">{enterpriseFormsCopy.noTemplates}</p>
-              ) : (
-                <div className="space-y-2">
-                  {templates.map((template) => {
-                    const fileName = template.originalFileName;
-                    return (
-                      <div key={template.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted/30 px-3 py-2">
-                        <span className="min-w-0 truncate text-sm">{fileName}</span>
-                        <span className="flex shrink-0 gap-2">
-                          <Button type="button" size="sm" variant="outline" aria-label={`${fileName} ${enterpriseFormsCopy.view}`} onClick={() => void openTemplate(template)} disabled={openingId === template.id}>
-                            <ExternalLink className="mr-2 size-3" aria-hidden="true" />
-                            {enterpriseFormsCopy.view}
-                          </Button>
-                          <Button type="button" size="sm" variant="outline" aria-label={`${fileName} ${enterpriseFormsCopy.download}`} onClick={() => void downloadTemplate(template, fileName)} disabled={openingId === template.id}>
-                            {openingId === template.id ? <Loader2 className="mr-2 size-3 animate-spin" aria-hidden="true" /> : <Download className="mr-2 size-3" aria-hidden="true" />}
-                            {enterpriseFormsCopy.download}
-                          </Button>
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            </details>
           );
         })}
       </div>

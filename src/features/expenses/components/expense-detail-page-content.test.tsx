@@ -239,13 +239,15 @@ describe("ExpenseDetailPageContent", () => {
     fireEvent.click(screen.getByText("\uae30\uc5c5\uc591\uc2dd"));
     expect(screen.getByText("Contract bundle")).toBeVisible();
     expect(screen.getByText("Receipt bundle")).toBeVisible();
-    expect(screen.getByText("\uc5f0\uacb0\ub41c \uae30\uc5c5\uc591\uc2dd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.")).toBeVisible();
+    expect(screen.queryByText("\uc5f0\uacb0\ub41c \uae30\uc5c5\uc591\uc2dd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.")).not.toBeInTheDocument();
+    expect(screen.queryByText("2-company-form.docx")).not.toBeVisible();
+    fireEvent.click(screen.getByText("Contract bundle"));
     expect(screen.getByText("2-company-form.docx")).toBeVisible();
     expect(screen.getByText("10-company-form.docx")).toBeVisible();
     const formNames = screen.getAllByText(/company-form\.docx$/).map((node) => node.textContent);
     expect(formNames).toEqual(["2-company-form.docx", "10-company-form.docx"]);
     expect(screen.queryByText("unrelated-form.docx")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "2-company-form.docx \ubcf4\uae30" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "2-company-form.docx \ubcf4\uae30" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "2-company-form.docx \ub2e4\uc6b4\ub85c\ub4dc" })).toBeInTheDocument();
   });
 

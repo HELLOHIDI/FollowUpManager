@@ -25,7 +25,7 @@ Next.js 15, Hono.js, Supabase Auth, Supabase PostgreSQL, Supabase Storage, TypeS
 - Stage mutation accepts any different canonical expense stage and keeps the current-stage RPC parameter for stale-state protection.
 - Same-stage movement is a UI no-op and should not create history.
 - Evidence upload/storage APIs remain available, but the expense detail workbench does not render a separate evidence-requirement section; the enterprise forms panel renders all required execution documents for the current expense category and nests matching company templates under each document.
-- Project template downloads remain the source for enterprise form child rows; the workbench exposes view/download only.
+- Project template downloads remain the source for enterprise form child rows; the workbench exposes download only.
 
 ## Directory Structure
 
