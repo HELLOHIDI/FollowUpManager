@@ -7,8 +7,6 @@ import { ExpenseDetailPageContent } from "./expense-detail-page-content";
 const queryMocks = vi.hoisted(() => ({
   useExpenseDetailMutations: vi.fn(),
   useExpenseDetailQuery: vi.fn(),
-  useExpenseEvidenceMutations: vi.fn(),
-  useExpenseEvidenceQuery: vi.fn(),
   useExpenseHistoryQuery: vi.fn(),
   useExpenseStageMutation: vi.fn(),
 }));
@@ -105,8 +103,6 @@ const detailData: ExpenseDetailResponse = {
 const mockLoadedQueries = (
   overrides: Partial<ExpenseDetailResponse> = {},
   mutateAsync = vi.fn(),
-  evidenceData: Record<string, unknown> = { files: [], policySnapshotHash: null, requirements: [], unclassifiedFiles: [] },
-  evidenceMutations: Record<string, unknown> = {},
 ) => {
   queryMocks.useExpenseDetailQuery.mockReturnValue({
     data: { ...detailData, ...overrides },
@@ -118,40 +114,11 @@ const mockLoadedQueries = (
     isError: false,
     isPending: false,
   });
-  queryMocks.useExpenseEvidenceQuery.mockReturnValue({
-    data: evidenceData,
-    isError: false,
-    isPending: false,
-    refetch: vi.fn(),
-  });
   queryMocks.useExpenseDetailMutations.mockReturnValue({
     updateMutation: {
       isPending: false,
       mutateAsync,
     },
-  });
-  queryMocks.useExpenseEvidenceMutations.mockReturnValue({
-    deleteMutation: {
-      isPending: false,
-      mutateAsync: vi.fn(),
-    },
-    relinkMutation: {
-      isPending: false,
-      mutateAsync: vi.fn(),
-    },
-    signedUrlMutation: {
-      isPending: false,
-      mutateAsync: vi.fn(),
-    },
-    uploadMutation: {
-      isPending: false,
-      mutateAsync: vi.fn(),
-    },
-    waiveRequirementMutation: {
-      isPending: false,
-      mutateAsync: vi.fn(),
-    },
-    ...evidenceMutations,
   });
   queryMocks.useExpenseStageMutation.mockReturnValue({
     isPending: false,
@@ -170,105 +137,118 @@ const mockLoadedQueries = (
 };
 
 describe("ExpenseDetailPageContent", () => {
-  it("returns to the operation dashboard and renders collapsible stage sections", () => {
-    mockLoadedQueries();
-
-    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
-
-    expect(screen.getByRole("link", { name: "돌아가기" })).toHaveAttribute("href", `/projects/${projectId}`);
-    expect(screen.queryByText(`지출 ${expenseId}`)).not.toBeInTheDocument();
-    expect(screen.getByText("지출 상세")).toBeInTheDocument();
-    expect(screen.getAllByText("사업비 등록").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("사전 승인").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("집행 수행").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("집행 요청").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("집행 완료").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("파일 추가")).toHaveLength(1);
-    const preApprovalButton = screen.getAllByText("사전 승인").map((node) => node.closest("button")).find(Boolean);
-    expect(preApprovalButton).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(preApprovalButton as HTMLButtonElement);
-    expect(screen.getAllByText("파일 추가")).toHaveLength(2);
-    expect(screen.queryByText("검증 메시지")).not.toBeInTheDocument();
-    expect(screen.queryByText("변경 이력")).not.toBeInTheDocument();
-    expect(screen.queryByText("Checklist")).not.toBeInTheDocument();
-    expect(screen.queryByText("현재 요약")).not.toBeInTheDocument();
-  });
-
-  it("keeps stage evidence in the main detail flow without validation or history sections", () => {
-    mockLoadedQueries();
-
-    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
-
-    const detailCard = screen.getByText("지출 상세").closest("section");
-    expect(detailCard).not.toBeNull();
-    expect(within(detailCard as HTMLElement).getAllByText("증빙 파일")).toHaveLength(1);
-    expect(within(detailCard as HTMLElement).queryByText("검증 메시지")).not.toBeInTheDocument();
-    expect(within(detailCard as HTMLElement).queryByText("변경 이력")).not.toBeInTheDocument();
-  });
-
-  it("shows linked institution templates inside a single policy evidence row", () => {
+  it("renders the vertical stepper workbench without a separate evidence section", () => {
     mockLoadedQueries({
       policySnapshot: {
         evidence_requirements: [
-          { evidence_key: "tax_invoice", evidence_name: "세금계산서" },
-          { evidence_key: "contract", evidence_name: "계약서" },
+          { accepted_documents: [{ documentKey: "receipt", label: "Receipt" }], evidence_key: "payment_bundle", evidence_name: "Payment bundle" },
+        ],
+      },
+    });
+
+    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
+
+    expect(screen.getByRole("link", { name: "\ub3cc\uc544\uac00\uae30" })).toHaveAttribute("href", `/projects/${projectId}`);
+    expect(screen.getByRole("list", { name: "\uc9c0\ucd9c 5\ub2e8\uacc4 \uc9c4\ud589 \uc0c1\ud0dc" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /1 \uc0ac\uc5c5\ube44 \ub4f1\ub85d/ })).toHaveAttribute("aria-current", "step");
+    expect(screen.getByText("\uc5c5\ubb34\uc808\ucc28")).toBeInTheDocument();
+    expect(screen.getByLabelText("\uc0ac\uc804 \uc900\ube44")).toBeInTheDocument();
+    expect(screen.getByLabelText("\ub2f4\ub2f9\uc790 \ud655\uc778")).toBeInTheDocument();
+    expect(screen.getByText("\uae30\uc5c5\uc591\uc2dd")).toBeInTheDocument();
+    expect(screen.queryByText("\ud544\uc694 \uc99d\ube59\uc11c\ub958")).not.toBeInTheDocument();
+    expect(screen.getByText("Payment bundle")).not.toBeVisible();
+    expect(screen.queryByText("\ud30c\uc77c \uc120\ud0dd")).not.toBeInTheDocument();
+    expect(screen.queryByText("\ud30c\uc77c \ucd94\uac00")).not.toBeInTheDocument();
+    expect(screen.queryByText("\uc0ad\uc81c")).not.toBeInTheDocument();
+  });
+
+  it("previews a step click and moves only through the explicit button", async () => {
+    const stageMutateAsync = vi.fn().mockResolvedValue({});
+    mockLoadedQueries();
+    queryMocks.useExpenseStageMutation.mockReturnValue({
+      isPending: false,
+      mutateAsync: stageMutateAsync,
+    });
+
+    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /2 \uc0ac\uc804 \uc2b9\uc778/ }));
+
+    expect(screen.getAllByRole("heading", { name: "\uc0ac\uc804 \uc2b9\uc778" }).length).toBeGreaterThan(0);
+    expect(stageMutateAsync).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "\uc774 \ub2e8\uacc4\ub85c \uc774\ub3d9" }));
+
+    await waitFor(() => expect(stageMutateAsync).toHaveBeenCalledWith({
+      expenseId,
+      input: { targetStageKey: "pre_approval" },
+    }));
+  });
+
+  it("shows all required execution documents with linked enterprise forms sorted by file number", () => {
+    mockLoadedQueries({
+      policySnapshot: {
+        evidence_requirements: [
+          {
+            accepted_documents: [{ documentKey: "contract", label: "Contract" }],
+            evidence_key: "contract_bundle",
+            evidence_name: "Contract bundle",
+          },
+          {
+            accepted_documents: [{ documentKey: "receipt", label: "Receipt" }],
+            evidence_key: "receipt_bundle",
+            evidence_name: "Receipt bundle",
+          },
         ],
       },
     });
     projectQueryMocks.useProjectEvidenceTemplateDownloadsQuery.mockReturnValue({
-      data: [{
-        documentKey: "contract",
-        documentTypeId: "66666666-6666-4666-8666-666666666666",
-        fileSize: 1024,
-        id: "77777777-7777-4777-8777-777777777777",
-        originalFileName: "기관_계약서_양식.docx",
-        sortOrder: 0,
-      }],
-      isError: false,
-      isPending: false,
-    });
-
-    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
-
-    expect(screen.getByText("양식 1개")).toBeInTheDocument();
-    expect(screen.queryByText("기관_계약서_양식.docx")).not.toBeInTheDocument();
-    const contractRow = screen.getAllByText("계약서").map((node) => node.closest("button")).find(Boolean);
-    fireEvent.click(contractRow as HTMLButtonElement);
-    expect(screen.getByText("기관_계약서_양식.docx")).toBeInTheDocument();
-  });
-
-  it("keeps non-execution stages on snapshot evidence options when project templates exist", () => {
-    mockLoadedQueries({
-      policySnapshot: {
-        evidence_requirements: [
-          { evidence_key: "pre_approval_form", evidence_name: "Pre approval form" },
-        ],
-      },
-    });
-    projectQueryMocks.useProjectEvidenceDocumentsQuery.mockReturnValue({
-      data: {
-        documentTypes: [{
-          displayName: "Execution template",
-          documentKey: "execution_template",
-          id: "66666666-6666-4666-8666-666666666666",
-          projectId,
+      data: [
+        {
+          documentKey: "contract",
+          documentTypeId: "66666666-6666-4666-8666-666666666666",
+          fileSize: 1024,
+          id: "77777777-7777-4777-8777-777777777777",
+          originalFileName: "10-company-form.docx",
           sortOrder: 0,
-          source: "custom",
-          stageKey: "execution_request",
-        }],
-        links: [],
-      },
+        },
+        {
+          documentKey: "contract",
+          documentTypeId: "66666666-6666-4666-8666-666666666666",
+          fileSize: 1024,
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          originalFileName: "2-company-form.docx",
+          sortOrder: 2,
+        },
+        {
+          documentKey: "unrelated",
+          documentTypeId: "88888888-8888-4888-8888-888888888888",
+          fileSize: 1024,
+          id: "99999999-9999-4999-8999-999999999999",
+          originalFileName: "unrelated-form.docx",
+          sortOrder: 1,
+        },
+      ],
       isError: false,
       isPending: false,
     });
 
     render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
 
-    expect(screen.getAllByText("Pre approval form").length).toBeGreaterThan(0);
-    const executionRequestButton = screen.getAllByText("집행 요청").map((node) => node.closest("button")).find(Boolean);
-    expect(executionRequestButton).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(executionRequestButton as HTMLButtonElement);
-    expect(screen.getAllByText("Execution template").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Contract bundle")).not.toBeVisible();
+    fireEvent.click(screen.getByText("\uae30\uc5c5\uc591\uc2dd"));
+    expect(screen.getByText("Contract bundle")).toBeVisible();
+    expect(screen.getByText("Receipt bundle")).toBeVisible();
+    expect(screen.queryByText("\uc5f0\uacb0\ub41c \uae30\uc5c5\uc591\uc2dd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.")).not.toBeInTheDocument();
+    expect(screen.queryByText("2-company-form.docx")).not.toBeVisible();
+    fireEvent.click(screen.getByText("Contract bundle"));
+    expect(screen.getByText("2-company-form.docx")).toBeVisible();
+    expect(screen.getByText("10-company-form.docx")).toBeVisible();
+    const formNames = screen.getAllByText(/company-form\.docx$/).map((node) => node.textContent);
+    expect(formNames).toEqual(["2-company-form.docx", "10-company-form.docx"]);
+    expect(screen.queryByText("unrelated-form.docx")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "2-company-form.docx \ubcf4\uae30" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2-company-form.docx \ub2e4\uc6b4\ub85c\ub4dc" })).toBeInTheDocument();
   });
 
   it("normalizes cleared date inputs to null before saving", async () => {
@@ -277,6 +257,13 @@ describe("ExpenseDetailPageContent", () => {
       {
         executionRequestDate: "2026-07-10",
         expectedSpendDate: "2026-07-01",
+        stageFields: {
+          procedures: {
+            execution_request: {
+              preparation: { completedDate: "2026-07-02" },
+            },
+          },
+        },
         stageKey: "execution_request",
       },
       mutateAsync,
@@ -285,151 +272,32 @@ describe("ExpenseDetailPageContent", () => {
     render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
 
     fireEvent.change(screen.getByDisplayValue("2026-07-01"), { target: { value: "" } });
+    fireEvent.change(screen.getByDisplayValue("2026-07-02"), { target: { value: "" } });
     fireEvent.change(screen.getByDisplayValue("2026-07-10"), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    fireEvent.click(screen.getByRole("button", { name: "\uc800\uc7a5" }));
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
     expect(mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({
         executionRequestDate: null,
         expectedSpendDate: null,
+        stageFields: expect.objectContaining({
+          procedures: expect.objectContaining({
+            execution_request: expect.objectContaining({
+              preparation: expect.objectContaining({ completedDate: null }),
+            }),
+          }),
+        }),
       }),
     );
   });
 
-  it("uploads directly from a policy-backed evidence checklist row", async () => {
-    const uploadMutateAsync = vi.fn().mockResolvedValue({});
-    mockLoadedQueries(
-      {
-        policySnapshot: {
-          category_key: "material_cost",
-          category_name: "Materials",
-          evidence_requirements: [{
-            accepted_documents: [{ documentKey: "receipt", label: "Receipt" }],
-            condition_text: null,
-            document_key: "receipt",
-            evidence_key: "payment_bundle",
-            evidence_name: "Payment bundle",
-            fulfillment_type: "single",
-            requirement_type: "required",
-            sort_order: 0,
-            source_reference: {},
-          }],
-        },
-      },
-      vi.fn(),
-      {
-        files: [],
-        policySnapshotHash: "hash",
-        requirements: [{
-          acceptedDocuments: [{ documentKey: "receipt", label: "Receipt", uploaded: false }],
-          changedAt: null,
-          changedBy: null,
-          conditionText: null,
-          evidenceName: "Payment bundle",
-          fulfillmentType: "single",
-          requirementKey: "payment_bundle",
-          requirementType: "required",
-          status: "not_uploaded",
-          uploadedCount: 0,
-          waivedReason: null,
-        }],
-        unclassifiedFiles: [],
-      },
-      {
-        uploadMutation: {
-          isPending: false,
-          mutateAsync: uploadMutateAsync,
-        },
-      },
-    );
+  it("does not render uploaded evidence rows in the workbench", () => {
+    mockLoadedQueries();
 
     render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
 
-    const file = new File(["pdf"], "receipt.pdf", { type: "application/pdf" });
-    fireEvent.change(screen.getByLabelText("파일 선택"), { target: { files: [file] } });
-
-    await waitFor(() => expect(uploadMutateAsync).toHaveBeenCalledWith({
-      documentKey: "receipt",
-      file,
-      requirementKey: "payment_bundle",
-    }));
-    expect(screen.queryAllByText("파일 추가")).toHaveLength(0);
-  });
-
-  it("opens and deletes uploaded policy evidence files", async () => {
-    const deleteMutateAsync = vi.fn().mockResolvedValue({});
-    const signedUrlMutateAsync = vi.fn().mockResolvedValue({ signedUrl: "https://example.test/receipt.pdf" });
-    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-    mockLoadedQueries(
-      {
-        policySnapshot: {
-          category_key: "material_cost",
-          category_name: "Materials",
-          evidence_requirements: [{
-            accepted_documents: [{ documentKey: "receipt", label: "Receipt" }],
-            condition_text: null,
-            document_key: "receipt",
-            evidence_key: "payment_bundle",
-            evidence_name: "Payment bundle",
-            fulfillment_type: "single",
-            requirement_type: "required",
-            sort_order: 0,
-            source_reference: {},
-          }],
-        },
-      },
-      vi.fn(),
-      {
-        files: [{
-          documentKey: "receipt",
-          duplicateStatus: "unique",
-          expenseId,
-          fileExtension: "pdf",
-          fileSize: 1024,
-          id: "33333333-3333-4333-8333-333333333333",
-          mimeType: "application/pdf",
-          originalFileName: "receipt.pdf",
-          projectId,
-          requirementKey: "payment_bundle",
-          uploadedAt: "2026-07-01T00:00:00.000Z",
-        }],
-        policySnapshotHash: "hash",
-        requirements: [{
-          acceptedDocuments: [{ documentKey: "receipt", label: "Receipt", uploaded: true }],
-          changedAt: null,
-          changedBy: null,
-          conditionText: null,
-          evidenceName: "Payment bundle",
-          fulfillmentType: "single",
-          requirementKey: "payment_bundle",
-          requirementType: "required",
-          status: "uploaded",
-          uploadedCount: 1,
-          waivedReason: null,
-        }],
-        unclassifiedFiles: [],
-      },
-      {
-        deleteMutation: {
-          isPending: false,
-          mutateAsync: deleteMutateAsync,
-        },
-        signedUrlMutation: {
-          isPending: false,
-          mutateAsync: signedUrlMutateAsync,
-        },
-      },
-    );
-
-    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "receipt.pdf 열기" }));
-    await waitFor(() => expect(signedUrlMutateAsync).toHaveBeenCalledWith("33333333-3333-4333-8333-333333333333"));
-    expect(openSpy).toHaveBeenCalledWith("https://example.test/receipt.pdf", "_blank", "noopener,noreferrer");
-
-    fireEvent.click(screen.getByRole("button", { name: "receipt.pdf 삭제" }));
-    await waitFor(() => expect(deleteMutateAsync).toHaveBeenCalledWith("33333333-3333-4333-8333-333333333333"));
-    openSpy.mockRestore();
+    expect(screen.queryByText("\ud544\uc694 \uc99d\ube59\uc11c\ub958")).not.toBeInTheDocument();
+    expect(screen.queryByText("\uc0ad\uc81c")).not.toBeInTheDocument();
   });
 });

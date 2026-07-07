@@ -2,9 +2,10 @@ import type { ExpenseStageKey } from "@/features/domain/contracts";
 import { EVIDENCE_DOCUMENT_OPTIONS, type ExpenseUpdateInput } from "../backend/schema";
 
 export type ExpenseStageFieldKey = keyof ExpenseUpdateInput["stageFields"];
+export type ExpenseStageMemoFieldKey = Exclude<ExpenseStageFieldKey, "procedures">;
 export type EvidenceDocumentOption = (typeof EVIDENCE_DOCUMENT_OPTIONS)[number];
 
-export const expenseStageDetailCopy: Record<ExpenseStageKey, { description: string; fields: ExpenseStageFieldKey[] }> = {
+export const expenseStageDetailCopy: Record<ExpenseStageKey, { description: string; fields: ExpenseStageMemoFieldKey[] }> = {
   budget_registration: {
     description: "비목, 금액, 예상 지출일, 거래처와 메모를 정리합니다.",
     fields: [],
@@ -27,13 +28,20 @@ export const expenseStageDetailCopy: Record<ExpenseStageKey, { description: stri
   },
 };
 
-export const expenseStageFieldLabels: Record<ExpenseStageFieldKey, string> = {
+export const expenseStageFieldLabels: Record<ExpenseStageMemoFieldKey, string> = {
   approvalReference: "승인번호 또는 승인 링크",
   deliverableMemo: "산출물 메모",
   executionMemo: "수행 상태 메모",
   executionRequestMemo: "최종 요청 메모",
   preApprovalMemo: "주관기관 확인 메모",
 };
+
+export const expenseProcedureSteps = [
+  { key: "preparation", label: "사전 준비" },
+  { key: "ownerCheck", label: "담당자 확인" },
+  { key: "pmsRegistration", label: "PMS 등록" },
+  { key: "finalApproval", label: "최종 승인" },
+] as const;
 
 export const preApprovalStatuses = [
   ["not_required", "승인 불필요"],

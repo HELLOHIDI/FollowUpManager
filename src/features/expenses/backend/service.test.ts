@@ -461,7 +461,7 @@ describe("expense service", () => {
     });
   });
 
-  it("updates an expense stage only to the immediate next stage", async () => {
+  it("updates an expense stage through the history RPC", async () => {
     const { client, rpcCalls, tables } = clientForWithCalls({
       expenses: {
         select: {
@@ -495,23 +495,36 @@ describe("expense service", () => {
     });
   });
 
-  it("rejects non-immediate expense stage movement", async () => {
-    const result = await updateExpenseStage(
-      clientFor({
+  it("allows non-immediate expense stage movement", async () => {
+    const { client, rpcCalls } = clientForWithCalls({
         expenses: {
           select: {
             data: baseExpenseRow(),
           },
         },
-      }),
-      PROJECT_ID,
-      EXPENSE_ID,
-      { targetStageKey: "execution_in_progress" },
-    );
+      }, {
+        update_expense_stage_with_history: {
+          data: baseExpenseRow({ stage_key: "execution_in_progress", deleted_at: undefined }),
+        },
+      });
 
-    expect(result.ok).toBe(false);
-    if (!("error" in result)) return;
-    expect(result.error.code).toBe("INVALID_EXPENSE_STAGE_TRANSITION");
+    const result = await updateExpenseStage(client, PROJECT_ID, EXPENSE_ID, {
+      targetStageKey: "execution_in_progress",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.stageKey).toBe("execution_in_progress");
+    expect(rpcCalls).toContainEqual({
+      name: "update_expense_stage_with_history",
+      args: {
+        p_changed_by: null,
+        p_current_stage_key: "budget_registration",
+        p_expense_id: EXPENSE_ID,
+        p_project_id: PROJECT_ID,
+        p_target_stage_key: "execution_in_progress",
+      },
+    });
   });
 
   it("returns a generic fetch error when the expense stage update fails", async () => {

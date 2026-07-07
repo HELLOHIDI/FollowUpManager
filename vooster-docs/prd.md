@@ -66,3 +66,12 @@ FuManager는 정부지원사업을 수행하는 10인 이하 스타트업 PM/팀
 - The five ordered expense stages are `budget_registration` (사업비 등록), `pre_approval` (사전 승인), `execution_in_progress` (집행 수행), `execution_request` (집행 요청), and `execution_completed` (집행 완료).
 - `expenses.amount` is the only current amount. Category groups are created only by active expenses and show category name, expense count, total amount, and child title/amount/stage.
 - Search, filters, quick registration, kanban behavior, mutations, evidence, and detail editing are outside this slice.
+
+## Expense Detail Workbench contract (2026-07-07)
+
+- `/projects/:projectId/expenses/:expenseId`는 좌측 5단계 vertical progress stepper와 우측 selected-stage workbench를 사용한다.
+- 저장된 현재 단계는 강한 accent/gradient로 표시한다. 다른 단계를 클릭하면 workbench 미리보기만 바뀐다.
+- 실제 단계 변경은 `이 단계로 이동` 버튼으로만 수행하며, 전/후/건너뛰기 이동을 모두 허용한다.
+- 각 단계의 V1 업무절차는 `사전 준비`, `담당자 확인`, `PMS 등록`, `최종 승인`으로 고정하고 사용자가 직접 완료 체크, 완료일, 메모를 입력한다.
+- 기업양식은 workbench 상단의 닫힌 토글에 표시하며, 현재 지출 비목에 필요한 모든 집행서류를 먼저 보여주고 연결된 기업양식은 각 서류의 접힌 하위항목으로 다운로드 제공한다.
+- 필요 증빙서류는 별도 섹션으로 반복 표시하지 않는다.
