@@ -91,6 +91,10 @@ export const CompanyParamsSchema = z.object({
   companyId: z.string().uuid("기업 ID가 올바르지 않습니다."),
 });
 
+export const CompanyAccountManagerInputSchema = z.object({
+  accountManager: accountManagerSchema,
+});
+
 export const createCompanyInputSchema = (
   now: Date | (() => Date) = () => new Date()
 ) =>

@@ -144,13 +144,10 @@ describe("ProjectsPage", () => {
     });
 
     renderProjectsPage();
-    const dashboardLink = await screen.findByRole("link", {
-      name: /대시보드/,
-    });
 
-    expect(screen.getByText("테스트 기업")).toBeInTheDocument();
+    expect(await screen.findByText("테스트 기업")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "정현정" })).toBeInTheDocument();
-    expect(screen.getByText("운영 대시보드 사업")).toBeInTheDocument();
+    expect(screen.queryByText("운영 대시보드 사업")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^사업 등록$/ })).toHaveAttribute(
       "href",
       `/settings/company?mode=project-create&projectCompanyId=${registeredCompany.id}&returnTo=%2Fprojects`,
@@ -163,6 +160,15 @@ describe("ProjectsPage", () => {
     );
     expect(screen.queryByRole("button", { name: /기업 삭제/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /사업 삭제/ })).not.toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /테스트 기업/ }),
+    );
+    const dashboardLink = await screen.findByRole("link", {
+      name: /대시보드/,
+    });
+    expect(screen.getByText("운영 대시보드 사업")).toBeInTheDocument();
+    expect(screen.queryByText(/창업진흥원/)).not.toBeInTheDocument();
     expect(dashboardLink).toHaveAttribute(
       "href",
       `/projects/${registeredProject.id}`,

@@ -84,12 +84,14 @@ function CompanyForm({
   businessType,
   form,
   isSubmitting,
+  onAccountManagerSubmit,
   onSubmit,
   submitLabel,
 }: {
   businessType: CompanyInput["businessType"];
   form: UseFormReturn<CompanyInput>;
   isSubmitting: boolean;
+  onAccountManagerSubmit?: () => void;
   onSubmit: () => void;
   submitLabel: string;
 }) {
@@ -105,21 +107,36 @@ function CompanyForm({
         <FieldError message={form.formState.errors.companyName?.message} />
       </label>
 
-      <label className="grid gap-2 text-sm font-medium sm:col-span-2">
-        담당자
-        <select
-          className="h-10 rounded-md border bg-background px-3 text-sm"
-          {...form.register("accountManager")}
-        >
-          <option value="">담당자를 선택하세요</option>
-          {COMPANY_ACCOUNT_MANAGER_OPTIONS.map(({ name, role, team }) => (
-            <option key={name} value={name}>
-              {name} {team} {role}
-            </option>
-          ))}
-        </select>
+      <div className="grid gap-2 text-sm font-medium sm:col-span-2">
+        <label htmlFor="accountManager">담당자</label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <select
+            className="h-10 flex-1 rounded-md border bg-background px-3 text-sm"
+            id="accountManager"
+            {...form.register("accountManager")}
+          >
+            <option value="">담당자를 선택하세요</option>
+            {COMPANY_ACCOUNT_MANAGER_OPTIONS.map(({ name, role, team }) => (
+              <option key={name} value={name}>
+                {name} {team} {role}
+              </option>
+            ))}
+          </select>
+          {onAccountManagerSubmit ? (
+            <Button
+              disabled={
+                !form.formState.dirtyFields.accountManager || isSubmitting
+              }
+              onClick={onAccountManagerSubmit}
+              type="button"
+              variant="outline"
+            >
+              담당자 저장
+            </Button>
+          ) : null}
+        </div>
         <FieldError message={form.formState.errors.accountManager?.message} />
-      </label>
+      </div>
 
       <label className="grid gap-2 text-sm font-medium">
         회사 형태
@@ -211,7 +228,11 @@ export function CompanySettings() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const companiesQuery = useCompaniesQuery();
-  const { createMutation, updateMutation } = useCompanyMutations();
+  const {
+    createMutation,
+    updateAccountManagerMutation,
+    updateMutation,
+  } = useCompanyMutations();
   const { toast } = useToast();
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [projectCompanyId, setProjectCompanyId] = useState<string | null>(null);
@@ -251,7 +272,10 @@ export function CompanySettings() {
     projectCompanyId ?? "",
     Boolean(projectCompanyId),
   );
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  const isSubmitting =
+    createMutation.isPending ||
+    updateAccountManagerMutation.isPending ||
+    updateMutation.isPending;
 
   useEffect(() => {
     if (!isFocusedCompanyForm && !isFocusedProjectCreate) {
@@ -362,6 +386,30 @@ export function CompanySettings() {
       });
     }
   });
+
+  const submitAccountManager = async () => {
+    if (!editingCompanyId || !(await form.trigger("accountManager"))) {
+      return;
+    }
+
+    try {
+      const company = await updateAccountManagerMutation.mutateAsync({
+        accountManager: form.getValues("accountManager"),
+        companyId: editingCompanyId,
+      });
+      form.reset(toFormValues(company));
+      toast({
+        title: "담당자를 저장했습니다.",
+        description: `${company.companyName} 담당자를 변경했습니다.`,
+      });
+    } catch (error) {
+      toast({
+        title: "담당자를 저장하지 못했습니다.",
+        description: extractApiErrorMessage(error, "다시 시도해 주세요."),
+        variant: "destructive",
+      });
+    }
+  };
 
   const submitProject = async (input: ProjectInput, files: File[]) => {
     if (!projectCompany) {
@@ -566,6 +614,9 @@ export function CompanySettings() {
                 businessType={businessType}
                 form={form}
                 isSubmitting={isSubmitting}
+                onAccountManagerSubmit={
+                  isFocusedEdit ? () => void submitAccountManager() : undefined
+                }
                 onSubmit={submit}
                 submitLabel={
                   isFocusedCreate ? "기업 추가하기" : "기업 정보 수정"

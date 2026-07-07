@@ -244,3 +244,26 @@ export const updateCompany = async (
     ? mapCompanyRow(data)
     : failure(404, companyErrorCodes.notFound, "기업을 찾을 수 없습니다.");
 };
+
+export const updateCompanyAccountManager = async (
+  createClient: MutationClientFactory,
+  companyId: string,
+  accountManager: CompanyInput["accountManager"]
+): Promise<CompanyResult> => {
+  const client = createClient();
+  const { data, error } = await client
+    .from(COMPANY_TABLE)
+    .update({ account_manager: accountManager })
+    .eq("id", companyId)
+    .is("deleted_at", null)
+    .select(COMPANY_SELECT)
+    .maybeSingle<CompanyRow>();
+
+  if (error) {
+    return mapWriteError(error);
+  }
+
+  return data
+    ? mapCompanyRow(data)
+    : failure(404, companyErrorCodes.notFound, "기업을 찾을 수 없습니다.");
+};
