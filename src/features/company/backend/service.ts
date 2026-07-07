@@ -18,7 +18,7 @@ const COMPANY_TABLE = "companies";
 const COMPANY_SELECT =
   "id, company_name, business_type, company_size, business_registration_number, corporate_registration_number, founded_at, profile_status, created_at, updated_at, deleted_at";
 const BUSINESS_REGISTRATION_UNIQUE_CONSTRAINT =
-  "companies_business_registration_number_key";
+  "companies_business_registration_number_active_unique";
 
 type CompanyResult = HandlerResult<
   CompanyResponse,
@@ -170,6 +170,47 @@ export const getCompany = async (
 
   return data
     ? mapCompanyRow(data)
+    : failure(404, companyErrorCodes.notFound, "기업을 찾을 수 없습니다.");
+};
+
+export const deleteCompany = async (
+  createClient: MutationClientFactory,
+  companyId: string
+) => {
+  const client = createClient();
+  const deletedAt = new Date().toISOString();
+  const projectUpdate = await client
+    .from("projects")
+    .update({ deleted_at: deletedAt })
+    .eq("company_id", companyId)
+    .is("deleted_at", null);
+
+  if (projectUpdate.error) {
+    return failure(
+      500,
+      companyErrorCodes.writeError,
+      "기업의 사업 목록을 삭제하지 못했습니다."
+    );
+  }
+
+  const { data, error } = await client
+    .from(COMPANY_TABLE)
+    .update({ deleted_at: deletedAt })
+    .eq("id", companyId)
+    .is("deleted_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return failure(
+      500,
+      companyErrorCodes.writeError,
+      "기업을 삭제하지 못했습니다."
+    );
+  }
+
+  return data
+    ? success({ id: companyId })
     : failure(404, companyErrorCodes.notFound, "기업을 찾을 수 없습니다.");
 };
 

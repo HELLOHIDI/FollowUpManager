@@ -9,6 +9,7 @@ import type { MutationClientFactory } from "@/backend/supabase/client";
 import { CompanyInputSchema, CompanyParamsSchema } from "./schema";
 import {
   createCompany,
+  deleteCompany,
   getCompany,
   listCompanies,
   updateCompany,
@@ -144,6 +145,36 @@ export const registerCompanyRoutes = (
     logCompanyFailure(
       getLogger(context),
       "PATCH /companies/:companyId",
+      result,
+      parsedParams.data.companyId
+    );
+    return respond(context, result);
+  });
+
+  app.delete("/companies/:companyId", async (context) => {
+    const parsedParams = CompanyParamsSchema.safeParse({
+      companyId: context.req.param("companyId"),
+    });
+
+    if (!parsedParams.success) {
+      return respond(
+        context,
+        failure(
+          400,
+          "INVALID_COMPANY_PARAMS",
+          "기업 ID를 확인해 주세요.",
+          parsedParams.error.flatten()
+        )
+      );
+    }
+
+    const result = await deleteCompany(
+      options.createCompanyMutationClient,
+      parsedParams.data.companyId
+    );
+    logCompanyFailure(
+      getLogger(context),
+      "DELETE /companies/:companyId",
       result,
       parsedParams.data.companyId
     );

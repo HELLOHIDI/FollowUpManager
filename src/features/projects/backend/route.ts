@@ -3,7 +3,7 @@ import { failure, respond } from "@/backend/http/response";
 import { getCurrentUser, getLogger, getSupabase, type AppEnv } from "@/backend/hono/context";
 import type { MutationClientFactory } from "@/backend/supabase/client";
 import { CompanyProjectsParamsSchema, MAX_DOCUMENT_SIZE, ProjectDocumentParamsSchema, ProjectDocumentPurposeSchema, ProjectInputSchema, ProjectParamsSchema, SaveProjectEvidenceDocumentsInputSchema, UploadIntentInputSchema } from "./schema";
-import { completeUpload, createDocumentSignedUrl, createProject, createUploadIntent, deleteProjectDocument, getProject, listProjectDocuments, listProjectEvidenceDocuments, listProjectEvidenceTemplateDownloads, listProjects, saveProjectEvidenceTemplateSetup, updateProject } from "./service";
+import { completeUpload, createDocumentSignedUrl, createProject, createUploadIntent, deleteProject, deleteProjectDocument, getProject, listProjectDocuments, listProjectEvidenceDocuments, listProjectEvidenceTemplateDownloads, listProjects, saveProjectEvidenceTemplateSetup, updateProject } from "./service";
 
 const parseBody = async (request: { json: () => Promise<unknown> }) => request.json().catch(() => null);
 
@@ -54,6 +54,17 @@ export const registerProjectRoutes = (app: Hono<AppEnv>, options: { createProjec
       ? await updateProject(getSupabase(context), params.data.projectId, body.data)
       : serviceResult;
     log(context, "PATCH /projects/:projectId", result, params.data);
+    return respond(context, result);
+  });
+
+  app.delete("/projects/:projectId", async (context) => {
+    const params = ProjectParamsSchema.safeParse({ projectId: context.req.param("projectId") });
+    if (!params.success) return invalid(context, "INVALID_PROJECT_PARAMS", "사업 ID를 확인해 주세요.", params.error.flatten());
+    const serviceResult = await deleteProject(options.createProjectMutationClient(), params.data.projectId);
+    const result = shouldRetryWithAuthenticatedClient(serviceResult)
+      ? await deleteProject(getSupabase(context), params.data.projectId)
+      : serviceResult;
+    log(context, "DELETE /projects/:projectId", result, params.data);
     return respond(context, result);
   });
 

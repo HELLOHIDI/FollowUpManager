@@ -8,6 +8,7 @@ import { CompanySettings } from "./company-settings";
 
 const api = vi.hoisted(() => ({
   createCompanyRequest: vi.fn(),
+  deleteCompanyRequest: vi.fn(),
   fetchCompanies: vi.fn(),
   updateCompanyRequest: vi.fn(),
 }));
@@ -17,6 +18,7 @@ const dashboardApi = vi.hoisted(() => ({
 const projectApi = vi.hoisted(() => ({
   createProjectRequest: vi.fn(),
   deleteProjectDocumentRequest: vi.fn(),
+  deleteProjectRequest: vi.fn(),
   fetchCompanyProjects: vi.fn(),
   fetchProject: vi.fn(),
   fetchProjectDocuments: vi.fn(),
@@ -102,11 +104,13 @@ const renderSettings = () => {
 describe("CompanySettings", () => {
   beforeEach(() => {
     api.createCompanyRequest.mockReset();
+    api.deleteCompanyRequest.mockReset();
     api.fetchCompanies.mockReset();
     api.updateCompanyRequest.mockReset();
     dashboardApi.fetchProjectDashboard.mockReset();
     projectApi.createProjectRequest.mockReset();
     projectApi.deleteProjectDocumentRequest.mockReset();
+    projectApi.deleteProjectRequest.mockReset();
     projectApi.fetchCompanyProjects.mockReset();
     projectApi.fetchProject.mockReset();
     projectApi.fetchProjectDocuments.mockReset();

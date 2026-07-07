@@ -8,7 +8,10 @@ import type { ProjectResponse } from "@/features/projects/lib/dto";
 import ProjectsPage from "./page";
 
 const companyApi = vi.hoisted(() => ({
+  createCompanyRequest: vi.fn(),
+  deleteCompanyRequest: vi.fn(),
   fetchCompanies: vi.fn(),
+  updateCompanyRequest: vi.fn(),
 }));
 
 const dashboardApi = vi.hoisted(() => ({
@@ -18,11 +21,16 @@ const dashboardApi = vi.hoisted(() => ({
 const projectApi = vi.hoisted(() => ({
   createProjectRequest: vi.fn(),
   deleteProjectDocumentRequest: vi.fn(),
+  deleteProjectRequest: vi.fn(),
   fetchCompanyProjects: vi.fn(),
   fetchProject: vi.fn(),
   fetchProjectDocuments: vi.fn(),
+  fetchProjectEvidenceDocuments: vi.fn(),
+  fetchProjectEvidenceTemplateDownloads: vi.fn(),
+  saveProjectEvidenceDocuments: vi.fn(),
   updateProjectRequest: vi.fn(),
   uploadProjectDocument: vi.fn(),
+  uploadProjectDocuments: vi.fn(),
 }));
 
 vi.mock("@/features/company/api", () => companyApi);
@@ -84,10 +92,21 @@ const renderProjectsPage = () => {
 
 describe("ProjectsPage", () => {
   beforeEach(() => {
+    companyApi.createCompanyRequest.mockReset();
+    companyApi.deleteCompanyRequest.mockReset();
     companyApi.fetchCompanies.mockReset();
+    companyApi.updateCompanyRequest.mockReset();
     dashboardApi.fetchProjectDashboard.mockReset();
     projectApi.fetchCompanyProjects.mockReset();
+    projectApi.deleteProjectRequest.mockReset();
     projectApi.fetchProject.mockReset();
+    projectApi.fetchProjectDocuments.mockReset();
+    projectApi.fetchProjectEvidenceDocuments.mockReset();
+    projectApi.fetchProjectEvidenceTemplateDownloads.mockReset();
+    projectApi.saveProjectEvidenceDocuments.mockReset();
+    projectApi.updateProjectRequest.mockReset();
+    projectApi.uploadProjectDocument.mockReset();
+    projectApi.uploadProjectDocuments.mockReset();
   });
 
   it("guides users to company setup when no companies are registered", async () => {

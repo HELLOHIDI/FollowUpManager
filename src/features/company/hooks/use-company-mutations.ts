@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   createCompanyRequest,
+  deleteCompanyRequest,
   updateCompanyRequest,
 } from "../api";
 import type { CompanyResponse } from "../lib/dto";
@@ -45,6 +46,17 @@ export const useCompanyMutations = () => {
     mutationFn: updateCompanyRequest,
     onSuccess: applyAuthoritativeCompany,
   });
+  const deleteMutation = useMutation({
+    mutationFn: deleteCompanyRequest,
+    onSuccess: (_, companyId) => {
+      queryClient.removeQueries({ queryKey: companyKeys.detail(companyId) });
+      queryClient.setQueryData<CompanyResponse[]>(
+        companyKeys.list(),
+        (companies) => companies?.filter(({ id }) => id !== companyId) ?? []
+      );
+      void queryClient.invalidateQueries({ queryKey: companyKeys.lists() });
+    },
+  });
 
-  return { createMutation, updateMutation };
+  return { createMutation, deleteMutation, updateMutation };
 };
