@@ -41,50 +41,74 @@ import { useProjectEvidenceTemplateDownloadsQuery } from "@/features/projects/ho
 import type { ProjectEvidenceTemplateDownload } from "@/features/projects/lib/dto";
 
 type FormValues = ExpenseUpdateInput;
-type DetailEvidenceDocumentOption = { key: string; label: string; source?: "policy" | "custom" };
+type DetailEvidenceRequirement = { key: string; label: string; documentKeys: string[]; conditionText?: string | null };
 
 const selectedOrNone = (value: string | null | undefined) => value ?? "none";
 const noneToNull = (value: string) => (value === "none" ? null : value);
-const downloadProjectTemplate = async (projectId: string, template: ProjectEvidenceTemplateDownload) => {
+const firstNumberIn = (value: string) => {
+  const match = value.match(/\d+/);
+  return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
+};
+const enterpriseFormsCopy = {
+  download: "\uB2E4\uC6B4\uB85C\uB4DC",
+  downloadFailed: "\uAE30\uC5C5\uC591\uC2DD\uC744 \uB2E4\uC6B4\uB85C\uB4DC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
+  description: "\uD544\uC694 \uC9D1\uD589\uC11C\uB958\uBCC4\uB85C \uC5F0\uACB0\uB41C \uAE30\uC5C5\uC591\uC2DD\uC744 \uBCF4\uAE30\uC640 \uB2E4\uC6B4\uB85C\uB4DC\uB85C \uD655\uC778\uD569\uB2C8\uB2E4.",
+  noRequirements: "\uB4F1\uB85D\uB41C \uC9D1\uD589\uC11C\uB958 \uAE30\uC900\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  noTemplates: "\uC5F0\uACB0\uB41C \uAE30\uC5C5\uC591\uC2DD\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  retry: "\uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.",
+  title: "\uAE30\uC5C5\uC591\uC2DD",
+  unit: "\uAC1C",
+  view: "\uBCF4\uAE30",
+  viewFailed: "\uAE30\uC5C5\uC591\uC2DD\uC744 \uC5F4\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
+};
+const compareTemplateNames = (left: ProjectEvidenceTemplateDownload, right: ProjectEvidenceTemplateDownload) => {
+  const numberDiff = firstNumberIn(left.originalFileName) - firstNumberIn(right.originalFileName);
+  return numberDiff || left.originalFileName.localeCompare(right.originalFileName, "ko");
+};
+const downloadProjectTemplate = async (projectId: string, template: ProjectEvidenceTemplateDownload, fileName = template.originalFileName) => {
   const { signedUrl } = await getProjectDocumentSignedUrl(projectId, template.id);
   const response = await fetch(signedUrl);
   if (!response.ok) throw new Error("Template download failed");
   const url = URL.createObjectURL(await response.blob());
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = template.originalFileName;
+  anchor.download = fileName;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
 };
 
-const policyEvidenceOptionsFromSnapshot = (policySnapshot: ExpenseDetailResponse["policySnapshot"]): DetailEvidenceDocumentOption[] => {
+const policyEvidenceRequirementsFromSnapshot = (policySnapshot: ExpenseDetailResponse["policySnapshot"]): DetailEvidenceRequirement[] => {
   const requirements = policySnapshot?.evidence_requirements;
   if (!Array.isArray(requirements)) return [];
 
-  const uniqueOptions = new Map<string, DetailEvidenceDocumentOption>();
+  const uniqueRequirements = new Map<string, DetailEvidenceRequirement>();
   for (const requirement of requirements) {
     if (!requirement || typeof requirement !== "object" || Array.isArray(requirement)) continue;
     const row = requirement as Record<string, unknown>;
     const acceptedDocuments = Array.isArray(row.accepted_documents) ? row.accepted_documents : [];
+    const documentKeys: string[] = [];
+    let firstAcceptedLabel: string | null = null;
     for (const document of acceptedDocuments) {
       if (!document || typeof document !== "object" || Array.isArray(document)) continue;
       const accepted = document as Record<string, unknown>;
       const acceptedKey = typeof accepted.documentKey === "string" ? accepted.documentKey : null;
       if (!acceptedKey) continue;
-      uniqueOptions.set(acceptedKey, {
-        key: acceptedKey,
-        label: typeof accepted.label === "string" ? accepted.label : acceptedKey,
-      });
+      documentKeys.push(acceptedKey);
+      firstAcceptedLabel ??= typeof accepted.label === "string" ? accepted.label : acceptedKey;
     }
-    const key = typeof row.document_key === "string" ? row.document_key : typeof row.evidence_key === "string" ? row.evidence_key : null;
+    const fallbackDocumentKey = typeof row.document_key === "string" ? row.document_key : null;
+    if (fallbackDocumentKey && !documentKeys.includes(fallbackDocumentKey)) documentKeys.push(fallbackDocumentKey);
+    const key = typeof row.evidence_key === "string" ? row.evidence_key : fallbackDocumentKey ?? documentKeys[0] ?? null;
     if (!key) continue;
-    const label = typeof row.evidence_name === "string" ? row.evidence_name : key;
-    uniqueOptions.set(key, { key, label });
+    if (documentKeys.length === 0) documentKeys.push(key);
+    const label = typeof row.evidence_name === "string" ? row.evidence_name : firstAcceptedLabel ?? key;
+    const conditionText = typeof row.condition_text === "string" ? row.condition_text : null;
+    uniqueRequirements.set(key, { key, label, documentKeys, conditionText });
   }
 
-  return [...uniqueOptions.values()];
+  return [...uniqueRequirements.values()];
 };
 
 export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: string; expenseId: string }) {
@@ -159,9 +183,11 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
   const selectedStage = selectedStageKey ?? query.data.stageKey;
   const selectedStageIndex = getExpenseStageIndex(selectedStage);
   const selectedStageLabel = EXPENSE_STAGES[selectedStageIndex]?.label ?? selectedStage;
-  const snapshotDocumentOptions = policyEvidenceOptionsFromSnapshot(query.data.policySnapshot);
-  const requiredDocumentKeys = new Set(snapshotDocumentOptions.map((option) => option.key));
-  const templateDownloads = (templateDownloadsQuery.data ?? []).filter((template) => requiredDocumentKeys.has(template.documentKey));
+  const evidenceRequirements = policyEvidenceRequirementsFromSnapshot(query.data.policySnapshot);
+  const requiredDocumentKeys = new Set(evidenceRequirements.flatMap((requirement) => requirement.documentKeys));
+  const templateDownloads = (templateDownloadsQuery.data ?? [])
+    .filter((template) => requiredDocumentKeys.has(template.documentKey))
+    .sort(compareTemplateNames);
 
   const handleSave = form.handleSubmit(async (values) => {
     const selectedCategory = query.data.categoryOptions.find((option) => option.categoryKey === values.categoryKey);
@@ -236,7 +262,7 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
           </CardHeader>
           <CardContent className="space-y-6">
             <BasicInfoFields form={form} categoryOptions={query.data.categoryOptions} />
-            <EnterpriseFormsToggle projectId={projectId} templateDownloads={templateDownloads} />
+            <EnterpriseFormsToggle projectId={projectId} requirements={evidenceRequirements} templateDownloads={templateDownloads} />
             <StageSection
               control={form.control}
               form={form}
@@ -445,9 +471,11 @@ function DateInput({
 
 function EnterpriseFormsToggle({
   projectId,
+  requirements,
   templateDownloads,
 }: {
   projectId: string;
+  requirements: DetailEvidenceRequirement[];
   templateDownloads: ProjectEvidenceTemplateDownload[];
 }) {
   const { toast } = useToast();
@@ -460,8 +488,8 @@ function EnterpriseFormsToggle({
       window.open(signedUrl, "_blank", "noopener,noreferrer");
     } catch (error) {
       toast({
-        title: "기업양식을 열지 못했습니다",
-        description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."),
+        title: enterpriseFormsCopy.viewFailed,
+        description: extractApiErrorMessage(error, enterpriseFormsCopy.retry),
         variant: "destructive",
       });
     } finally {
@@ -469,14 +497,14 @@ function EnterpriseFormsToggle({
     }
   };
 
-  const downloadTemplate = async (template: ProjectEvidenceTemplateDownload) => {
+  const downloadTemplate = async (template: ProjectEvidenceTemplateDownload, fileName: string) => {
     setOpeningId(template.id);
     try {
-      await downloadProjectTemplate(projectId, template);
+      await downloadProjectTemplate(projectId, template, fileName);
     } catch (error) {
       toast({
-        title: "기업양식을 다운로드하지 못했습니다",
-        description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."),
+        title: enterpriseFormsCopy.downloadFailed,
+        description: extractApiErrorMessage(error, enterpriseFormsCopy.retry),
         variant: "destructive",
       });
     } finally {
@@ -488,29 +516,54 @@ function EnterpriseFormsToggle({
     <details className="rounded-md border bg-background p-4">
       <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
         <div>
-          <h2 className="text-sm font-semibold">기업양식</h2>
-          <p className="mt-1 text-xs text-muted-foreground">연결된 기업 양식은 보기와 다운로드만 가능합니다.</p>
+          <h2 className="text-sm font-semibold">{enterpriseFormsCopy.title}</h2>
+          <p className="mt-1 text-xs text-muted-foreground">{enterpriseFormsCopy.description}</p>
         </div>
-        <Badge variant="info">{templateDownloads.length}개</Badge>
+        <Badge variant="info">{requirements.length}{enterpriseFormsCopy.unit}</Badge>
       </summary>
       <div className="mt-4 divide-y rounded-md border">
-        {templateDownloads.length === 0 ? (
-          <p className="px-3 py-2 text-sm text-muted-foreground">연결된 기업양식이 없습니다.</p>
-        ) : templateDownloads.map((template) => (
-          <div key={template.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
-            <span className="min-w-0 truncate text-sm font-medium">{template.originalFileName}</span>
-            <span className="flex shrink-0 gap-2">
-              <Button type="button" size="sm" variant="outline" aria-label={`${template.originalFileName} 보기`} onClick={() => void openTemplate(template)} disabled={openingId === template.id}>
-                <ExternalLink className="mr-2 size-3" aria-hidden="true" />
-                보기
-              </Button>
-              <Button type="button" size="sm" variant="outline" aria-label={`${template.originalFileName} 다운로드`} onClick={() => void downloadTemplate(template)} disabled={openingId === template.id}>
-                {openingId === template.id ? <Loader2 className="mr-2 size-3 animate-spin" aria-hidden="true" /> : <Download className="mr-2 size-3" aria-hidden="true" />}
-                다운로드
-              </Button>
-            </span>
-          </div>
-        ))}
+        {requirements.length === 0 ? (
+          <p className="px-3 py-2 text-sm text-muted-foreground">{enterpriseFormsCopy.noRequirements}</p>
+        ) : requirements.map((requirement) => {
+          const templates = templateDownloads
+            .filter((template) => requirement.documentKeys.includes(template.documentKey))
+            .sort(compareTemplateNames);
+          return (
+            <div key={requirement.key} className="space-y-2 px-3 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{requirement.label}</p>
+                  {requirement.conditionText ? <p className="mt-1 truncate text-xs text-muted-foreground">{requirement.conditionText}</p> : null}
+                </div>
+                <Badge variant={templates.length > 0 ? "secondary" : "outline"}>{templates.length}{enterpriseFormsCopy.unit}</Badge>
+              </div>
+              {templates.length === 0 ? (
+                <p className="rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">{enterpriseFormsCopy.noTemplates}</p>
+              ) : (
+                <div className="space-y-2">
+                  {templates.map((template) => {
+                    const fileName = template.originalFileName;
+                    return (
+                      <div key={template.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted/30 px-3 py-2">
+                        <span className="min-w-0 truncate text-sm">{fileName}</span>
+                        <span className="flex shrink-0 gap-2">
+                          <Button type="button" size="sm" variant="outline" aria-label={`${fileName} ${enterpriseFormsCopy.view}`} onClick={() => void openTemplate(template)} disabled={openingId === template.id}>
+                            <ExternalLink className="mr-2 size-3" aria-hidden="true" />
+                            {enterpriseFormsCopy.view}
+                          </Button>
+                          <Button type="button" size="sm" variant="outline" aria-label={`${fileName} ${enterpriseFormsCopy.download}`} onClick={() => void downloadTemplate(template, fileName)} disabled={openingId === template.id}>
+                            {openingId === template.id ? <Loader2 className="mr-2 size-3 animate-spin" aria-hidden="true" /> : <Download className="mr-2 size-3" aria-hidden="true" />}
+                            {enterpriseFormsCopy.download}
+                          </Button>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </details>
   );

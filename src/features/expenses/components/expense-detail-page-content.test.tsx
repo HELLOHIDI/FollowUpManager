@@ -156,7 +156,7 @@ describe("ExpenseDetailPageContent", () => {
     expect(screen.getByLabelText("\ub2f4\ub2f9\uc790 \ud655\uc778")).toBeInTheDocument();
     expect(screen.getByText("\uae30\uc5c5\uc591\uc2dd")).toBeInTheDocument();
     expect(screen.queryByText("\ud544\uc694 \uc99d\ube59\uc11c\ub958")).not.toBeInTheDocument();
-    expect(screen.queryByText("Payment bundle")).not.toBeInTheDocument();
+    expect(screen.getByText("Payment bundle")).not.toBeVisible();
     expect(screen.queryByText("\ud30c\uc77c \uc120\ud0dd")).not.toBeInTheDocument();
     expect(screen.queryByText("\ud30c\uc77c \ucd94\uac00")).not.toBeInTheDocument();
     expect(screen.queryByText("\uc0ad\uc81c")).not.toBeInTheDocument();
@@ -185,11 +185,20 @@ describe("ExpenseDetailPageContent", () => {
     }));
   });
 
-  it("keeps enterprise forms collapsed by default and exposes rows after opening", () => {
+  it("shows all required execution documents with linked enterprise forms sorted by file number", () => {
     mockLoadedQueries({
       policySnapshot: {
         evidence_requirements: [
-          { accepted_documents: [{ documentKey: "contract", label: "Contract" }], evidence_key: "payment_bundle", evidence_name: "Payment bundle" },
+          {
+            accepted_documents: [{ documentKey: "contract", label: "Contract" }],
+            evidence_key: "contract_bundle",
+            evidence_name: "Contract bundle",
+          },
+          {
+            accepted_documents: [{ documentKey: "receipt", label: "Receipt" }],
+            evidence_key: "receipt_bundle",
+            evidence_name: "Receipt bundle",
+          },
         ],
       },
     });
@@ -200,8 +209,16 @@ describe("ExpenseDetailPageContent", () => {
           documentTypeId: "66666666-6666-4666-8666-666666666666",
           fileSize: 1024,
           id: "77777777-7777-4777-8777-777777777777",
-          originalFileName: "company-form.docx",
+          originalFileName: "10-company-form.docx",
           sortOrder: 0,
+        },
+        {
+          documentKey: "contract",
+          documentTypeId: "66666666-6666-4666-8666-666666666666",
+          fileSize: 1024,
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          originalFileName: "2-company-form.docx",
+          sortOrder: 2,
         },
         {
           documentKey: "unrelated",
@@ -218,12 +235,18 @@ describe("ExpenseDetailPageContent", () => {
 
     render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
 
-    expect(screen.queryByText("company-form.docx")).not.toBeVisible();
+    expect(screen.queryByText("Contract bundle")).not.toBeVisible();
     fireEvent.click(screen.getByText("\uae30\uc5c5\uc591\uc2dd"));
-    expect(screen.getByText("company-form.docx")).toBeVisible();
+    expect(screen.getByText("Contract bundle")).toBeVisible();
+    expect(screen.getByText("Receipt bundle")).toBeVisible();
+    expect(screen.getByText("\uc5f0\uacb0\ub41c \uae30\uc5c5\uc591\uc2dd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.")).toBeVisible();
+    expect(screen.getByText("2-company-form.docx")).toBeVisible();
+    expect(screen.getByText("10-company-form.docx")).toBeVisible();
+    const formNames = screen.getAllByText(/company-form\.docx$/).map((node) => node.textContent);
+    expect(formNames).toEqual(["2-company-form.docx", "10-company-form.docx"]);
     expect(screen.queryByText("unrelated-form.docx")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "company-form.docx \ubcf4\uae30" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "company-form.docx \ub2e4\uc6b4\ub85c\ub4dc" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2-company-form.docx \ubcf4\uae30" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2-company-form.docx \ub2e4\uc6b4\ub85c\ub4dc" })).toBeInTheDocument();
   });
 
   it("normalizes cleared date inputs to null before saving", async () => {
