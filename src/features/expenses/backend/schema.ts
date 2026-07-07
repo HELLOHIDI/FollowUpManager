@@ -106,6 +106,17 @@ export const ExpenseStageFieldsSchema = z.object({
   executionMemo: z.string().trim().max(2000).nullable().optional(),
   deliverableMemo: z.string().trim().max(2000).nullable().optional(),
   executionRequestMemo: z.string().trim().max(2000).nullable().optional(),
+  procedures: z.record(
+    z.enum(stageKeys),
+    z.record(
+      z.enum(["preparation", "ownerCheck", "pmsRegistration", "finalApproval"]),
+      z.object({
+        completed: z.boolean().optional(),
+        completedDate: nullableDate.optional(),
+        memo: z.string().trim().max(500).nullable().optional(),
+      }).partial(),
+    ).optional(),
+  ).optional(),
 });
 
 export const ExpenseParamsSchema = z.object({

@@ -32,13 +32,13 @@
   3) KPI 또는 비목별 지출 그룹 클릭 → 자동으로 #categories 또는 #kanban 섹션으로 스크롤 → 관련 필터 자동 적용
   4) 필요 시 비목별 지출 목록 또는 칸반 카드 클릭 → 해당 지출 상세 풀페이지로 이동
 
-- 핵심 여정 B: 지출 입력 + 증빙 업로드(반복)
+- 핵심 여정 B: 지출 입력 + 업무절차 진행(반복)
   1) 전역 유틸 바의 “+ 지출” 클릭(N 단축키 지원)
   2) `/projects/:projectId/expenses` 빠른 등록 페이지에서 지출 제목, 비목 선택, 금액, 예상 날짜, 간단 메모 입력
   3) 저장(Cmd/Ctrl+S) → 카드가 #kanban의 ‘사업비 등록’ 칼럼에 생성
-  4) 카드 클릭 시 지출 상세 풀페이지 이동 → 예상 지출일, 거래처명, 증빙, 메모, 단계별 입력정보 보완
-  5) 영수증/세금계산서 파일 드래그&드롭 업로드(진행률/재시도/중복 감지)
-  6) 상세 풀페이지 또는 칸반에서 forward-only 단계 이동(사업비 등록 → 사전 승인 → 집행 수행 → 집행 요청 → 집행 완료)
+  4) 카드 클릭 시 지출 상세 풀페이지 이동 → 예상 지출일, 거래처명, 메모, 단계별 업무절차 보완
+  5) 기업양식과 필요 증빙서류를 참조 전용으로 확인
+  6) 상세 풀페이지 또는 칸반에서 5단계 간 자유 이동(사업비 등록 ↔ 사전 승인 ↔ 집행 수행 ↔ 집행 요청 ↔ 집행 완료)
   7) 소프트 게이트 안내 확인 후 이동, 저장 시 KPI·차트 실시간 반영(#overview에 즉시 업데이트)
 
 - 핵심 여정 C: 기업과 사업 선택
@@ -103,8 +103,8 @@
 |---|---|
 | /projects/:projectId #overview | KPI 카드(소진액·잔액·예산소진율), 기간 필터, 누적/기간 대비 시각화, 임계치 상태 배지 |
 | /projects/:projectId #categories | 비목별 지출 목록(비목 그룹, 하위 지출명, 금액, 단계, 그룹별 합계/건수) |
-| /projects/:projectId #kanban | 5단계 칸반(사업비 등록/사전 승인/집행 수행/집행 요청/집행 완료), 칼럼 헤더(개수/합계), 카드(제목·금액·날짜·메타), forward-only 단계 이동 |
-| /projects/:projectId/expenses/:expenseId | 지출 기본정보, 단계 진행상태, 단계별 누적 입력 폼, 비목 정책 패널, 증빙 현황, 변경 히스토리 |
+| /projects/:projectId #kanban | 5단계 칸반(사업비 등록/사전 승인/집행 수행/집행 요청/집행 완료), 칼럼 헤더(개수/합계), 카드(제목·금액·날짜·메타), 모든 다른 단계로 드래그 이동 |
+| /projects/:projectId/expenses/:expenseId | 지출 기본정보, 좌측 vertical stepper, 우측 selected-stage 업무절차 workbench, 기업양식 토글, 필요 증빙서류 참조 |
 | 전역 유틸 바 | 프로젝트 스위처, 글로벌 검색, 기간 프리셋, +지출, 사용자/환경 |
 | 지출 빠른 등록 페이지 | 지출 제목, 비목 선택 드롭다운, 금액, 예상 날짜, 간단 메모, 카드 생성 액션 |
 | /settings/company | 기업 추가·수정 폼, 사업 등록 폼, 조건부 법인번호, 저장 피드백(토스트). 다중 기업 목록은 `/projects`에서 제공 |
@@ -119,15 +119,15 @@
 
 ## 6. Interaction Patterns (인터랙션 패턴)
 - 로컬 섹션 내비게이션: Scrollspy + 부드러운 스크롤, URL 해시 동기화
-- 칸반 보드: forward-only 단계 이동, 단계 간 소프트 게이트 안내(체크리스트/준비도 0–100%)
+- 칸반 보드: 모든 다른 단계로 자유 이동, 실패 시 원래 칼럼으로 롤백
 - 빠른 등록: `+ 지출` 클릭 시 `/projects/:projectId/expenses`로 이동하며, 페이지 전환 후 카드가 생성된다
 - 지출 카드 클릭: 드로어를 열지 않고 `/projects/:projectId/expenses/:expenseId` 상세 풀페이지로 이동
-- 지출 상세 풀페이지: 단계별 누적 입력 폼, 증빙 현황, 검증 메시지, 변경 히스토리를 하나의 full-width long-card 흐름 안에서 제공
+- 지출 상세 풀페이지: 좌측 vertical progress stepper와 우측 selected-stage workbench를 제공한다. 단계 클릭은 미리보기이며 실제 변경은 `이 단계로 이동` 버튼으로만 저장한다.
 - 인라인 편집: 비목/테이블 셀 Enter 확정, Esc 취소
 - 피드백: Skeleton 로딩, 토스트(성공 3초, 오류 수동 닫기), 필드 인라인 에러
-- 단축키: N(새 지출), /(검색), Cmd/Ctrl+S(저장), ](다음 단계), 1–4(섹션 점프)
+- 단축키: N(새 지출), /(검색), Cmd/Ctrl+S(저장), 1–4(섹션 점프)
 - 포커스/접근성: 2px Primary 포커스 링, aria-label/aria-current, 스크린리더 레이블(비목/잔액/소진률 명시)
-- 파일 업로드 어디서든 드래그: 포커스된 지출 상세 또는 업로드 영역으로 흡수 업로드
+- 지출 상세의 증빙서류 영역은 참조 전용이다. 이 화면에서는 파일 첨부, 삭제, zip 다운로드를 제공하지 않는다.
 
 ## 7. URL Structure (URL 구조)
 일관·가독·딥링크를 우선하며, 내부툴 특성상 SEO는 차단 지향(그래도 명명 규칙은 유지).
@@ -245,10 +245,10 @@
 ## Operation Dashboard Slice 3 information architecture (2026-06-24)
 
 - `/projects/:projectId#kanban`: 5-stage board for stage visibility and drag-and-drop based movement.
-- Slice 3 persists only one-step forward movement. The mutation receives `targetStageKey`, but the service accepts only the immediate next stage in this slice.
-- Stage control includes drag-and-drop plus an accessible next-step button/keyboard path that uses the same mutation.
-- Reverse movement, multi-stage jump movement, soft-gate UI, missing-info toast/badge guidance, and automatic history remain deferred.
-- `/projects/:projectId/expenses/:expenseId`: detailed edit flow, evidence, and history remain on the full page.
+- Stage movement persists any different canonical stage. The mutation receives `targetStageKey`; same-stage movement is a UI no-op.
+- Stage control includes drag-and-drop plus an accessible stage selector/keyboard path that uses the same mutation.
+- Soft-gate UI, missing-info toast/badge guidance, and custom per-project stage rules remain deferred.
+- `/projects/:projectId/expenses/:expenseId`: detailed edit flow, selected-stage workbench, enterprise forms, and read-only evidence references remain on the full page.
 - Slice 3 does not move quick registration back into kanban; `/projects/:projectId/expenses` remains the entry point.
 
 ## Figma Current+Color IA alignment (2026-06-26)
@@ -264,5 +264,5 @@
 - Canonical expense stage labels are `사업비 등록`, `사전 승인`, `집행 수행`, `집행 요청`, `집행 완료`.
 - The `/projects/:projectId` dashboard keeps the order KPI -> category spend -> kanban.
 - `#categories` renders vertical category groups. Groups are collapsed by default, expose category name/count/total/stage summary, and reveal child expenses after expansion.
-- `#kanban` renders all five canonical stages and keeps immediate-forward movement semantics.
+- `#kanban` renders all five canonical stages and supports movement to any different canonical stage.
 - `/projects/:projectId/expenses/:expenseId` remains a full page. It uses a 5-step stage indicator and a long main detail card for basic info, stage rows, evidence, validation, and history.

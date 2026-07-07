@@ -67,11 +67,11 @@ describe("DashboardKanbanBoard", () => {
     expect(screen.getByTestId("kanban-column-execution_in_progress")).toBeInTheDocument();
     expect(screen.getByTestId("kanban-column-execution_request")).toBeInTheDocument();
     expect(screen.getByTestId("kanban-column-execution_completed")).toBeInTheDocument();
-    expect(screen.getByText("사업비 등록")).toBeInTheDocument();
-    expect(screen.getByText("사전 승인")).toBeInTheDocument();
-    expect(screen.getByText("집행 수행")).toBeInTheDocument();
-    expect(screen.getByText("집행 요청")).toBeInTheDocument();
-    expect(screen.getByText("집행 완료")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "사업비 등록" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "사전 승인" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "집행 수행" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "집행 요청" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "집행 완료" })).toBeInTheDocument();
     expect(within(screen.getByTestId("kanban-column-budget_registration")).getByText("Prototype parts")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Prototype parts/ })).toHaveAttribute(
       "href",
@@ -116,7 +116,7 @@ describe("DashboardKanbanBoard", () => {
     expect(within(screen.getByTestId("kanban-column-budget_registration")).getByText(/1\/2/)).toBeInTheDocument();
   });
 
-  it("moves a card one stage forward through drag and drop", () => {
+  it("moves a card to any different stage through drag and drop", () => {
     render(<DashboardKanbanBoard dashboard={dashboard} projectId={projectId} />);
 
     const dataTransfer = createDataTransfer();
@@ -126,25 +126,24 @@ describe("DashboardKanbanBoard", () => {
     expect(card).not.toBeNull();
 
     fireEvent.dragStart(card as HTMLElement, { dataTransfer });
-    screen.getByTestId("kanban-column-pre_approval").dispatchEvent(dragOver);
-    fireEvent.drop(screen.getByTestId("kanban-column-pre_approval"), { dataTransfer });
+    screen.getByTestId("kanban-column-execution_request").dispatchEvent(dragOver);
+    fireEvent.drop(screen.getByTestId("kanban-column-execution_request"), { dataTransfer });
 
     expect(dragOver.defaultPrevented).toBe(true);
     expect(mutationState.mutate).toHaveBeenCalledWith(
       {
         expenseId: "22222222-2222-4222-8222-222222222222",
-        input: { targetStageKey: "pre_approval" },
+        input: { targetStageKey: "execution_request" },
       },
       expect.objectContaining({ onError: expect.any(Function) }),
     );
-    expect(within(screen.getByTestId("kanban-column-pre_approval")).getByText("Prototype parts")).toBeInTheDocument();
+    expect(within(screen.getByTestId("kanban-column-execution_request")).getByText("Prototype parts")).toBeInTheDocument();
   });
 
   it("rolls back optimistic movement and shows a generic board error on mutation failure", async () => {
     mutationState.mutate.mockImplementation((_variables, options) => options.onError(new Error("failed")));
     render(<DashboardKanbanBoard dashboard={dashboard} projectId={projectId} />);
-
-    await userEvent.click(screen.getByRole("button", { name: /다음 단계/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: /Prototype parts/ }), { target: { value: "pre_approval" } });
 
     expect(screen.getByRole("alert")).toHaveTextContent("지출 단계를 변경하지 못했습니다. 다시 시도해 주세요.");
     expect(within(screen.getByTestId("kanban-column-budget_registration")).getByText("Prototype parts")).toBeInTheDocument();

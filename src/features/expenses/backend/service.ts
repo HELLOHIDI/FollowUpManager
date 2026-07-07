@@ -5,7 +5,6 @@ import type { Database, Json } from "@/lib/supabase/types";
 import {
   EXPENSE_FUNDING_SOURCE_OPTIONS,
   getBudgetCategoryPolicySortOrder,
-  isImmediateForwardExpenseStage,
   type ExpenseStageKey,
 } from "@/features/domain/contracts";
 import { resolvePolicyCategories } from "@/features/program-evidence-policy/backend/service";
@@ -196,14 +195,20 @@ const mapStageFields = (stageFields: unknown) => ({
   executionMemo: readStageField(stageFields, stageFieldKeys.executionMemo),
   executionRequestMemo: readStageField(stageFields, stageFieldKeys.executionRequestMemo),
   preApprovalMemo: readStageField(stageFields, stageFieldKeys.preApprovalMemo),
+  procedures: stageFields && typeof stageFields === "object" && !Array.isArray(stageFields)
+    ? (stageFields as Record<string, unknown>).procedures
+    : undefined,
 });
 
 const toDatabaseStageFields = (stageFields: ExpenseUpdateInput["stageFields"]) =>
-  Object.fromEntries(
-    Object.entries(stageFieldKeys)
-      .map(([apiKey, databaseKey]) => [databaseKey, stageFields[apiKey as keyof typeof stageFieldKeys] ?? null])
-      .filter(([, value]) => value !== null && value !== ""),
-  );
+  ({
+    ...Object.fromEntries(
+      Object.entries(stageFieldKeys)
+        .map(([apiKey, databaseKey]) => [databaseKey, stageFields[apiKey as keyof typeof stageFieldKeys] ?? null])
+        .filter(([, value]) => value !== null && value !== ""),
+    ),
+    ...(stageFields.procedures ? { procedures: stageFields.procedures } : {}),
+  });
 
 const toDatabaseStageFieldsWithFundingSource = (input: ExpenseUpdateInput) => ({
   ...toDatabaseStageFields(input.stageFields),
@@ -1214,8 +1219,11 @@ export const updateExpenseStage = async (
   }
 
   const currentStageKey = existingRow.stage_key as ExpenseStageKey;
-  if (!isImmediateForwardExpenseStage(currentStageKey, parsed.data.targetStageKey)) {
-    return failure(409, expenseErrorCodes.invalidStageTransition, "지출은 바로 다음 단계로만 이동할 수 있습니다.");
+  if (currentStageKey === parsed.data.targetStageKey) {
+    const response = mapExpenseResponse(existingRow);
+    return response.success
+      ? success(response.data)
+      : failure(409, expenseErrorCodes.integrity, "지출 응답 형식을 확인해 주세요.");
   }
 
   const { data, error } = await client.rpc("update_expense_stage_with_history", {

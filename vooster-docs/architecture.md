@@ -19,6 +19,14 @@ Next.js 15, Hono.js, Supabase Auth, Supabase PostgreSQL, Supabase Storage, TypeS
 - Root route `/` redirects to the last used project dashboard when authenticated. If unauthenticated, it should redirect to `/login`.
 - Protected routes should be enforced by `middleware.ts` with Supabase Auth session checks.
 
+## Expense Detail Workbench Contract (2026-07-07)
+
+- Expense procedures are stored in existing `expenses.stage_fields.procedures` for V1. Do not add a procedure table until cross-expense querying, audit evidence, editable definitions, per-procedure permissions, or SQL analytics require it.
+- Stage mutation accepts any different canonical expense stage and keeps the current-stage RPC parameter for stale-state protection.
+- Same-stage movement is a UI no-op and should not create history.
+- Evidence upload/storage APIs remain available, but the expense detail workbench exposes evidence requirements as read-only reference rows.
+- Project template downloads remain the source for enterprise forms; the workbench exposes view/download only.
+
 ## Directory Structure
 
 

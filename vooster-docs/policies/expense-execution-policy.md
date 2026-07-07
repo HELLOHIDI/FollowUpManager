@@ -1,5 +1,7 @@
 # Expense Execution Policy
 
+> 2026-07-07 update: 지출 상세는 좌측 vertical progress stepper와 우측 selected-stage workbench를 기준으로 한다. 단계 이동은 전/후/건너뛰기 모두 허용하며, `이 단계로 이동` 버튼으로만 저장한다. 상세 화면의 증빙서류는 참조 전용이고 파일 첨부·삭제·zip 다운로드는 제공하지 않는다.
+
 ## 1. 문서 역할
 
 이 문서는 FuManager에서 지출이 어떤 단계로 관리되고, 각 단계에서 어떤 정보를 입력해야 하는지 정의하는 도메인 정책 문서다.
@@ -1011,16 +1013,16 @@ This section supersedes earlier four-stage and multi-amount descriptions.
 4. `execution_request` — 집행 요청
 5. `execution_completed` — 집행 완료
 
-Forward movement is sequential. A later mutation slice may allow backward movement while retaining entered fields and automatically recording history. `expenses.amount` is the only current expense amount. Actual spend is `sum(amount)` for active `execution_completed` rows only; `execution_request` is not spend. Remaining is `total_project_budget - spent`, and burn ratio is `spent / total_project_budget`. Negative remaining or a ratio above one is an integrity error, never a value to clamp.
+Stage movement is no longer sequential-only as of 2026-07-07. Users may move to any different canonical stage while retaining entered fields and recording history through the stage mutation. `expenses.amount` is the only current expense amount. Actual spend is `sum(amount)` for active `execution_completed` rows only; `execution_request` is not spend. Remaining is `total_project_budget - spent`, and burn ratio is `spent / total_project_budget`. Negative remaining or a ratio above one is an integrity error, never a value to clamp.
 
 ## Operation Dashboard Slice 3 movement boundary (2026-06-24)
 
-Slice 3 implements kanban stage movement with drag-and-drop as the primary interaction and an accessible next-step button or keyboard path as the fallback.
+This 2026-06-24 Slice 3 boundary is superseded by the 2026-07-07 free-movement workbench contract. Kanban stage movement keeps drag-and-drop as the primary interaction and provides an accessible stage selector as the fallback.
 
 - The stage mutation receives `targetStageKey`.
-- In Slice 3, the service accepts only the immediate next stage from the current `stage_key`.
-- Same-stage movement, reverse movement, and multi-stage forward jumps are rejected in this slice.
-- Institution- or project-specific stage skipping may be enabled in a later slice through the same `targetStageKey` contract.
+- The service accepts any different stage from the current `stage_key`; same-stage movement is a UI no-op.
+- Reverse movement and multi-stage jumps are allowed.
+- Institution- or project-specific custom stage rules may be enabled in a later slice through the same `targetStageKey` contract.
 - Missing recommended fields or evidence do not block movement, but Slice 3 does not implement soft-gate UI, missing-info toast, or card badge guidance.
 - Automatic `stage_changed` history is deferred; Slice 3 updates only `expenses.stage_key`.
 - Moving to `execution_completed` can be rejected by the server/database completed-spend cap. The UI should roll back the optimistic card movement and show a generic error.

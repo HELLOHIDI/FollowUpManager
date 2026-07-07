@@ -47,6 +47,11 @@ export const isImmediateForwardExpenseStage = (
   targetStageKey: ExpenseStageKey,
 ) => getNextExpenseStageKey(currentStageKey) === targetStageKey;
 
+export const isDifferentExpenseStage = (
+  currentStageKey: ExpenseStageKey,
+  targetStageKey: ExpenseStageKey,
+) => currentStageKey !== targetStageKey;
+
 export const BUDGET_CATEGORY_POLICY_KEYS = [
   "material_cost",
   "outsourcing_cost",
