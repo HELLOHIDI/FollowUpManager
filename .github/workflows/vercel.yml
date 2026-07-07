@@ -43,10 +43,26 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
+      - name: Pull Vercel preview environment
+        if: github.event_name == 'pull_request' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        run: vercel pull --yes --environment=preview --token=${{ env.VERCEL_TOKEN }}
+
+      - name: Build Vercel preview
+        if: github.event_name == 'pull_request' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        run: vercel build --token=${{ env.VERCEL_TOKEN }}
+
       - name: Deploy preview
         if: github.event_name == 'pull_request' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
-        run: vercel deploy --yes --token=${{ env.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt --yes --logs --token=${{ env.VERCEL_TOKEN }}
+
+      - name: Pull Vercel production environment
+        if: github.event_name == 'push' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        run: vercel pull --yes --environment=production --token=${{ env.VERCEL_TOKEN }}
+
+      - name: Build Vercel production
+        if: github.event_name == 'push' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        run: vercel build --prod --token=${{ env.VERCEL_TOKEN }}
 
       - name: Deploy production
         if: github.event_name == 'push' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
-        run: vercel deploy --yes --prod --token=${{ env.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt --yes --prod --logs --token=${{ env.VERCEL_TOKEN }}
