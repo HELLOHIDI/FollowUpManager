@@ -20,10 +20,6 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      FALLBACK_NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || vars.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321' }}
-      FALLBACK_NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'test-anon-key' }}
-      FALLBACK_SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL || vars.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321' }}
-      FALLBACK_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || vars.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key' }}
 
     steps:
       - name: Checkout
@@ -57,10 +53,33 @@ jobs:
           set -a
           source .vercel/.env.preview.local
           set +a
-          NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-$FALLBACK_NEXT_PUBLIC_SUPABASE_URL}"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-$FALLBACK_NEXT_PUBLIC_SUPABASE_ANON_KEY}"
-          SUPABASE_URL="${SUPABASE_URL:-$FALLBACK_SUPABASE_URL}"
-          SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-$FALLBACK_SUPABASE_SERVICE_ROLE_KEY}"
+          required_env=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY)
+          for key in "${required_env[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::$key is required for Vercel preview deployment"
+              exit 1
+            fi
+          done
+          case "$NEXT_PUBLIC_SUPABASE_URL" in
+            http://localhost:*|http://127.0.0.1:*)
+              echo "::error::NEXT_PUBLIC_SUPABASE_URL must not point to a local Supabase instance"
+              exit 1
+              ;;
+          esac
+          case "$SUPABASE_URL" in
+            http://localhost:*|http://127.0.0.1:*)
+              echo "::error::SUPABASE_URL must not point to a local Supabase instance"
+              exit 1
+              ;;
+          esac
+          if [ "$NEXT_PUBLIC_SUPABASE_ANON_KEY" = "test-anon-key" ]; then
+            echo "::error::NEXT_PUBLIC_SUPABASE_ANON_KEY must not use the local test key"
+            exit 1
+          fi
+          if [ "$SUPABASE_SERVICE_ROLE_KEY" = "test-service-role-key" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY must not use the local test key"
+            exit 1
+          fi
           vercel deploy --yes --logs \
             --build-env NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
             --build-env NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
@@ -82,10 +101,33 @@ jobs:
           set -a
           source .vercel/.env.production.local
           set +a
-          NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-$FALLBACK_NEXT_PUBLIC_SUPABASE_URL}"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-$FALLBACK_NEXT_PUBLIC_SUPABASE_ANON_KEY}"
-          SUPABASE_URL="${SUPABASE_URL:-$FALLBACK_SUPABASE_URL}"
-          SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-$FALLBACK_SUPABASE_SERVICE_ROLE_KEY}"
+          required_env=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY)
+          for key in "${required_env[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::$key is required for Vercel production deployment"
+              exit 1
+            fi
+          done
+          case "$NEXT_PUBLIC_SUPABASE_URL" in
+            http://localhost:*|http://127.0.0.1:*)
+              echo "::error::NEXT_PUBLIC_SUPABASE_URL must not point to a local Supabase instance"
+              exit 1
+              ;;
+          esac
+          case "$SUPABASE_URL" in
+            http://localhost:*|http://127.0.0.1:*)
+              echo "::error::SUPABASE_URL must not point to a local Supabase instance"
+              exit 1
+              ;;
+          esac
+          if [ "$NEXT_PUBLIC_SUPABASE_ANON_KEY" = "test-anon-key" ]; then
+            echo "::error::NEXT_PUBLIC_SUPABASE_ANON_KEY must not use the local test key"
+            exit 1
+          fi
+          if [ "$SUPABASE_SERVICE_ROLE_KEY" = "test-service-role-key" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY must not use the local test key"
+            exit 1
+          fi
           vercel deploy --yes --prod --logs \
             --build-env NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
             --build-env NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
