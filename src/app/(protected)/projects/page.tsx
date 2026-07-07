@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import {
   ArrowRight,
   Building2,
+  ChevronDown,
   FolderKanban,
   Loader2,
   Plus,
@@ -135,15 +137,25 @@ function EmptyCompanyState() {
 }
 
 function CompanyProjectCard({ company }: { company: CompanyResponse }) {
-  const projectsQuery = useCompanyProjectsQuery(company.id);
+  const [isOpen, setIsOpen] = useState(false);
+  const projectsQuery = useCompanyProjectsQuery(company.id, isOpen);
   const { prefetchDashboard, prefetchProject } = useProjectNavigationPrefetch();
   const projects = projectsQuery.data ?? [];
 
   return (
     <Card className="shadow-none">
       <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
+        <button
+          aria-expanded={isOpen}
+          className="min-w-0 flex-1 text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          onClick={() => setIsOpen((current) => !current)}
+          type="button"
+        >
           <div className="flex items-center gap-2">
+            <ChevronDown
+              className={`size-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`}
+              aria-hidden="true"
+            />
             <span
               className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"
               aria-hidden="true"
@@ -162,7 +174,7 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               </CardDescription>
             </div>
           </div>
-        </div>
+        </button>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">
             <Link href={routes.companyProjectCreate(company.id, routes.projects)}>
@@ -178,85 +190,87 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
-        {projectsQuery.isPending ? (
-          <div className="flex items-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            사업 목록을 불러오는 중입니다.
-          </div>
-        ) : projectsQuery.isError ? (
-          <div
-            className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4"
-            role="alert"
-          >
-            <p className="text-sm text-destructive">
-              사업 목록을 불러오지 못했습니다.
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => void projectsQuery.refetch()}
+      {isOpen ? (
+        <CardContent>
+          {projectsQuery.isPending ? (
+            <div className="flex items-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              사업 목록을 불러오는 중입니다.
+            </div>
+          ) : projectsQuery.isError ? (
+            <div
+              className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4"
+              role="alert"
             >
-              다시 시도
-            </Button>
-          </div>
-        ) : projects.length === 0 ? (
-          <div className="rounded-md border border-dashed p-4">
-            <p className="text-sm font-medium">아직 등록된 사업이 없습니다</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              이 기업의 첫 사업을 등록하면 대시보드가 생성됩니다.
-            </p>
-            <Button asChild className="mt-3" size="sm">
-              <Link href={routes.companyProjectCreate(company.id, routes.projects)}>
-                사업 등록하기
-              </Link>
-            </Button>
-          </div>
-        ) : (
-          <ul
-            className="divide-y rounded-md border"
-            aria-label={`${company.companyName} 사업 목록`}
-          >
-            {projects.map((project) => (
-              <li
-                className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-                key={project.id}
+              <p className="text-sm text-destructive">
+                사업 목록을 불러오지 못했습니다.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void projectsQuery.refetch()}
               >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{project.projectName}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {project.hostInstitution} · {project.agreementStartDate} ~{" "}
-                    {project.agreementEndDate}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  <Button asChild>
-                    <Link
-                      href={routes.project(project.id)}
-                      onFocus={() => void prefetchDashboard(project.id)}
-                      onMouseEnter={() => void prefetchDashboard(project.id)}
-                    >
-                      <FolderKanban className="size-4" aria-hidden="true" />
-                      대시보드
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline">
-                    <Link
-                      href={routes.projectManagement(project.id)}
-                      onFocus={() => void prefetchProject(project.id)}
-                      onMouseEnter={() => void prefetchProject(project.id)}
-                    >
-                      <Settings className="size-4" aria-hidden="true" />
-                      관리
-                    </Link>
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
+                다시 시도
+              </Button>
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="rounded-md border border-dashed p-4">
+              <p className="text-sm font-medium">아직 등록된 사업이 없습니다</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                이 기업의 첫 사업을 등록하면 대시보드가 생성됩니다.
+              </p>
+              <Button asChild className="mt-3" size="sm">
+                <Link href={routes.companyProjectCreate(company.id, routes.projects)}>
+                  사업 등록하기
+                </Link>
+              </Button>
+            </div>
+          ) : (
+            <ul
+              className="divide-y rounded-md border"
+              aria-label={`${company.companyName} 사업 목록`}
+            >
+              {projects.map((project) => (
+                <li
+                  className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  key={project.id}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{project.projectName}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {project.hostInstitution} · {project.agreementStartDate} ~{" "}
+                      {project.agreementEndDate}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <Button asChild>
+                      <Link
+                        href={routes.project(project.id)}
+                        onFocus={() => void prefetchDashboard(project.id)}
+                        onMouseEnter={() => void prefetchDashboard(project.id)}
+                      >
+                        <FolderKanban className="size-4" aria-hidden="true" />
+                        대시보드
+                      </Link>
+                    </Button>
+                    <Button asChild variant="outline">
+                      <Link
+                        href={routes.projectManagement(project.id)}
+                        onFocus={() => void prefetchProject(project.id)}
+                        onMouseEnter={() => void prefetchProject(project.id)}
+                      >
+                        <Settings className="size-4" aria-hidden="true" />
+                        관리
+                      </Link>
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      ) : null}
     </Card>
   );
 }

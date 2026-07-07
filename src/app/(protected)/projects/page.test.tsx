@@ -143,12 +143,19 @@ describe("ProjectsPage", () => {
     });
 
     renderProjectsPage();
+    const companyToggle = (
+      await screen.findByText(registeredCompany.companyName)
+    ).closest("button");
+    expect(companyToggle).not.toBeNull();
+
+    expect(projectApi.fetchCompanyProjects).not.toHaveBeenCalled();
+    await userEvent.click(companyToggle!);
     const dashboardLink = await screen.findByRole("link", {
       name: /대시보드/,
     });
 
-    expect(screen.getByText("테스트 기업")).toBeInTheDocument();
-    expect(screen.getByText("운영 대시보드 사업")).toBeInTheDocument();
+    expect(screen.getByText(registeredCompany.companyName)).toBeInTheDocument();
+    expect(screen.getByText(registeredProject.projectName)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^사업 등록$/ })).toHaveAttribute(
       "href",
       `/settings/company?mode=project-create&projectCompanyId=${registeredCompany.id}&returnTo=%2Fprojects`,
