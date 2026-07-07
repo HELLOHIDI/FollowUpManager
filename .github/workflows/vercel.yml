@@ -47,22 +47,32 @@ jobs:
         if: github.event_name == 'pull_request' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
         run: vercel pull --yes --environment=preview --token=${{ env.VERCEL_TOKEN }}
 
-      - name: Build Vercel preview
-        if: github.event_name == 'pull_request' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
-        run: vercel build --token=${{ env.VERCEL_TOKEN }}
-
       - name: Deploy preview
         if: github.event_name == 'pull_request' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
-        run: vercel deploy --prebuilt --yes --logs --token=${{ env.VERCEL_TOKEN }}
+        run: |
+          set -a
+          source .vercel/.env.preview.local
+          set +a
+          vercel deploy --yes --logs \
+            --build-env NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+            --build-env NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+            --env NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+            --env NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+            --token=${{ env.VERCEL_TOKEN }}
 
       - name: Pull Vercel production environment
         if: github.event_name == 'push' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
         run: vercel pull --yes --environment=production --token=${{ env.VERCEL_TOKEN }}
 
-      - name: Build Vercel production
-        if: github.event_name == 'push' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
-        run: vercel build --prod --token=${{ env.VERCEL_TOKEN }}
-
       - name: Deploy production
         if: github.event_name == 'push' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
-        run: vercel deploy --prebuilt --yes --prod --logs --token=${{ env.VERCEL_TOKEN }}
+        run: |
+          set -a
+          source .vercel/.env.production.local
+          set +a
+          vercel deploy --yes --prod --logs \
+            --build-env NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+            --build-env NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+            --env NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+            --env NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+            --token=${{ env.VERCEL_TOKEN }}
