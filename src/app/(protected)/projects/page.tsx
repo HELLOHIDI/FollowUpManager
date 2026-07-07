@@ -8,6 +8,7 @@ import {
   Loader2,
   Plus,
   Settings,
+  Trash2,
 } from "lucide-react";
 import { PageHeading } from "@/components/product-shell";
 import { Button } from "@/components/ui/button";
@@ -20,27 +21,35 @@ import {
 } from "@/components/ui/card";
 import { routes } from "@/constants/routes";
 import { useCompaniesQuery } from "@/features/company/hooks/use-companies-query";
+import { useCompanyMutations } from "@/features/company/hooks/use-company-mutations";
 import {
+  COMPANY_ACCOUNT_MANAGER_OPTIONS,
   formatBusinessRegistrationNumber,
   type CompanyResponse,
 } from "@/features/company/lib/dto";
 import {
   useCompanyProjectsQuery,
+  useProjectMutations,
   useProjectNavigationPrefetch,
 } from "@/features/projects/hooks/use-projects";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ProjectsPage() {
   const companiesQuery = useCompaniesQuery();
   const companies = companiesQuery.data ?? [];
+  const managerSections = COMPANY_ACCOUNT_MANAGER_OPTIONS.map((manager) => ({
+    ...manager,
+    companies: companies.filter(({ accountManager }) => accountManager === manager.name),
+  }));
 
   return (
     <>
       <PageHeading
-        eyebrow="사업 선택"
-        title="운영 대시보드로 이동하세요"
-        description="등록된 기업과 사업을 한곳에서 확인하고, 바로 사업 운영 대시보드로 이동할 수 있습니다."
+        eyebrow="기업 담당"
+        title="담당자별 기업을 확인하세요"
+        description="기업별 담당자를 기준으로 사업 등록과 운영 대시보드 진입을 관리합니다."
         actions={
-          <Button asChild variant="outline">
+          <Button asChild>
             <Link href={routes.companyCreate(routes.projects)}>
               <Building2 className="size-4" aria-hidden="true" />
               기업 추가하기
@@ -73,9 +82,42 @@ export default function ProjectsPage() {
         <EmptyCompanyState />
       ) : (
         <div className="grid gap-4">
-          <section className="grid gap-4" aria-label="등록 기업과 사업">
-            {companies.map((company) => (
-              <CompanyProjectCard key={company.id} company={company} />
+          <section
+            className="grid gap-4 xl:grid-cols-2"
+            aria-label="담당자별 기업과 사업"
+          >
+            {managerSections.map((manager) => (
+              <section
+                className="grid content-start gap-3 rounded-lg border bg-card p-3"
+                key={manager.name}
+                aria-labelledby={`manager-${manager.name}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2
+                      className="text-base font-semibold"
+                      id={`manager-${manager.name}`}
+                    >
+                      {manager.name}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {manager.team} {manager.role}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium tabular-nums text-muted-foreground">
+                    {manager.companies.length}
+                  </span>
+                </div>
+                {manager.companies.length > 0 ? (
+                  manager.companies.map((company) => (
+                    <CompanyProjectCard key={company.id} company={company} />
+                  ))
+                ) : (
+                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                    배정된 기업이 없습니다.
+                  </div>
+                )}
+              </section>
             ))}
           </section>
         </div>
@@ -136,8 +178,30 @@ function EmptyCompanyState() {
 
 function CompanyProjectCard({ company }: { company: CompanyResponse }) {
   const projectsQuery = useCompanyProjectsQuery(company.id);
+  const { deleteMutation: deleteCompanyMutation } = useCompanyMutations();
+  const { deleteMutation: deleteProjectMutation } = useProjectMutations();
   const { prefetchDashboard, prefetchProject } = useProjectNavigationPrefetch();
+  const { toast } = useToast();
   const projects = projectsQuery.data ?? [];
+  const deleteCompany = async () => {
+    if (!confirm(`${company.companyName} 기업과 연결된 사업을 삭제할까요?`)) return;
+    try {
+      await deleteCompanyMutation.mutateAsync(company.id);
+      toast({ title: "기업을 삭제했습니다.", description: `${company.companyName} 기업을 목록에서 숨겼습니다.` });
+    } catch {
+      toast({ title: "기업을 삭제하지 못했습니다.", variant: "destructive" });
+    }
+  };
+  const deleteProject = async (project: { id?: string; projectName?: string }) => {
+    if (!project.id || !project.projectName) return;
+    if (!confirm(`${project.projectName} 사업을 삭제할까요?`)) return;
+    try {
+      await deleteProjectMutation.mutateAsync({ companyId: company.id, projectId: project.id });
+      toast({ title: "사업을 삭제했습니다.", description: `${project.projectName} 사업을 목록에서 숨겼습니다.` });
+    } catch {
+      toast({ title: "사업을 삭제하지 못했습니다.", variant: "destructive" });
+    }
+  };
 
   return (
     <Card className="shadow-none">
@@ -175,6 +239,16 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               <Settings className="size-4" aria-hidden="true" />
               기업 정보 수정
             </Link>
+          </Button>
+          <Button
+            disabled={deleteCompanyMutation.isPending}
+            onClick={() => void deleteCompany()}
+            size="sm"
+            type="button"
+            variant="weak-danger"
+          >
+            <Trash2 className="size-4" aria-hidden="true" />
+            기업 삭제
           </Button>
         </div>
       </CardHeader>
@@ -250,6 +324,15 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
                       <Settings className="size-4" aria-hidden="true" />
                       관리
                     </Link>
+                  </Button>
+                  <Button
+                    disabled={deleteProjectMutation.isPending}
+                    onClick={() => void deleteProject(project)}
+                    type="button"
+                    variant="weak-danger"
+                  >
+                    <Trash2 className="size-4" aria-hidden="true" />
+                    사업 삭제
                   </Button>
                 </div>
               </li>

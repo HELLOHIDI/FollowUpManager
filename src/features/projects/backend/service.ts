@@ -111,6 +111,20 @@ export const updateProject = async (client: Client, projectId: string, input: Pr
   return data ? mapProject(data as Record<string, unknown>) : failure(404, projectErrorCodes.notFound, "사업을 찾을 수 없습니다.");
 };
 
+export const deleteProject = async (client: Client, projectId: string) => {
+  const { data, error } = await client
+    .from("projects")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", projectId)
+    .is("deleted_at", null)
+    .select("id, company_id")
+    .maybeSingle();
+  if (error) return failure(500, projectErrorCodes.writeError, "사업을 삭제하지 못했습니다.");
+  return data
+    ? success({ companyId: data.company_id, id: data.id })
+    : failure(404, projectErrorCodes.notFound, "사업을 찾을 수 없습니다.");
+};
+
 const getDocumentRow = (client: Client, projectId: string, documentId: string) =>
   client.from("project_documents").select("*").eq("id", documentId).eq("project_id", projectId).maybeSingle();
 

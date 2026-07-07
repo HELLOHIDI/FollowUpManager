@@ -51,6 +51,7 @@ async function fillCompanyForm(
     foundedAt: string;
   },
 ) {
+  await page.locator('[name="accountManager"]').selectOption("정현정");
   await fill(page, "companyName", input.companyName);
   await page
     .locator('[name="businessType"]')

@@ -85,5 +85,19 @@ select throws_ok(
       from public.companies where business_registration_number = '5555555555'$$,
   '23505', null, 'assignment number is unique within a company'
 );
+update public.projects
+set deleted_at = now()
+where assignment_number = 'SCHEMA-001';
+
+insert into public.projects (
+  company_id, project_name, host_institution, agreement_start_date, agreement_end_date,
+  government_subsidy_amount, self_contribution_amount, total_project_budget,
+  assignment_number, assignment_name, manager_name, manager_phone, profile_status
+)
+select id, 'Recreated', 'Host', current_date, current_date, 1, 0, 1,
+  'SCHEMA-001', 'Recreated Assignment', 'Manager', '010-0000-0000', 'complete'
+from public.companies
+where business_registration_number = '5555555555';
+
 select * from finish();
 rollback;

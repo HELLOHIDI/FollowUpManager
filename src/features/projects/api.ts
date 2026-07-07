@@ -8,6 +8,9 @@ export const fetchCompanyProjects = async (companyId: string) => ProjectListResp
 export const fetchProject = async (projectId: string) => ProjectResponseSchema.parse((await apiClient.get(`/api/projects/${projectId}`)).data);
 export const createProjectRequest = async ({ companyId, input }: { companyId: string; input: ProjectInput }) => ProjectResponseSchema.parse((await apiClient.post(`/api/companies/${companyId}/projects`, input)).data);
 export const updateProjectRequest = async ({ projectId, input }: { projectId: string; input: ProjectInput }) => ProjectResponseSchema.parse((await apiClient.patch(`/api/projects/${projectId}`, input)).data);
+export const deleteProjectRequest = async ({ projectId }: { companyId: string; projectId: string }) => {
+  await apiClient.delete(`/api/projects/${projectId}`);
+};
 export const fetchProjectDocuments = async (projectId: string, purpose: ProjectDocumentPurpose = "institution_template") => ProjectDocumentListResponseSchema.parse((await apiClient.get(`/api/projects/${projectId}/documents?purpose=${purpose}`)).data);
 export const fetchProjectEvidenceDocuments = async (projectId: string) => ProjectEvidenceTemplateSetupResponseSchema.parse((await apiClient.get(`/api/projects/${projectId}/evidence-documents`)).data);
 export const saveProjectEvidenceDocuments = async ({ input, projectId }: { input: SaveProjectEvidenceDocumentsInput; projectId: string }) => ProjectEvidenceTemplateSetupResponseSchema.parse((await apiClient.put(`/api/projects/${projectId}/evidence-documents`, input)).data);

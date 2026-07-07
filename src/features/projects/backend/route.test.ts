@@ -102,7 +102,40 @@ const createProjectClient = (insertResult: { data: unknown; error: unknown }) =>
   };
 };
 
+const deleteProjectClient = (updateResult: { data: unknown; error: unknown }) => {
+  const maybeSingle = vi.fn().mockResolvedValue(updateResult);
+  const select = vi.fn(() => ({ maybeSingle }));
+  const is = vi.fn(() => ({ select }));
+  const eq = vi.fn(() => ({ is }));
+  const update = vi.fn(() => ({ eq }));
+  const from = vi.fn(() => ({ update }));
+
+  return {
+    client: { from } as unknown as SupabaseClient<Database>,
+    from,
+    update,
+  };
+};
+
 describe("project routes", () => {
+  it.each([
+    ["GET", `/api/companies/${COMPANY_ID}/projects`],
+    ["POST", `/api/companies/${COMPANY_ID}/projects`],
+    ["GET", `/api/projects/${PROJECT_ID}`],
+    ["PATCH", `/api/projects/${PROJECT_ID}`],
+    ["DELETE", `/api/projects/${PROJECT_ID}`],
+  ])("protects %s %s before privileged client creation", async (method, url) => {
+    const createProjectMutationClient = vi.fn();
+    const app = createHonoApp({
+      createAuthenticatedClient: vi.fn(),
+      createProjectMutationClient,
+    });
+    const response = await app.request(url, { method });
+
+    expect(response.status).toBe(401);
+    expect(createProjectMutationClient).not.toHaveBeenCalled();
+  });
+
   it("uses the authenticated client when listing projects for company setup", async () => {
     const service = projectClient();
     const authenticated = authClient(service.from);
@@ -145,5 +178,28 @@ describe("project routes", () => {
     expect(await response.json()).toMatchObject({ id: PROJECT_ID, companyId: COMPANY_ID });
     expect(service.from).toHaveBeenCalledWith("projects");
     expect(fallback.from).toHaveBeenCalledWith("projects");
+  });
+
+  it("soft-deletes a project through the mutation client", async () => {
+    const service = deleteProjectClient({
+      data: { company_id: COMPANY_ID, id: PROJECT_ID },
+      error: null,
+    });
+    const authenticated = authClient();
+    const app = createHonoApp({
+      createAuthenticatedClient: vi.fn(() => authenticated.client),
+      createProjectMutationClient: vi.fn(() => service.client),
+    });
+
+    const response = await app.request(`/api/projects/${PROJECT_ID}`, {
+      headers: { Authorization: "Bearer valid-token" },
+      method: "DELETE",
+    });
+
+    expect(response.status).toBe(200);
+    expect(service.update).toHaveBeenCalledWith(
+      expect.objectContaining({ deleted_at: expect.any(String) })
+    );
+    expect(await response.json()).toEqual({ companyId: COMPANY_ID, id: PROJECT_ID });
   });
 });

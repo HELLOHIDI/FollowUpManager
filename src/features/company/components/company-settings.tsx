@@ -32,12 +32,14 @@ import { uploadProjectDocuments } from "@/features/projects/api";
 import { useCompaniesQuery } from "../hooks/use-companies-query";
 import { useCompanyMutations } from "../hooks/use-company-mutations";
 import {
+  COMPANY_ACCOUNT_MANAGER_OPTIONS,
   CompanyInputSchema,
   type CompanyInput,
   type CompanyResponse,
 } from "../lib/dto";
 
 const EMPTY_COMPANY: CompanyInput = {
+  accountManager: "" as CompanyInput["accountManager"],
   businessRegistrationNumber: "",
   businessType: "sole_proprietor",
   companyName: "",
@@ -62,6 +64,7 @@ const getSafeReturnPath = (returnTo: string | null) =>
   returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : null;
 
 const toFormValues = (company: CompanyResponse): CompanyInput => ({
+  accountManager: company.accountManager,
   businessRegistrationNumber: company.businessRegistrationNumber,
   businessType: company.businessType,
   companyName: company.companyName,
@@ -100,6 +103,22 @@ function CompanyForm({
           {...form.register("companyName")}
         />
         <FieldError message={form.formState.errors.companyName?.message} />
+      </label>
+
+      <label className="grid gap-2 text-sm font-medium sm:col-span-2">
+        담당자
+        <select
+          className="h-10 rounded-md border bg-background px-3 text-sm"
+          {...form.register("accountManager")}
+        >
+          <option value="">담당자를 선택하세요</option>
+          {COMPANY_ACCOUNT_MANAGER_OPTIONS.map(({ name, role, team }) => (
+            <option key={name} value={name}>
+              {name} {team} {role}
+            </option>
+          ))}
+        </select>
+        <FieldError message={form.formState.errors.accountManager?.message} />
       </label>
 
       <label className="grid gap-2 text-sm font-medium">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createProjectRequest, deleteProjectDocumentRequest, fetchCompanyProjects, fetchProject, fetchProjectDocuments, fetchProjectEvidenceDocuments, fetchProjectEvidenceTemplateDownloads, saveProjectEvidenceDocuments, updateProjectRequest, uploadProjectDocument } from "../api";
+import { createProjectRequest, deleteProjectDocumentRequest, deleteProjectRequest, fetchCompanyProjects, fetchProject, fetchProjectDocuments, fetchProjectEvidenceDocuments, fetchProjectEvidenceTemplateDownloads, saveProjectEvidenceDocuments, updateProjectRequest, uploadProjectDocument } from "../api";
 import { fetchProjectDashboard } from "@/features/dashboard/api";
 import { dashboardKeys } from "@/features/dashboard/hooks/dashboard-keys";
 import type { ProjectDocumentPurpose, ProjectResponse } from "../lib/dto";
@@ -38,6 +38,11 @@ export const useProjectMutations = () => {
   };
   const createMutation = useMutation({ mutationFn: createProjectRequest, onSuccess: applyAuthoritativeProject });
   const updateMutation = useMutation({ mutationFn: updateProjectRequest, onSuccess: applyAuthoritativeProject });
+  const deleteMutation = useMutation({ mutationFn: deleteProjectRequest, onSuccess: (_, variables) => {
+    queryClient.removeQueries({ queryKey: projectKeys.detail(variables.projectId) });
+    queryClient.setQueryData<ProjectResponse[]>(projectKeys.companyList(variables.companyId), (projects) => projects?.filter(({ id }) => id !== variables.projectId) ?? []);
+    void queryClient.invalidateQueries({ queryKey: projectKeys.companyList(variables.companyId) });
+  } });
   const uploadMutation = useMutation({ mutationFn: ({ projectId, file, purpose = "institution_template" }: { projectId: string; file: File; purpose?: ProjectDocumentPurpose }) => uploadProjectDocument(projectId, file, purpose), onSuccess: (document) => void queryClient.invalidateQueries({ queryKey: projectKeys.documents(document.projectId, document.purpose) }) });
   const saveEvidenceDocumentsMutation = useMutation({ mutationFn: saveProjectEvidenceDocuments, onSuccess: (_, variables) => {
     void queryClient.invalidateQueries({ queryKey: projectKeys.evidenceDocuments(variables.projectId) });
@@ -48,5 +53,5 @@ export const useProjectMutations = () => {
     void queryClient.invalidateQueries({ queryKey: projectKeys.evidenceDocuments(variables.projectId) });
     void queryClient.invalidateQueries({ queryKey: projectKeys.evidenceTemplateDownloads(variables.projectId) });
   } });
-  return { createMutation, deleteDocumentMutation, saveEvidenceDocumentsMutation, updateMutation, uploadMutation };
+  return { createMutation, deleteDocumentMutation, deleteMutation, saveEvidenceDocumentsMutation, updateMutation, uploadMutation };
 };

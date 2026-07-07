@@ -11,6 +11,15 @@ export const COMPANY_PROFILE_STATUSES = [
   "complete",
   "review_required",
 ] as const;
+export const COMPANY_ACCOUNT_MANAGERS = [
+  "정현정",
+  "박종열",
+  "류희재",
+  "허진석",
+  "이영준",
+  "주재형",
+  "이정준",
+] as const;
 
 const BUSINESS_REGISTRATION_PATTERN = /^(?:[0-9]{10}|[0-9]{3}-[0-9]{2}-[0-9]{5})$/;
 const CORPORATE_REGISTRATION_PATTERN = /^(?:[0-9]{13}|[0-9]{6}-[0-9]{7})$/;
@@ -70,6 +79,13 @@ const corporateRegistrationNumberSchema = z.preprocess(
     .regex(/^[0-9]{13}$/, "법인등록번호는 숫자 13자리여야 합니다.")
     .nullable()
 );
+const accountManagerSchema = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.enum(COMPANY_ACCOUNT_MANAGERS, {
+    invalid_type_error: "담당자를 선택해 주세요.",
+    required_error: "담당자를 선택해 주세요.",
+  })
+);
 
 export const CompanyParamsSchema = z.object({
   companyId: z.string().uuid("기업 ID가 올바르지 않습니다."),
@@ -80,6 +96,7 @@ export const createCompanyInputSchema = (
 ) =>
   z
     .object({
+      accountManager: accountManagerSchema,
       businessRegistrationNumber: businessRegistrationNumberSchema,
       businessType: z.enum(BUSINESS_TYPES),
       companyName: z.string().trim().min(1, "기업명을 입력해 주세요.").max(100),
@@ -118,6 +135,7 @@ export const createCompanyInputSchema = (
 export const CompanyInputSchema = createCompanyInputSchema();
 
 export const CompanyRowSchema = z.object({
+  account_manager: z.enum(COMPANY_ACCOUNT_MANAGERS),
   business_registration_number: z.string().regex(/^[0-9]{10}$/),
   business_type: z.enum(BUSINESS_TYPES),
   company_name: z.string().min(1),
@@ -136,6 +154,7 @@ export const CompanyRowSchema = z.object({
 
 export const CompanyResponseSchema = z
   .object({
+    accountManager: z.enum(COMPANY_ACCOUNT_MANAGERS),
     businessRegistrationNumber: z.string().regex(/^[0-9]{10}$/),
     businessType: z.enum(BUSINESS_TYPES),
     companyName: z.string(),

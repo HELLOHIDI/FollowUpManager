@@ -99,6 +99,7 @@ export type Database = {
       }
       companies: {
         Row: {
+          account_manager: string
           business_registration_number: string
           business_type: string
           company_name: string
@@ -112,6 +113,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_manager: string
           business_registration_number: string
           business_type: string
           company_name: string
@@ -125,6 +127,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_manager?: string
           business_registration_number?: string
           business_type?: string
           company_name?: string

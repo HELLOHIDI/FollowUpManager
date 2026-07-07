@@ -28,3 +28,7 @@ export const updateCompanyRequest = async ({
   const { data } = await apiClient.patch(`/api/companies/${companyId}`, input);
   return CompanyResponseSchema.parse(data);
 };
+
+export const deleteCompanyRequest = async (companyId: string) => {
+  await apiClient.delete(`/api/companies/${companyId}`);
+};

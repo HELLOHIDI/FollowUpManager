@@ -8,6 +8,7 @@ import { CompanySettings } from "./company-settings";
 
 const api = vi.hoisted(() => ({
   createCompanyRequest: vi.fn(),
+  deleteCompanyRequest: vi.fn(),
   fetchCompanies: vi.fn(),
   updateCompanyRequest: vi.fn(),
 }));
@@ -17,6 +18,7 @@ const dashboardApi = vi.hoisted(() => ({
 const projectApi = vi.hoisted(() => ({
   createProjectRequest: vi.fn(),
   deleteProjectDocumentRequest: vi.fn(),
+  deleteProjectRequest: vi.fn(),
   fetchCompanyProjects: vi.fn(),
   fetchProject: vi.fn(),
   fetchProjectDocuments: vi.fn(),
@@ -48,6 +50,7 @@ vi.mock("@/lib/remote/api-client", () => ({
 }));
 
 const company = (overrides: Partial<CompanyResponse> = {}): CompanyResponse => ({
+  accountManager: "정현정",
   businessRegistrationNumber: "1234567890",
   businessType: "sole_proprietor",
   companyName: "기존 기업",
@@ -102,11 +105,13 @@ const renderSettings = () => {
 describe("CompanySettings", () => {
   beforeEach(() => {
     api.createCompanyRequest.mockReset();
+    api.deleteCompanyRequest.mockReset();
     api.fetchCompanies.mockReset();
     api.updateCompanyRequest.mockReset();
     dashboardApi.fetchProjectDashboard.mockReset();
     projectApi.createProjectRequest.mockReset();
     projectApi.deleteProjectDocumentRequest.mockReset();
+    projectApi.deleteProjectRequest.mockReset();
     projectApi.fetchCompanyProjects.mockReset();
     projectApi.fetchProject.mockReset();
     projectApi.fetchProjectDocuments.mockReset();
@@ -152,6 +157,7 @@ describe("CompanySettings", () => {
     ).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("기업명"), "추가 기업");
+    await user.selectOptions(screen.getByLabelText("담당자"), "박종열");
     await user.selectOptions(screen.getByLabelText("기업규모"), "small_enterprise");
     await user.type(screen.getByLabelText("사업자등록번호"), "9876543210");
     await user.type(screen.getByLabelText("설립일"), "2020-01-01");
@@ -159,6 +165,7 @@ describe("CompanySettings", () => {
 
     await waitFor(() => {
       expect(api.createCompanyRequest.mock.calls[0]?.[0]).toEqual({
+        accountManager: "박종열",
         businessRegistrationNumber: "9876543210",
         businessType: "sole_proprietor",
         companyName: "추가 기업",
@@ -284,6 +291,7 @@ describe("CompanySettings", () => {
     expect(screen.queryByLabelText("법인등록번호")).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("기업명"), "신규 법인");
+    await user.selectOptions(screen.getByLabelText("담당자"), "허진석");
     await user.selectOptions(screen.getByLabelText("회사 형태"), "corporation");
     await user.selectOptions(screen.getByLabelText("기업규모"), "small_enterprise");
     await user.type(screen.getByLabelText("사업자등록번호"), "987-65-43210");
@@ -293,6 +301,7 @@ describe("CompanySettings", () => {
 
     await waitFor(() => {
       expect(api.createCompanyRequest.mock.calls[0]?.[0]).toEqual({
+        accountManager: "허진석",
         businessRegistrationNumber: "9876543210",
         businessType: "corporation",
         companyName: "신규 법인",
@@ -317,6 +326,7 @@ describe("CompanySettings", () => {
 
     await screen.findByLabelText("기업명");
     await user.type(screen.getByLabelText("기업명"), "중복 기업");
+    await user.selectOptions(screen.getByLabelText("담당자"), "정현정");
     await user.selectOptions(screen.getByLabelText("기업규모"), "small_enterprise");
     await user.type(screen.getByLabelText("사업자등록번호"), "1234567890");
     await user.type(screen.getByLabelText("설립일"), "2020-01-01");

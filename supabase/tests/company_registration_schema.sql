@@ -179,6 +179,28 @@ begin
 end
 $$;
 
+update public.companies
+set deleted_at = now()
+where business_registration_number = '1234567890';
+
+insert into public.companies (
+  company_name,
+  business_type,
+  company_size,
+  business_registration_number,
+  corporate_registration_number,
+  founded_at,
+  profile_status
+) values (
+  'Schema Corporation Recreated',
+  'corporation',
+  'small_enterprise',
+  '1234567890',
+  '1234567890124',
+  current_date,
+  'complete'
+);
+
 select pass('company registration schema and constraints are valid');
 select * from finish();
 

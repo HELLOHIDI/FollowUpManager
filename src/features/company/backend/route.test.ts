@@ -12,6 +12,7 @@ const TEST_USER = {
 } as User;
 const COMPANY_ID = "22222222-2222-4222-8222-222222222222";
 const COMPANY_ROW = {
+  account_manager: "정현정",
   business_registration_number: "1234567890",
   business_type: "corporation",
   company_name: "테스트 기업",
@@ -25,6 +26,7 @@ const COMPANY_ROW = {
   updated_at: "2026-06-22T00:00:00.000Z",
 };
 const COMPANY_INPUT = {
+  accountManager: "정현정",
   businessRegistrationNumber: "123-45-67890",
   businessType: "corporation",
   companyName: "테스트 기업",
@@ -110,6 +112,7 @@ describe("company API boundary", () => {
     ["POST", "/api/companies"],
     ["GET", `/api/companies/${COMPANY_ID}`],
     ["PATCH", `/api/companies/${COMPANY_ID}`],
+    ["DELETE", `/api/companies/${COMPANY_ID}`],
   ])("protects %s %s before privileged client creation", async (method, url) => {
     const app = createHonoApp({
       createAuthenticatedClient: vi.fn(),
@@ -126,6 +129,7 @@ describe("company API boundary", () => {
     ["POST", "/api/companies"],
     ["GET", `/api/companies/${COMPANY_ID}`],
     ["PATCH", `/api/companies/${COMPANY_ID}`],
+    ["DELETE", `/api/companies/${COMPANY_ID}`],
   ])("rejects an invalid token for %s %s", async (method, url) => {
     const getUser = vi.fn().mockResolvedValue({
       data: { user: null },
@@ -162,7 +166,11 @@ describe("company API boundary", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([
-      expect.objectContaining({ id: COMPANY_ID, companyName: "테스트 기업" }),
+      expect.objectContaining({
+        accountManager: "정현정",
+        id: COMPANY_ID,
+        companyName: "테스트 기업",
+      }),
     ]);
     expect(auth.from).toHaveBeenCalledWith("companies");
     expect(auth.listFirstOrder).toHaveBeenCalledWith("created_at", {
@@ -205,6 +213,7 @@ describe("company API boundary", () => {
     expect(response.status).toBe(201);
     expect(createCompanyMutationClient).toHaveBeenCalledTimes(1);
     expect(mutation.insert).toHaveBeenCalledWith({
+      account_manager: "정현정",
       business_registration_number: "1234567890",
       business_type: "corporation",
       company_name: "테스트 기업",
@@ -315,7 +324,7 @@ describe("company API boundary", () => {
       insertError: {
         code: "23505",
         message:
-          'duplicate key violates unique constraint "companies_business_registration_number_key"',
+          'duplicate key violates unique constraint "companies_business_registration_number_active_unique"',
       },
     });
     createCompanyMutationClient.mockReturnValue(mutation.client);
@@ -350,5 +359,25 @@ describe("company API boundary", () => {
 
     expect(response.status).toBe(404);
     expect(createCompanyMutationClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("soft-deletes a company through the mutation client", async () => {
+    const auth = authorizedClient();
+    const mutation = mutationClient({ updateRow: { id: COMPANY_ID } });
+    createCompanyMutationClient.mockReturnValue(mutation.client);
+    const app = createHonoApp({
+      createAuthenticatedClient: vi.fn(() => auth.client),
+      createCompanyMutationClient,
+    });
+    const response = await app.request(
+      `/api/companies/${COMPANY_ID}`,
+      requestOptions("DELETE")
+    );
+
+    expect(response.status).toBe(200);
+    expect(mutation.update).toHaveBeenCalledWith(
+      expect.objectContaining({ deleted_at: expect.any(String) })
+    );
+    expect(await response.json()).toEqual({ id: COMPANY_ID });
   });
 });
