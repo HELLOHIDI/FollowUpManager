@@ -13,12 +13,12 @@ export const COMPANY_PROFILE_STATUSES = [
 ] as const;
 export const COMPANY_ACCOUNT_MANAGERS = [
   "정현정",
-  "박종열",
-  "류희재",
   "허진석",
   "이영준",
   "주재형",
+  "박종열",
   "이정준",
+  "류희재",
 ] as const;
 
 const BUSINESS_REGISTRATION_PATTERN = /^(?:[0-9]{10}|[0-9]{3}-[0-9]{2}-[0-9]{5})$/;
