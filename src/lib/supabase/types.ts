@@ -960,7 +960,7 @@ export type Database = {
           agreement_end_date: string
           agreement_start_date: string
           assignment_name: string
-          assignment_number: string
+          assignment_number: string | null
           company_id: string
           confirmed_policy_version_id: string | null
           created_at: string
@@ -984,7 +984,7 @@ export type Database = {
           agreement_end_date: string
           agreement_start_date: string
           assignment_name: string
-          assignment_number: string
+          assignment_number?: string | null
           company_id: string
           confirmed_policy_version_id?: string | null
           created_at?: string
@@ -1008,7 +1008,7 @@ export type Database = {
           agreement_end_date?: string
           agreement_start_date?: string
           assignment_name?: string
-          assignment_number?: string
+          assignment_number?: string | null
           company_id?: string
           confirmed_policy_version_id?: string | null
           created_at?: string

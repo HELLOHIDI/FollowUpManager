@@ -17,8 +17,8 @@ begin
 
   if (select is_nullable from information_schema.columns
       where table_schema = 'public' and table_name = 'projects'
-        and column_name = 'assignment_number') <> 'NO' then
-    raise exception 'assignment_number must be required';
+        and column_name = 'assignment_number') <> 'YES' then
+    raise exception 'assignment_number must be optional';
   end if;
 
   if has_table_privilege('authenticated', 'public.project_documents', 'SELECT')

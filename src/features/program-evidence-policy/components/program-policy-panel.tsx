@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, FileUp, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { AlertCircle, CheckCircle2, ChevronDown, FileUp, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,8 @@ export function ProgramPolicyPanel({
   const draftQuery = usePolicyDraftDetailQuery(projectId, latestVersionId);
   const mutations = useProgramPolicyMutations(projectId, latestVersionId);
   const [draft, setDraft] = useState<PolicyDraftUpdateInput>(createEmptyDraft);
+  const [isOpen, setIsOpen] = useState(false);
+  const contentId = useId();
 
   useEffect(() => {
     if (!draftQuery.data) return;
@@ -147,14 +149,26 @@ export function ProgramPolicyPanel({
   return (
     <Card className="shadow-none">
       <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle className="text-lg">정책 PDF 및 비목/증빙서류 세팅</CardTitle>
+        <button
+          aria-controls={contentId}
+          aria-expanded={isOpen}
+          className="flex w-full flex-wrap items-center justify-between gap-3 text-left"
+          onClick={() => setIsOpen((current) => !current)}
+          type="button"
+        >
+          <span className="flex items-center gap-2">
+            <ChevronDown
+              className={`size-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
+              aria-hidden="true"
+            />
+            <CardTitle className="text-lg">정책 PDF 및 비목/증빙서류 세팅</CardTitle>
+          </span>
           <Badge variant={latestStatus === "confirmed_policy" ? "default" : "secondary"}>
             {statusLabel[latestStatus]}
           </Badge>
-        </div>
+        </button>
       </CardHeader>
-      <CardContent className="grid gap-5">
+      {isOpen ? <CardContent className="grid gap-5" id={contentId}>
         <div className="grid gap-3 rounded-md border p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Input
@@ -225,7 +239,7 @@ export function ProgramPolicyPanel({
           </div>
         ) : null}
 
-      </CardContent>
+      </CardContent> : null}
     </Card>
   );
 }

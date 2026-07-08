@@ -124,7 +124,10 @@ describe("ProjectsPage", () => {
   });
 
   it("lists registered companies and links projects to their dashboards", async () => {
-    const registeredCompany = company();
+    const registeredCompany = company({
+      businessType: "corporation",
+      corporateRegistrationNumber: "1234561234567",
+    });
     const registeredProject = project();
     companyApi.fetchCompanies.mockResolvedValue([registeredCompany]);
     projectApi.fetchCompanyProjects.mockResolvedValue([registeredProject]);
@@ -146,8 +149,18 @@ describe("ProjectsPage", () => {
     renderProjectsPage();
 
     expect(await screen.findByText("테스트 기업")).toBeInTheDocument();
+    expect(screen.queryByText(/사업자등록번호/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/법인등록번호/)).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "정현정" })).toBeInTheDocument();
     expect(screen.queryByText("운영 대시보드 사업")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^사업 등록$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /기업 정보 수정/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /기업 삭제/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /사업 삭제/ })).not.toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /테스트 기업/ }),
+    );
     expect(screen.getByRole("link", { name: /^사업 등록$/ })).toHaveAttribute(
       "href",
       `/settings/company?mode=project-create&projectCompanyId=${registeredCompany.id}&returnTo=%2Fprojects`,
@@ -158,15 +171,14 @@ describe("ProjectsPage", () => {
       "href",
       `/settings/company?companyId=${registeredCompany.id}&returnTo=%2Fprojects`,
     );
-    expect(screen.queryByRole("button", { name: /기업 삭제/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /사업 삭제/ })).not.toBeInTheDocument();
-
-    await userEvent.click(
-      screen.getByRole("button", { name: /테스트 기업/ }),
-    );
     const dashboardLink = await screen.findByRole("link", {
       name: /대시보드/,
     });
+    expect(
+      screen.getByRole("link", { name: /^사업 등록$/ }).compareDocumentPosition(
+        screen.getByText("운영 대시보드 사업"),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByText("운영 대시보드 사업")).toBeInTheDocument();
     expect(screen.queryByText(/창업진흥원/)).not.toBeInTheDocument();
     expect(dashboardLink).toHaveAttribute(

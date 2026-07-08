@@ -11,7 +11,12 @@ export const DEFAULT_UPLOAD_MIME_TYPES = {
   jpeg: "image/jpeg",
   png: "image/png",
   webp: "image/webp",
+  gif: "image/gif",
+  heic: "image/heic",
+  heif: "image/heif",
   zip: "application/zip",
+  rar: "application/vnd.rar",
+  "7z": "application/x-7z-compressed",
 } as const;
 
 export type UploadExtension = keyof typeof DEFAULT_UPLOAD_MIME_TYPES;
@@ -23,7 +28,15 @@ export const DEFAULT_UPLOAD_MIME_ALIASES = {
   xlsx: ["application/zip"],
   csv: ["text/plain", "application/vnd.ms-excel"],
   zip: ["application/x-zip-compressed"],
+  heic: ["image/heic-sequence", "application/octet-stream"],
+  heif: ["image/heif-sequence", "application/octet-stream"],
+  rar: ["application/x-rar-compressed", "application/octet-stream"],
+  "7z": ["application/octet-stream"],
 } satisfies Partial<Record<UploadExtension, readonly string[]>>;
+
+export const DEFAULT_UPLOAD_ACCEPT = Object.keys(DEFAULT_UPLOAD_MIME_TYPES)
+  .map((extension) => `.${extension}`)
+  .join(",");
 
 export const DEFAULT_BLOCKED_UPLOAD_EXTENSIONS = new Set([
   "exe",

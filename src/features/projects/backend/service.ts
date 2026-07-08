@@ -59,7 +59,7 @@ const toPayload = (input: ProjectInput) => {
   const amount = totals(input);
   return {
     agreement_end_date: input.agreementEndDate, agreement_start_date: input.agreementStartDate,
-    assignment_name: input.assignmentName, assignment_number: input.assignmentNumber,
+    assignment_name: input.assignmentName, assignment_number: input.assignmentNumber ?? null,
     government_subsidy_amount: amount.subsidy, host_institution: input.hostInstitution,
     manager_email: input.managerEmail, manager_name: input.managerName, manager_phone: input.managerPhone,
     profile_status: "complete", project_name: input.projectName, project_notes: input.projectNotes,

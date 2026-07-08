@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { EmptyPanel, PageHeading } from "@/components/product-shell";
+import { routes } from "@/constants/routes";
 import { extractApiErrorCode } from "@/lib/remote/api-client";
 import { useDashboardQuery } from "../hooks/use-dashboard-query";
 import { CategoryExpenseList } from "./category-expense-list";
@@ -57,7 +58,7 @@ export function DashboardPageContent({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <PageHeading eyebrow="프로젝트 대시보드" title={query.data.project.name} description="예산 진행률과 비목별 지출, 단계별 집행 현황을 확인합니다." />
+      <PageHeading backHref={routes.projects} eyebrow="프로젝트 대시보드" title={query.data.project.name} description="예산 진행률과 비목별 지출, 단계별 집행 현황을 확인합니다." />
       <section id="overview" className="scroll-mt-24 space-y-4" aria-labelledby="overview-title">
         <h2 id="overview-title" className="text-xl font-semibold">개요</h2>
         <DashboardKpis kpis={query.data.kpis} />

@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { Badge, badgeVariants } from "./badge";
 import { Button, buttonVariants } from "./button";
@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "./card";
 import { Input, inputVariants } from "./input";
+import { NumberInput, digitsOnly, formatNumberInput } from "./number-input";
 
 describe("design system component contracts", () => {
   it("keeps Toss-style fill and weak button contracts stable", () => {
@@ -60,6 +61,19 @@ describe("design system component contracts", () => {
       "focus-visible:ring-ring",
       "disabled:opacity-40",
     );
+  });
+
+  it("formats numeric input while emitting raw digits", () => {
+    expect(formatNumberInput("1234567")).toBe("1,234,567");
+    expect(digitsOnly("1,234,567원")).toBe("1234567");
+
+    const onValueChange = vi.fn();
+    render(<NumberInput aria-label="Budget" onValueChange={onValueChange} value="1234567" />);
+
+    const input = screen.getByLabelText("Budget");
+    expect(input).toHaveValue("1,234,567");
+    fireEvent.change(input, { target: { value: "9,876" } });
+    expect(onValueChange).toHaveBeenCalledWith("9876");
   });
 
   it("keeps Toss-style weak and fill badge variants stable", () => {

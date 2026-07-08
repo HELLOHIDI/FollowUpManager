@@ -211,6 +211,45 @@ describe("CompanySettings", () => {
     expect(router.push).toHaveBeenCalledWith("/projects");
   });
 
+  it("keeps an existing corporate registration number when editing a corporation", async () => {
+    const existingCompany = company({
+      businessType: "corporation",
+      companyName: "기존 법인",
+      corporateRegistrationNumber: "1234561234567",
+    });
+    const updated = company({
+      ...existingCompany,
+      companyName: "수정 법인",
+    });
+    navigationState.searchParams = new URLSearchParams(
+      `companyId=${existingCompany.id}&returnTo=%2Fprojects`,
+    );
+    api.fetchCompanies.mockResolvedValue([existingCompany]);
+    api.updateCompanyRequest.mockResolvedValue(updated);
+    renderSettings();
+    const user = userEvent.setup();
+
+    const corporateNumberInput = await screen.findByLabelText("법인등기번호");
+    await waitFor(() => {
+      expect(corporateNumberInput).toHaveValue("1234561234567");
+    });
+
+    const companyNameInput = screen.getByLabelText("기업명");
+    await user.clear(companyNameInput);
+    await user.type(companyNameInput, "수정 법인");
+    await user.click(screen.getByRole("button", { name: "기업 정보 수정" }));
+
+    await waitFor(() => {
+      expect(api.updateCompanyRequest.mock.calls[0]?.[0]).toEqual({
+        companyId: existingCompany.id,
+        input: expect.objectContaining({
+          businessType: "corporation",
+          corporateRegistrationNumber: "1234561234567",
+        }),
+      });
+    });
+  });
+
   it("updates only the company account manager from the edit form", async () => {
     const existingCompany = company();
     const updated = company({ accountManager: "박종열" });
@@ -271,12 +310,12 @@ describe("CompanySettings", () => {
 
     await user.type(screen.getByLabelText("사업명"), "Fast Dashboard Project");
     await user.type(screen.getByLabelText("주관기관"), "KISED");
-    await user.type(screen.getByLabelText("과제번호"), "A-001");
+    await user.type(screen.getByLabelText("과제번호 (선택)"), "A-001");
     await user.type(screen.getByLabelText("과제명"), "Grant Project");
     await user.type(screen.getByLabelText("협약 시작일"), "2026-01-01");
     await user.type(screen.getByLabelText("협약 종료일"), "2026-12-31");
-    await user.type(screen.getByLabelText("담당자명"), "PM");
-    await user.type(screen.getByLabelText("담당자 이메일"), "pm@example.com");
+    await user.type(screen.getByLabelText("기관 담당자명"), "PM");
+    await user.type(screen.getByLabelText("기관 담당자 이메일"), "pm@example.com");
     const governmentSubsidyInput = screen.getByLabelText("정부지원금");
     await user.clear(governmentSubsidyInput);
     await user.type(governmentSubsidyInput, "1000");
@@ -318,7 +357,7 @@ describe("CompanySettings", () => {
     const user = userEvent.setup();
 
     expect(await screen.findByLabelText("기업명")).toBeInTheDocument();
-    expect(screen.queryByLabelText("법인등록번호")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("법인등기번호")).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("기업명"), "신규 법인");
     await user.selectOptions(screen.getByLabelText("담당자"), "허진석");
@@ -326,7 +365,7 @@ describe("CompanySettings", () => {
     await user.selectOptions(screen.getByLabelText("기업규모"), "small_enterprise");
     await user.type(screen.getByLabelText("사업자등록번호"), "987-65-43210");
     await user.type(screen.getByLabelText("설립일"), "2020-01-01");
-    await user.type(screen.getByLabelText("법인등록번호"), "123456-7890123");
+    await user.type(screen.getByLabelText("법인등기번호"), "123456-7890123");
     await user.click(screen.getByRole("button", { name: "기업 추가하기" }));
 
     await waitFor(() => {

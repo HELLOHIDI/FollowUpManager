@@ -5,9 +5,15 @@ import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumberInput } from "@/components/ui/number-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  EXPENSE_FUNDING_SOURCE_BASE_KEYS,
+  type ExpenseFundingSourceBaseKey,
+  type ExpenseFundingSourceKey,
+} from "@/features/domain/contracts";
 import { requiresSubcategorySelection } from "../lib/policy-category-options";
 import type { ExpenseCreateInput } from "../backend/schema";
 
@@ -23,7 +29,7 @@ type CategoryOption = {
 };
 
 type FundingSourceOption = {
-  fundingSourceKey: "government_subsidy" | "self_cash" | "self_in_kind";
+  fundingSourceKey: ExpenseFundingSourceKey;
   label: string;
 };
 
@@ -54,6 +60,18 @@ const buildDefaultValues = (
   };
 };
 
+const fundingSourceLabels = new Map<string, string>([
+  ["government_subsidy", "정부지원금"],
+  ["self_cash", "현금"],
+  ["self_in_kind", "현물"],
+]);
+
+const splitFundingSourceKey = (key: ExpenseFundingSourceKey) =>
+  key.split("+") as ExpenseFundingSourceBaseKey[];
+
+const joinFundingSourceKeys = (keys: ReadonlyArray<ExpenseFundingSourceBaseKey>) =>
+  keys.join("+") as ExpenseFundingSourceKey;
+
 export function ExpenseQuickCreateSheet({
   categoryOptions,
   fundingSourceOptions,
@@ -75,6 +93,13 @@ export function ExpenseQuickCreateSheet({
   const selectedCategoryKey = form.watch("categoryKey");
   const selectedCategory = categoryOptions.find((option) => option.categoryKey === selectedCategoryKey);
   const subcategoryOptions = useMemo(() => selectedCategory?.subcategories ?? [], [selectedCategory]);
+  const baseFundingSourceOptions = useMemo(
+    () => EXPENSE_FUNDING_SOURCE_BASE_KEYS.map((key) => ({
+      fundingSourceKey: key,
+      label: fundingSourceOptions.find((option) => option.fundingSourceKey === key)?.label ?? fundingSourceLabels.get(key) ?? key,
+    })),
+    [fundingSourceOptions],
+  );
 
   useEffect(() => {
     form.reset(buildDefaultValues(categoryOptions, fundingSourceOptions));
@@ -168,24 +193,57 @@ export function ExpenseQuickCreateSheet({
               control={form.control}
               name="fundingSourceKey"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id="expense-funding-source">
-                    <SelectValue placeholder="재원 구분을 선택해 주세요." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {fundingSourceOptions.map((option) => (
-                      <SelectItem key={option.fundingSourceKey} value={option.fundingSourceKey}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="grid gap-2">
+                  <div id="expense-funding-source" className="grid grid-cols-3 gap-2" role="group" aria-label="재원 구분">
+                    {baseFundingSourceOptions.map((option) => {
+                      const selectedKeys = splitFundingSourceKey(field.value);
+                      const checked = selectedKeys.includes(option.fundingSourceKey);
+                      return (
+                        <label
+                          key={option.fundingSourceKey}
+                          className={[
+                            "flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-3 text-sm font-medium transition-colors",
+                            checked ? "border-primary bg-primary/10 text-primary" : "border-input bg-background text-foreground hover:bg-muted",
+                          ].join(" ")}
+                        >
+                          <input
+                            checked={checked}
+                            className="sr-only"
+                            onChange={() => {
+                              const nextKeys = checked
+                                ? selectedKeys.filter((key) => key !== option.fundingSourceKey)
+                                : EXPENSE_FUNDING_SOURCE_BASE_KEYS.filter((key) => [...selectedKeys, option.fundingSourceKey].includes(key));
+                              if (nextKeys.length === 0) return;
+                              field.onChange(joinFundingSourceKeys(nextKeys));
+                            }}
+                            type="checkbox"
+                          />
+                          {option.label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    선택: {splitFundingSourceKey(field.value).map((key) => fundingSourceLabels.get(key) ?? key).join(" + ")}
+                  </p>
+                </div>
               )}
             />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="expense-amount">금액</Label>
-            <Input id="expense-amount" inputMode="numeric" type="number" min={0} step={1} {...form.register("amount", { valueAsNumber: true, required: true })} />
+            <Controller
+              control={form.control}
+              name="amount"
+              render={({ field }) => (
+                <NumberInput
+                  id="expense-amount"
+                  onBlur={field.onBlur}
+                  onValueChange={(value) => field.onChange(Number(value || 0))}
+                  value={field.value}
+                />
+              )}
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="expense-date">지출 예정일 (선택)</Label>

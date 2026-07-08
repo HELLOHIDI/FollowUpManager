@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumberInput } from "@/components/ui/number-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyPanel, PageHeading } from "@/components/product-shell";
@@ -346,7 +347,18 @@ function BasicInfoFields({
         </Field>
       ) : null}
         <Field id="expense-amount" label="금액">
-          <Input id="expense-amount" type="number" min={0} {...form.register("amount", { valueAsNumber: true })} />
+          <Controller
+            control={form.control}
+            name="amount"
+            render={({ field }) => (
+              <NumberInput
+                id="expense-amount"
+                onBlur={field.onBlur}
+                onValueChange={(value) => field.onChange(Number(value || 0))}
+                value={field.value}
+              />
+            )}
+          />
         </Field>
         <Field id="expense-funding-source" label="재원 구분">
           <Controller

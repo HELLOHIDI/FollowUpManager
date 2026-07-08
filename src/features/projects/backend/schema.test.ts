@@ -16,6 +16,11 @@ const validProject = {
 
 describe("ProjectInputSchema", () => {
   it("accepts email-only contact and direct amounts", () => expect(ProjectInputSchema.safeParse(validProject).success).toBe(true));
+  it("accepts projects without an assignment number", () => {
+    const parsed = ProjectInputSchema.parse({ ...validProject, assignmentNumber: "" });
+
+    expect(parsed.assignmentNumber).toBeNull();
+  });
   it("requires one contact", () => expect(ProjectInputSchema.safeParse({ ...validProject, managerEmail: null, managerPhone: null }).success).toBe(false));
   it("rejects zero total and reversed dates", () => {
     expect(ProjectInputSchema.safeParse({ ...validProject, governmentSubsidyAmount: "0" }).success).toBe(false);
@@ -29,6 +34,14 @@ describe("project document metadata", () => {
   it("canonicalizes documented aliases", () => {
     expect(getDocumentMetadata({ browserMimeType: "application/zip", fileSize: 10, originalFileName: "문서.hwpx" })?.canonicalMimeType).toBe(DOCUMENT_MIME_TYPES.hwpx);
     expect(getDocumentMetadata({ browserMimeType: "text/plain", fileSize: 10, originalFileName: "표.csv" })?.canonicalMimeType).toBe("text/csv");
+  });
+  it("accepts common archive image and HWP uploads", () => {
+    expect(getDocumentMetadata({ browserMimeType: "application/x-zip-compressed", fileSize: 10, originalFileName: "docs.zip" })?.extension).toBe("zip");
+    expect(getDocumentMetadata({ browserMimeType: "application/octet-stream", fileSize: 10, originalFileName: "docs.7z" })?.extension).toBe("7z");
+    expect(getDocumentMetadata({ browserMimeType: "application/x-rar-compressed", fileSize: 10, originalFileName: "docs.rar" })?.extension).toBe("rar");
+    expect(getDocumentMetadata({ browserMimeType: "image/heic-sequence", fileSize: 10, originalFileName: "photo.heic" })?.extension).toBe("heic");
+    expect(getDocumentMetadata({ browserMimeType: "image/gif", fileSize: 10, originalFileName: "photo.gif" })?.extension).toBe("gif");
+    expect(getDocumentMetadata({ browserMimeType: "application/x-hwp", fileSize: 10, originalFileName: "form.hwp" })?.extension).toBe("hwp");
   });
   it("rejects mismatched MIME and unsupported extensions", () => {
     expect(getDocumentMetadata({ browserMimeType: "image/png", fileSize: 10, originalFileName: "문서.pdf" })).toBeNull();

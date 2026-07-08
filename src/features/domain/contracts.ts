@@ -78,15 +78,32 @@ export const EXPENSE_FUNDING_SOURCE_KEYS = [
   "government_subsidy",
   "self_cash",
   "self_in_kind",
+  "government_subsidy+self_cash",
+  "government_subsidy+self_in_kind",
+  "self_cash+self_in_kind",
+  "government_subsidy+self_cash+self_in_kind",
 ] as const;
 
 export type ExpenseFundingSourceKey =
   (typeof EXPENSE_FUNDING_SOURCE_KEYS)[number];
 
+export const EXPENSE_FUNDING_SOURCE_BASE_KEYS = [
+  "government_subsidy",
+  "self_cash",
+  "self_in_kind",
+] as const;
+
+export type ExpenseFundingSourceBaseKey =
+  (typeof EXPENSE_FUNDING_SOURCE_BASE_KEYS)[number];
+
 export const EXPENSE_FUNDING_SOURCE_OPTIONS = [
   { fundingSourceKey: "government_subsidy", label: "정부지원금" },
   { fundingSourceKey: "self_cash", label: "현금" },
   { fundingSourceKey: "self_in_kind", label: "현물" },
+  { fundingSourceKey: "government_subsidy+self_cash", label: "정부지원금 + 현금" },
+  { fundingSourceKey: "government_subsidy+self_in_kind", label: "정부지원금 + 현물" },
+  { fundingSourceKey: "self_cash+self_in_kind", label: "현금 + 현물" },
+  { fundingSourceKey: "government_subsidy+self_cash+self_in_kind", label: "정부지원금 + 현금 + 현물" },
 ] as const satisfies ReadonlyArray<{
   fundingSourceKey: ExpenseFundingSourceKey;
   label: string;

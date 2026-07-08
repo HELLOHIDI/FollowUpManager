@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { failure, success, type HandlerResult } from "@/backend/http/response";
 import type { Database, Json } from "@/lib/supabase/types";
 import {
+  EXPENSE_FUNDING_SOURCE_KEYS,
   EXPENSE_FUNDING_SOURCE_OPTIONS,
   getBudgetCategoryPolicySortOrder,
   type ExpenseStageKey,
@@ -134,6 +135,7 @@ type ResolvedExpenseCategory =
   | { kind: "error"; error: unknown };
 
 const defaultFundingSourceKey = "government_subsidy" as const;
+const fundingSourceKeySet = new Set<string>(EXPENSE_FUNDING_SOURCE_KEYS);
 const stageFieldKeys = {
   approvalReference: "approval_reference",
   deliverableMemo: "deliverable_memo",
@@ -167,7 +169,7 @@ type ExpenseRow = {
 };
 
 const resolveFundingSourceKey = (fundingSourceKey: string | null | undefined, stageFields: unknown) => {
-  if (fundingSourceKey === "government_subsidy" || fundingSourceKey === "self_cash" || fundingSourceKey === "self_in_kind") {
+  if (fundingSourceKey && fundingSourceKeySet.has(fundingSourceKey)) {
     return fundingSourceKey;
   }
 
@@ -176,7 +178,7 @@ const resolveFundingSourceKey = (fundingSourceKey: string | null | undefined, st
   }
 
   const raw = (stageFields as Record<string, unknown>).funding_source_key;
-  return raw === "government_subsidy" || raw === "self_cash" || raw === "self_in_kind"
+  return typeof raw === "string" && fundingSourceKeySet.has(raw)
     ? raw
     : defaultFundingSourceKey;
 };
