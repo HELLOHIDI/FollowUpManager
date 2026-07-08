@@ -19,8 +19,9 @@ vi.mock("@/components/product-shell", () => ({
       {action}
     </div>
   ),
-  PageHeading: ({ eyebrow, title, description }: { eyebrow?: string; title: string; description: string }) => (
+  PageHeading: ({ backHref, eyebrow, title, description }: { backHref?: string; eyebrow?: string; title: string; description: string }) => (
     <header>
+      {backHref ? <a href={backHref}>돌아가기</a> : null}
       {eyebrow ? <span>{eyebrow}</span> : null}
       <h1>{title}</h1>
       <p>{description}</p>
@@ -105,6 +106,7 @@ describe("DashboardPageContent", () => {
     renderPage({ data: baseData, error: null, isLoading: false });
 
     expect(screen.getByRole("heading", { name: "Dashboard Project" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "돌아가기" })).toHaveAttribute("href", "/projects");
     expect(screen.queryByTestId("local-nav")).not.toBeInTheDocument();
     expect(screen.getByTestId("dashboard-kpis")).toHaveTextContent("100");
     expect(screen.getByTestId("category-expense-list")).toHaveTextContent("");

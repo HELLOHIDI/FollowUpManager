@@ -108,7 +108,7 @@ export const ProjectInputSchema = z
     agreementEndDate: dateSchema,
     agreementStartDate: dateSchema,
     assignmentName: z.string().trim().min(1).max(200),
-    assignmentNumber: z.string().trim().min(1).max(100),
+    assignmentNumber: optionalText(100),
     governmentSubsidyAmount: amountSchema,
     hostInstitution: z.string().trim().min(1).max(200),
     managerEmail: z.preprocess(
@@ -158,7 +158,7 @@ export const getDocumentMetadata = (input: z.infer<typeof UploadIntentInputSchem
   });
 
 export const ProjectResponseSchema = z.object({
-  agreementEndDate: z.string(), agreementStartDate: z.string(), assignmentName: z.string(), assignmentNumber: z.string(),
+  agreementEndDate: z.string(), agreementStartDate: z.string(), assignmentName: z.string(), assignmentNumber: z.string().nullable(),
   companyId: z.string().uuid(), createdAt: z.string(), governmentSubsidyAmount: z.number(), hostInstitution: z.string(), id: z.string().uuid(),
   managerEmail: z.string().nullable(), managerName: z.string(), managerPhone: z.string().nullable(), profileStatus: z.literal("complete"),
   projectName: z.string(), projectNotes: z.string().nullable(), selfCashAmount: z.number(), selfContributionAmount: z.number(),

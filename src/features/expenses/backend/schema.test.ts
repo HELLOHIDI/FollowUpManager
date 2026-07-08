@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { ExpenseEvidenceUploadInputSchema, getEvidenceFileMetadata, MAX_EVIDENCE_FILE_SIZE } from "./schema";
+import { ExpenseCreateInputSchema, ExpenseEvidenceUploadInputSchema, getEvidenceFileMetadata, MAX_EVIDENCE_FILE_SIZE } from "./schema";
 
 describe("expense evidence schema", () => {
+  it("accepts combined funding source keys", () => {
+    expect(ExpenseCreateInputSchema.parse({
+      amount: 1000,
+      categoryKey: "material_cost",
+      expectedSpendDate: null,
+      fundingSourceKey: "government_subsidy+self_cash",
+      memo: null,
+      subcategoryKey: null,
+      title: "sample expense",
+    }).fundingSourceKey).toBe("government_subsidy+self_cash");
+  });
+
   it("accepts policy-approved document extensions and normalizes metadata", () => {
     const input = {
       browserMimeType: "application/pdf",

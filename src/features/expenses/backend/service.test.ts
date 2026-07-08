@@ -254,6 +254,10 @@ describe("expense service", () => {
       "government_subsidy",
       "self_cash",
       "self_in_kind",
+      "government_subsidy+self_cash",
+      "government_subsidy+self_in_kind",
+      "self_cash+self_in_kind",
+      "government_subsidy+self_cash+self_in_kind",
     ]);
     expect(result.data.categories[0]).toMatchObject({
       categoryKey: "material_cost",
@@ -291,6 +295,28 @@ describe("expense service", () => {
     expect(result.data.stageKey).toBe("budget_registration");
     expect(result.data.projectBudgetCategoryId).toBe(CATEGORY_ID);
     expect(result.data.fundingSourceKey).toBe("government_subsidy");
+  });
+
+  it("creates an expense with combined funding sources", async () => {
+    const { client, rpcCalls } = clientForWithCalls({}, {
+      create_expense_with_policy_lock: { data: baseExpenseRow({ funding_source_key: "government_subsidy+self_cash" }) },
+    });
+
+    const result = await createExpense(client, PROJECT_ID, {
+      title: "sample expense",
+      categoryKey: "material_cost",
+      fundingSourceKey: "government_subsidy+self_cash",
+      amount: 300,
+      expectedSpendDate: null,
+      memo: null,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(rpcCalls[0]?.args).toEqual(expect.objectContaining({
+      p_funding_source_key: "government_subsidy+self_cash",
+    }));
+    if (!result.ok) return;
+    expect(result.data.fundingSourceKey).toBe("government_subsidy+self_cash");
   });
 
   it("rejects unavailable category keys", async () => {

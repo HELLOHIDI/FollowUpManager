@@ -310,7 +310,7 @@ describe("CompanySettings", () => {
 
     await user.type(screen.getByLabelText("사업명"), "Fast Dashboard Project");
     await user.type(screen.getByLabelText("주관기관"), "KISED");
-    await user.type(screen.getByLabelText("과제번호"), "A-001");
+    await user.type(screen.getByLabelText("과제번호 (선택)"), "A-001");
     await user.type(screen.getByLabelText("과제명"), "Grant Project");
     await user.type(screen.getByLabelText("협약 시작일"), "2026-01-01");
     await user.type(screen.getByLabelText("협약 종료일"), "2026-12-31");

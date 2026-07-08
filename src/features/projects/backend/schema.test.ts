@@ -16,6 +16,11 @@ const validProject = {
 
 describe("ProjectInputSchema", () => {
   it("accepts email-only contact and direct amounts", () => expect(ProjectInputSchema.safeParse(validProject).success).toBe(true));
+  it("accepts projects without an assignment number", () => {
+    const parsed = ProjectInputSchema.parse({ ...validProject, assignmentNumber: "" });
+
+    expect(parsed.assignmentNumber).toBeNull();
+  });
   it("requires one contact", () => expect(ProjectInputSchema.safeParse({ ...validProject, managerEmail: null, managerPhone: null }).success).toBe(false));
   it("rejects zero total and reversed dates", () => {
     expect(ProjectInputSchema.safeParse({ ...validProject, governmentSubsidyAmount: "0" }).success).toBe(false);
