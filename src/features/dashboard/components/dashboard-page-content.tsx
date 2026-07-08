@@ -22,26 +22,6 @@ function DashboardLoading() {
   );
 }
 
-function DashboardLocalNavPills() {
-  const items = [
-    ["#overview", "개요"],
-    ["#categories", "비목별 지출"],
-    ["#kanban", "지출 칸반"],
-  ] as const;
-
-  return (
-    <nav data-testid="local-nav" aria-label="프로젝트 대시보드 섹션" className="sticky top-0 z-20 -mx-4 mb-6 overflow-x-auto border-y bg-card/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-md sm:border sm:px-3">
-      <div className="flex min-w-max gap-2">
-        {items.map(([href, label]) => (
-          <a key={href} href={href} className="rounded-full bg-muted px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            {label}
-          </a>
-        ))}
-      </div>
-    </nav>
-  );
-}
-
 export function DashboardPageContent({ projectId }: { projectId: string }) {
   const query = useDashboardQuery(projectId);
 
@@ -78,7 +58,6 @@ export function DashboardPageContent({ projectId }: { projectId: string }) {
   return (
     <>
       <PageHeading eyebrow="프로젝트 대시보드" title={query.data.project.name} description="예산 진행률과 비목별 지출, 단계별 집행 현황을 확인합니다." />
-      <DashboardLocalNavPills />
       <section id="overview" className="scroll-mt-24 space-y-4" aria-labelledby="overview-title">
         <h2 id="overview-title" className="text-xl font-semibold">개요</h2>
         <DashboardKpis kpis={query.data.kpis} />

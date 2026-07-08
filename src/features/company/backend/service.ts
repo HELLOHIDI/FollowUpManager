@@ -67,7 +67,12 @@ const mapCompanyRow = (row: unknown, status: 200 | 201 = 200): CompanyResult => 
       );
 };
 
-const mapWriteError = (error: { code?: string; message?: string }) => {
+const mapWriteError = (error: {
+  code?: string;
+  details?: string;
+  hint?: string;
+  message?: string;
+}) => {
   if (
     error.code === "23505" &&
     error.message?.includes(BUSINESS_REGISTRATION_UNIQUE_CONSTRAINT)
@@ -78,6 +83,13 @@ const mapWriteError = (error: { code?: string; message?: string }) => {
       "이미 등록된 사업자등록번호입니다."
     );
   }
+
+  console.error("Company write failed", {
+    code: error.code,
+    details: error.details,
+    hint: error.hint,
+    message: error.message,
+  });
 
   return failure(
     500,

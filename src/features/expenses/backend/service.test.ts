@@ -392,6 +392,35 @@ describe("expense service", () => {
     expect(updated.data.fundingSourceKey).toBe("self_cash");
   });
 
+  it("falls back to a direct expense update when the update RPC is not available", async () => {
+    const { chainCalls, client, rpcCalls } = clientForWithCalls({
+      expenses: {
+        select: { data: baseExpenseRow() },
+        update: { data: baseExpenseRow({ amount: 500, funding_source_key: "self_cash" }) },
+      },
+      project_budget_categories: {
+        select: { data: { id: CATEGORY_ID, deleted_at: null, is_active: true } },
+      },
+    }, {
+      update_expense_with_history: {
+        error: { code: "PGRST202", message: "function not found" },
+      },
+    });
+
+    const updated = await updateExpense(client, PROJECT_ID, EXPENSE_ID, {
+      ...fullUpdateInput,
+      amount: 500,
+      fundingSourceKey: "self_cash",
+    });
+
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    expect(updated.data.amount).toBe(500);
+    expect(updated.data.fundingSourceKey).toBe("self_cash");
+    expect(rpcCalls).toContainEqual(expect.objectContaining({ name: "update_expense_with_history" }));
+    expect(chainCalls).toContainEqual({ method: "is", mode: "update", args: ["deleted_at", null] });
+  });
+
   it("loads expense detail with a default funding source when the DB has not applied the funding source column yet", async () => {
     const { client, expenseSelects } = clientForMissingFundingSourceColumn();
 
@@ -432,7 +461,7 @@ describe("expense service", () => {
     });
   });
 
-  it("updates an expense stage only to the immediate next stage", async () => {
+  it("updates an expense stage through the history RPC", async () => {
     const { client, rpcCalls, tables } = clientForWithCalls({
       expenses: {
         select: {
@@ -466,23 +495,36 @@ describe("expense service", () => {
     });
   });
 
-  it("rejects non-immediate expense stage movement", async () => {
-    const result = await updateExpenseStage(
-      clientFor({
+  it("allows non-immediate expense stage movement", async () => {
+    const { client, rpcCalls } = clientForWithCalls({
         expenses: {
           select: {
             data: baseExpenseRow(),
           },
         },
-      }),
-      PROJECT_ID,
-      EXPENSE_ID,
-      { targetStageKey: "execution_in_progress" },
-    );
+      }, {
+        update_expense_stage_with_history: {
+          data: baseExpenseRow({ stage_key: "execution_in_progress", deleted_at: undefined }),
+        },
+      });
 
-    expect(result.ok).toBe(false);
-    if (!("error" in result)) return;
-    expect(result.error.code).toBe("INVALID_EXPENSE_STAGE_TRANSITION");
+    const result = await updateExpenseStage(client, PROJECT_ID, EXPENSE_ID, {
+      targetStageKey: "execution_in_progress",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.stageKey).toBe("execution_in_progress");
+    expect(rpcCalls).toContainEqual({
+      name: "update_expense_stage_with_history",
+      args: {
+        p_changed_by: null,
+        p_current_stage_key: "budget_registration",
+        p_expense_id: EXPENSE_ID,
+        p_project_id: PROJECT_ID,
+        p_target_stage_key: "execution_in_progress",
+      },
+    });
   });
 
   it("returns a generic fetch error when the expense stage update fails", async () => {

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type DragEvent } from "react";
-import { ArrowRight } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { isImmediateForwardExpenseStage, type ExpenseStageKey } from "@/features/domain/contracts";
+import { routes } from "@/constants/routes";
+import { isDifferentExpenseStage, type ExpenseStageKey } from "@/features/domain/contracts";
 import { useExpenseDetailPrefetch, useExpenseStageMutation } from "@/features/expenses/hooks/use-expenses-query";
 import type { DashboardResponse } from "../backend/schema";
 import {
@@ -86,7 +87,7 @@ export function DashboardKanbanBoard({
   }, [derivedColumns]);
 
   const requestMove = (expenseId: string, currentStageKey: ExpenseStageKey, targetStageKey: ExpenseStageKey) => {
-    if (!isImmediateForwardExpenseStage(currentStageKey, targetStageKey)) return;
+    if (!isDifferentExpenseStage(currentStageKey, targetStageKey)) return;
 
     const previousColumns = columns;
     setBoardError(null);
@@ -129,7 +130,7 @@ export function DashboardKanbanBoard({
             className={`min-h-80 rounded-md border border-t-4 bg-muted/35 ${stageAccentClass[column.stageKey]}`}
             aria-labelledby={`kanban-column-${column.stageKey}`}
             onDragOver={(event) => {
-              if (activeDragPayload && isImmediateForwardExpenseStage(activeDragPayload.stageKey, column.stageKey)) {
+              if (activeDragPayload && isDifferentExpenseStage(activeDragPayload.stageKey, column.stageKey)) {
                 event.preventDefault();
               }
             }}
@@ -163,7 +164,7 @@ export function DashboardKanbanBoard({
               {column.expenses.map((expense) => (
                 <li
                   key={expense.id}
-                  draggable={!stageMutation.isPending && Boolean(column.nextStageKey)}
+                  draggable={!stageMutation.isPending}
                   onDragStart={(event) => {
                     const payload = { expenseId: expense.id, stageKey: column.stageKey } satisfies DragPayload;
                     setActiveDragPayload(payload);
@@ -190,23 +191,37 @@ export function DashboardKanbanBoard({
                       증빙 {expense.evidenceUploadedCount ?? 0}/{expense.evidenceRequiredCount}
                     </Badge>
                   ) : null}
-                  {column.nextStageKey ? (
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs"
-                        disabled={stageMutation.isPending}
-                        onClick={() => requestMove(expense.id, column.stageKey, column.nextStageKey)}
-                      >
-                        다음 단계
-                        <ArrowRight className="ml-1.5 size-3.5" aria-hidden="true" />
-                      </Button>
-                    </div>
-                  ) : null}
+                  <div className="mt-3 flex justify-end">
+                    <select
+                      aria-label={`${expense.title} 단계 이동`}
+                      className="h-8 rounded-md border bg-background px-2 text-xs"
+                      disabled={stageMutation.isPending}
+                      value={column.stageKey}
+                      onChange={(event) => requestMove(expense.id, column.stageKey, event.currentTarget.value as ExpenseStageKey)}
+                    >
+                      {columns.map((targetColumn) => (
+                        <option
+                          key={targetColumn.stageKey}
+                          disabled={targetColumn.stageKey === column.stageKey}
+                          value={targetColumn.stageKey}
+                        >
+                          {targetColumn.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </li>
               ))}
+              {column.stageKey === "budget_registration" ? (
+                <li className="pt-1">
+                  <Button asChild className="w-full justify-center" variant="outline">
+                    <Link href={routes.projectExpenses(projectId)}>
+                      <Plus className="mr-2 size-4" aria-hidden="true" />
+                      지출 등록
+                    </Link>
+                  </Button>
+                </li>
+              ) : null}
             </ul>
           </section>
         ))}
