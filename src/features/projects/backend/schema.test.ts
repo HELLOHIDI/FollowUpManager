@@ -30,6 +30,14 @@ describe("project document metadata", () => {
     expect(getDocumentMetadata({ browserMimeType: "application/zip", fileSize: 10, originalFileName: "문서.hwpx" })?.canonicalMimeType).toBe(DOCUMENT_MIME_TYPES.hwpx);
     expect(getDocumentMetadata({ browserMimeType: "text/plain", fileSize: 10, originalFileName: "표.csv" })?.canonicalMimeType).toBe("text/csv");
   });
+  it("accepts common archive image and HWP uploads", () => {
+    expect(getDocumentMetadata({ browserMimeType: "application/x-zip-compressed", fileSize: 10, originalFileName: "docs.zip" })?.extension).toBe("zip");
+    expect(getDocumentMetadata({ browserMimeType: "application/octet-stream", fileSize: 10, originalFileName: "docs.7z" })?.extension).toBe("7z");
+    expect(getDocumentMetadata({ browserMimeType: "application/x-rar-compressed", fileSize: 10, originalFileName: "docs.rar" })?.extension).toBe("rar");
+    expect(getDocumentMetadata({ browserMimeType: "image/heic-sequence", fileSize: 10, originalFileName: "photo.heic" })?.extension).toBe("heic");
+    expect(getDocumentMetadata({ browserMimeType: "image/gif", fileSize: 10, originalFileName: "photo.gif" })?.extension).toBe("gif");
+    expect(getDocumentMetadata({ browserMimeType: "application/x-hwp", fileSize: 10, originalFileName: "form.hwp" })?.extension).toBe("hwp");
+  });
   it("rejects mismatched MIME and unsupported extensions", () => {
     expect(getDocumentMetadata({ browserMimeType: "image/png", fileSize: 10, originalFileName: "문서.pdf" })).toBeNull();
     expect(getDocumentMetadata({ browserMimeType: null, fileSize: 10, originalFileName: "실행.exe" })).toBeNull();

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { DEFAULT_UPLOAD_ACCEPT } from "@/lib/file-upload";
 import { extractApiErrorMessage } from "@/lib/remote/api-client";
 import { getProjectDocumentSignedUrl } from "../api";
 import { useProjectDocumentsQuery, useProjectEvidenceDocumentsQuery, useProjectMutations } from "../hooks/use-projects";
@@ -185,7 +186,7 @@ export function ProjectTemplateLinking({
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium">
               <Upload className="size-4" />
               파일 추가
-              <Input className="sr-only" multiple type="file" accept=".pdf,.doc,.docx,.hwp,.hwpx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp,.zip" onChange={(event) => void upload(event.target.files).finally(() => { event.target.value = ""; })} />
+              <Input className="sr-only" multiple type="file" accept={DEFAULT_UPLOAD_ACCEPT} onChange={(event) => void upload(event.target.files).finally(() => { event.target.value = ""; })} />
             </label>
           </div>
           {documentsQuery.isPending ? <Loader2 className="size-5 animate-spin" /> : null}

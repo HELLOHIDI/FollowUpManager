@@ -19,6 +19,18 @@ describe("expense evidence schema", () => {
     });
   });
 
+  it("accepts common archive image and HWP evidence files", () => {
+    const base = {
+      documentKey: "tax_invoice",
+      fileSize: 1024,
+      requirementKey: null,
+    };
+
+    expect(getEvidenceFileMetadata(ExpenseEvidenceUploadInputSchema.parse({ ...base, browserMimeType: "application/x-7z-compressed", originalFileName: "docs.7z" }))?.extension).toBe("7z");
+    expect(getEvidenceFileMetadata(ExpenseEvidenceUploadInputSchema.parse({ ...base, browserMimeType: "image/heif-sequence", originalFileName: "photo.heif" }))?.extension).toBe("heif");
+    expect(getEvidenceFileMetadata(ExpenseEvidenceUploadInputSchema.parse({ ...base, browserMimeType: "application/haansofthwp", originalFileName: "form.hwp" }))?.extension).toBe("hwp");
+  });
+
   it("rejects blocked executable extensions and oversize files", () => {
     const blocked = {
       browserMimeType: "application/octet-stream",

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
+import { DEFAULT_UPLOAD_ACCEPT } from "@/lib/file-upload";
 import { ProjectInputSchema, type ProjectInput, type ProjectResponse } from "../lib/dto";
 
 export const EMPTY_PROJECT: ProjectInput = {
@@ -61,7 +62,7 @@ export function ProjectForm({ assignmentError, companyName, initialValues = EMPT
     <label className="grid gap-2 text-sm font-medium">자기부담금(현물)<Controller control={form.control} name="selfInKindAmount" render={({ field }) => <NumberInput name={field.name} onBlur={field.onBlur} onValueChange={field.onChange} ref={field.ref} value={field.value} />} /><ErrorText message={form.formState.errors.selfInKindAmount?.message} /></label>
     <div className="rounded-md border p-3 text-sm"><span className="text-muted-foreground">총 사업비</span><strong className="ml-2 tabular-nums">{total}원</strong></div>
     <label className="grid gap-2 text-sm font-medium sm:col-span-2">유의사항<Controller control={form.control} name="projectNotes" render={({ field }) => <Textarea rows={4} {...field} value={field.value ?? ""} />} /><ErrorText message={form.formState.errors.projectNotes?.message} /></label>
-    {showAttachments ? <label className="grid gap-2 text-sm font-medium sm:col-span-2">추가 첨부파일<Input accept=".pdf,.doc,.docx,.hwp,.hwpx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp,.zip" multiple type="file" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /><span className="text-xs text-muted-foreground">정책 PDF와 기관 양식 외 참고 파일을 추가합니다. 파일당 최대 20MB입니다.</span></label> : null}
+    {showAttachments ? <label className="grid gap-2 text-sm font-medium sm:col-span-2">추가 첨부파일<Input accept={DEFAULT_UPLOAD_ACCEPT} multiple type="file" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /><span className="text-xs text-muted-foreground">정책 PDF와 기관 양식 외 참고 파일을 추가합니다. 파일당 최대 20MB입니다.</span></label> : null}
     <div className="flex justify-end border-t pt-5 sm:col-span-2"><Button disabled={!form.formState.isValid || isSubmitting} type="submit">{isSubmitting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}{submitLabel}</Button></div>
   </form>;
 }
