@@ -229,7 +229,7 @@ describe("CompanySettings", () => {
     renderSettings();
     const user = userEvent.setup();
 
-    const corporateNumberInput = await screen.findByLabelText("법인등록번호");
+    const corporateNumberInput = await screen.findByLabelText("법인등기번호");
     await waitFor(() => {
       expect(corporateNumberInput).toHaveValue("1234561234567");
     });
@@ -314,8 +314,8 @@ describe("CompanySettings", () => {
     await user.type(screen.getByLabelText("과제명"), "Grant Project");
     await user.type(screen.getByLabelText("협약 시작일"), "2026-01-01");
     await user.type(screen.getByLabelText("협약 종료일"), "2026-12-31");
-    await user.type(screen.getByLabelText("담당자명"), "PM");
-    await user.type(screen.getByLabelText("담당자 이메일"), "pm@example.com");
+    await user.type(screen.getByLabelText("기관 담당자명"), "PM");
+    await user.type(screen.getByLabelText("기관 담당자 이메일"), "pm@example.com");
     const governmentSubsidyInput = screen.getByLabelText("정부지원금");
     await user.clear(governmentSubsidyInput);
     await user.type(governmentSubsidyInput, "1000");
@@ -357,7 +357,7 @@ describe("CompanySettings", () => {
     const user = userEvent.setup();
 
     expect(await screen.findByLabelText("기업명")).toBeInTheDocument();
-    expect(screen.queryByLabelText("법인등록번호")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("법인등기번호")).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("기업명"), "신규 법인");
     await user.selectOptions(screen.getByLabelText("담당자"), "허진석");
@@ -365,7 +365,7 @@ describe("CompanySettings", () => {
     await user.selectOptions(screen.getByLabelText("기업규모"), "small_enterprise");
     await user.type(screen.getByLabelText("사업자등록번호"), "987-65-43210");
     await user.type(screen.getByLabelText("설립일"), "2020-01-01");
-    await user.type(screen.getByLabelText("법인등록번호"), "123456-7890123");
+    await user.type(screen.getByLabelText("법인등기번호"), "123456-7890123");
     await user.click(screen.getByRole("button", { name: "기업 추가하기" }));
 
     await waitFor(() => {

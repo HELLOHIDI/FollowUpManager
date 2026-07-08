@@ -149,7 +149,8 @@ describe("ProjectsPage", () => {
     renderProjectsPage();
 
     expect(await screen.findByText("테스트 기업")).toBeInTheDocument();
-    expect(screen.getByText(/123456-1234567/)).toBeInTheDocument();
+    expect(screen.queryByText(/사업자등록번호/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/법인등록번호/)).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "정현정" })).toBeInTheDocument();
     expect(screen.queryByText("운영 대시보드 사업")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^사업 등록$/ })).not.toBeInTheDocument();
@@ -173,6 +174,11 @@ describe("ProjectsPage", () => {
     const dashboardLink = await screen.findByRole("link", {
       name: /대시보드/,
     });
+    expect(
+      screen.getByRole("link", { name: /^사업 등록$/ }).compareDocumentPosition(
+        screen.getByText("운영 대시보드 사업"),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByText("운영 대시보드 사업")).toBeInTheDocument();
     expect(screen.queryByText(/창업진흥원/)).not.toBeInTheDocument();
     expect(dashboardLink).toHaveAttribute(

@@ -24,8 +24,6 @@ import { routes } from "@/constants/routes";
 import { useCompaniesQuery } from "@/features/company/hooks/use-companies-query";
 import {
   COMPANY_ACCOUNT_MANAGER_OPTIONS,
-  formatBusinessRegistrationNumber,
-  formatCorporateRegistrationNumber,
   type CompanyResponse,
 } from "@/features/company/lib/dto";
 import {
@@ -204,20 +202,6 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               <CardTitle className="truncate text-lg" role="heading" aria-level={2}>
                 {company.companyName}
               </CardTitle>
-              <CardDescription className="mt-1 truncate tabular-nums">
-                사업자등록번호{" "}
-                {formatBusinessRegistrationNumber(
-                  company.businessRegistrationNumber,
-                )}
-              </CardDescription>
-              {company.corporateRegistrationNumber ? (
-                <CardDescription className="mt-0.5 truncate tabular-nums">
-                  법인등록번호{" "}
-                  {formatCorporateRegistrationNumber(
-                    company.corporateRegistrationNumber,
-                  )}
-                </CardDescription>
-              ) : null}
             </div>
           </div>
           <ChevronDown
@@ -231,6 +215,20 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
       </CardHeader>
       {isOpen ? (
         <CardContent className="p-4 pt-0" id={contentId}>
+          <div className="mb-3 grid grid-cols-2 gap-2 border-b pb-3">
+            <Button asChild size="sm" variant="outline">
+              <Link href={routes.companyProjectCreate(company.id, routes.projects)}>
+                <Plus className="size-4" aria-hidden="true" />
+                사업 등록
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href={routes.companyEdit(company.id, routes.projects)}>
+                <Settings className="size-4" aria-hidden="true" />
+                기업 정보 수정
+              </Link>
+            </Button>
+          </div>
           {projectsQuery.isPending ? (
             <div className="flex items-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -303,20 +301,6 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               ))}
             </ul>
           )}
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3">
-            <Button asChild size="sm" variant="outline">
-              <Link href={routes.companyProjectCreate(company.id, routes.projects)}>
-                <Plus className="size-4" aria-hidden="true" />
-                사업 등록
-              </Link>
-            </Button>
-            <Button asChild size="sm" variant="outline">
-              <Link href={routes.companyEdit(company.id, routes.projects)}>
-                <Settings className="size-4" aria-hidden="true" />
-                기업 정보 수정
-              </Link>
-            </Button>
-          </div>
         </CardContent>
       ) : null}
     </Card>

@@ -188,7 +188,7 @@ function CompanyForm({
 
       {businessType === "corporation" ? (
         <label className="grid gap-2 text-sm font-medium sm:col-span-2">
-          법인등록번호
+          법인등기번호
           <Controller
             control={form.control}
             name="corporateRegistrationNumber"
