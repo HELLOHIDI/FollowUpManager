@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
+    "prebuild": "node scripts/assert-auth-env.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -15,7 +16,8 @@
     "test:project-storage": "powershell -ExecutionPolicy Bypass -File scripts/test-project-storage.ps1",
     "test:all": "npm run test && npm run test:e2e",
     "typecheck": "tsc --noEmit",
-    "env:check": "dotenv -e .env.local -- tsx scripts/check-env.ts"
+    "env:check": "dotenv -e .env.local -- tsx scripts/check-env.ts",
+    "env:auth": "node scripts/assert-auth-env.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^4",
