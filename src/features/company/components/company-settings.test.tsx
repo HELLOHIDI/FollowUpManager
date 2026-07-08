@@ -211,6 +211,45 @@ describe("CompanySettings", () => {
     expect(router.push).toHaveBeenCalledWith("/projects");
   });
 
+  it("keeps an existing corporate registration number when editing a corporation", async () => {
+    const existingCompany = company({
+      businessType: "corporation",
+      companyName: "기존 법인",
+      corporateRegistrationNumber: "1234561234567",
+    });
+    const updated = company({
+      ...existingCompany,
+      companyName: "수정 법인",
+    });
+    navigationState.searchParams = new URLSearchParams(
+      `companyId=${existingCompany.id}&returnTo=%2Fprojects`,
+    );
+    api.fetchCompanies.mockResolvedValue([existingCompany]);
+    api.updateCompanyRequest.mockResolvedValue(updated);
+    renderSettings();
+    const user = userEvent.setup();
+
+    const corporateNumberInput = await screen.findByLabelText("법인등록번호");
+    await waitFor(() => {
+      expect(corporateNumberInput).toHaveValue("1234561234567");
+    });
+
+    const companyNameInput = screen.getByLabelText("기업명");
+    await user.clear(companyNameInput);
+    await user.type(companyNameInput, "수정 법인");
+    await user.click(screen.getByRole("button", { name: "기업 정보 수정" }));
+
+    await waitFor(() => {
+      expect(api.updateCompanyRequest.mock.calls[0]?.[0]).toEqual({
+        companyId: existingCompany.id,
+        input: expect.objectContaining({
+          businessType: "corporation",
+          corporateRegistrationNumber: "1234561234567",
+        }),
+      });
+    });
+  });
+
   it("updates only the company account manager from the edit form", async () => {
     const existingCompany = company();
     const updated = company({ accountManager: "박종열" });

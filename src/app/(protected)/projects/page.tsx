@@ -25,6 +25,7 @@ import { useCompaniesQuery } from "@/features/company/hooks/use-companies-query"
 import {
   COMPANY_ACCOUNT_MANAGER_OPTIONS,
   formatBusinessRegistrationNumber,
+  formatCorporateRegistrationNumber,
   type CompanyResponse,
 } from "@/features/company/lib/dto";
 import {
@@ -209,6 +210,14 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
                   company.businessRegistrationNumber,
                 )}
               </CardDescription>
+              {company.corporateRegistrationNumber ? (
+                <CardDescription className="mt-0.5 truncate tabular-nums">
+                  법인등록번호{" "}
+                  {formatCorporateRegistrationNumber(
+                    company.corporateRegistrationNumber,
+                  )}
+                </CardDescription>
+              ) : null}
             </div>
           </div>
           <ChevronDown
@@ -219,20 +228,6 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
             aria-hidden="true"
           />
         </button>
-        <div className="grid grid-cols-2 gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link href={routes.companyProjectCreate(company.id, routes.projects)}>
-              <Plus className="size-4" aria-hidden="true" />
-              사업 등록
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href={routes.companyEdit(company.id, routes.projects)}>
-              <Settings className="size-4" aria-hidden="true" />
-              기업 정보 수정
-            </Link>
-          </Button>
-        </div>
       </CardHeader>
       {isOpen ? (
         <CardContent className="p-4 pt-0" id={contentId}>
@@ -266,13 +261,6 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               <p className="mt-1 text-sm text-muted-foreground">
                 이 기업의 첫 사업을 등록하면 대시보드가 생성됩니다.
               </p>
-              <Button asChild className="mt-3" size="sm">
-                <Link
-                  href={routes.companyProjectCreate(company.id, routes.projects)}
-                >
-                  사업 등록하기
-                </Link>
-              </Button>
             </div>
           ) : (
             <ul
@@ -315,6 +303,20 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               ))}
             </ul>
           )}
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3">
+            <Button asChild size="sm" variant="outline">
+              <Link href={routes.companyProjectCreate(company.id, routes.projects)}>
+                <Plus className="size-4" aria-hidden="true" />
+                사업 등록
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href={routes.companyEdit(company.id, routes.projects)}>
+                <Settings className="size-4" aria-hidden="true" />
+                기업 정보 수정
+              </Link>
+            </Button>
+          </div>
         </CardContent>
       ) : null}
     </Card>

@@ -19,3 +19,6 @@ export const COMPANY_ACCOUNT_MANAGER_OPTIONS = [
 
 export const formatBusinessRegistrationNumber = (value: string) =>
   value.replace(/^([0-9]{3})([0-9]{2})([0-9]{5})$/, "$1-$2-$3");
+
+export const formatCorporateRegistrationNumber = (value: string) =>
+  value.replace(/^([0-9]{6})([0-9]{7})$/, "$1-$2");

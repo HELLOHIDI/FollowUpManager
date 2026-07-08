@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronRight, GripVertical, Loader2, Plus, Save, Trash2, Upload, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +49,8 @@ export function ProjectTemplateLinking({
   const [dirty, setDirty] = useState(false);
   const [openGroupKeys, setOpenGroupKeys] = useState<Set<string>>(new Set());
   const [openSubgroupKeys, setOpenSubgroupKeys] = useState<Set<string>>(new Set());
+  const [isOpen, setIsOpen] = useState(false);
+  const contentId = useId();
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [draggedDocumentId, setDraggedDocumentId] = useState<string | null>(null);
 
@@ -160,26 +162,40 @@ export function ProjectTemplateLinking({
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold">증빙서류와 기관 양식</h2>
-            {dirty ? <Badge variant="warning">검토 필요</Badge> : null}
+        <button
+          aria-controls={contentId}
+          aria-expanded={isOpen}
+          className="flex min-w-0 items-center gap-2 text-left"
+          onClick={() => setIsOpen((current) => !current)}
+          type="button"
+        >
+          <ChevronDown
+            className={`size-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold">증빙서류와 기관 양식</h2>
+              {dirty ? <Badge variant="warning">검토 필요</Badge> : null}
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">저장하면 변경사항이 지출 상세에 반영됩니다.</p>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">저장하면 변경사항이 지출 상세에 반영됩니다.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={addType}>
-            <Plus className="mr-2 size-4" />
-            증빙서류 추가
-          </Button>
-          <Button type="button" onClick={() => void save()} disabled={!dirty || saveEvidenceDocumentsMutation.isPending}>
-            {saveEvidenceDocumentsMutation.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}
-            저장
-          </Button>
-        </div>
+        </button>
+        {isOpen ? (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={addType}>
+              <Plus className="mr-2 size-4" />
+              증빙서류 추가
+            </Button>
+            <Button type="button" onClick={() => void save()} disabled={!dirty || saveEvidenceDocumentsMutation.isPending}>
+              {saveEvidenceDocumentsMutation.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}
+              저장
+            </Button>
+          </div>
+        ) : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)]">
+      {isOpen ? <div className="grid gap-4 lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)]" id={contentId}>
         <div className="space-y-3 rounded-md border p-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-medium">기관 양식 파일</p>
@@ -293,7 +309,7 @@ export function ProjectTemplateLinking({
             </div>
           ))}
         </div>
-      </div>
+      </div> : null}
     </section>
   );
 }
