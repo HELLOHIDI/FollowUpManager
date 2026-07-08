@@ -73,6 +73,7 @@ test.beforeAll(async () => {
     .from("companies")
     .insert([
       {
+        account_manager: "정현정",
         business_registration_number: `3${suffix}`,
         business_type: "sole_proprietor",
         company_name: `Project Company A ${suffix}`,
@@ -81,6 +82,7 @@ test.beforeAll(async () => {
         profile_status: "complete",
       },
       {
+        account_manager: "허진석",
         business_registration_number: `4${suffix}`,
         business_type: "sole_proprietor",
         company_name: `Project Company B ${suffix}`,

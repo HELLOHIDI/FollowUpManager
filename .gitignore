@@ -29,6 +29,7 @@ test-results
 /.supabase/
 /supabase/.branches/
 /supabase/.temp/
+/outputs/
 
 # debug
 npm-debug.log*

@@ -29,6 +29,20 @@ export const updateCompanyRequest = async ({
   return CompanyResponseSchema.parse(data);
 };
 
+export const updateCompanyAccountManagerRequest = async ({
+  accountManager,
+  companyId,
+}: {
+  accountManager: CompanyInput["accountManager"];
+  companyId: string;
+}): Promise<CompanyResponse> => {
+  const { data } = await apiClient.patch(
+    `/api/companies/${companyId}/account-manager`,
+    { accountManager }
+  );
+  return CompanyResponseSchema.parse(data);
+};
+
 export const deleteCompanyRequest = async (companyId: string) => {
   await apiClient.delete(`/api/companies/${companyId}`);
 };

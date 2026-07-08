@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   ArrowRight,
   Building2,
@@ -23,6 +23,7 @@ import {
 import { routes } from "@/constants/routes";
 import { useCompaniesQuery } from "@/features/company/hooks/use-companies-query";
 import {
+  COMPANY_ACCOUNT_MANAGER_OPTIONS,
   formatBusinessRegistrationNumber,
   type CompanyResponse,
 } from "@/features/company/lib/dto";
@@ -30,19 +31,24 @@ import {
   useCompanyProjectsQuery,
   useProjectNavigationPrefetch,
 } from "@/features/projects/hooks/use-projects";
+import { cn } from "@/lib/utils";
 
 export default function ProjectsPage() {
   const companiesQuery = useCompaniesQuery();
   const companies = companiesQuery.data ?? [];
+  const managerSections = COMPANY_ACCOUNT_MANAGER_OPTIONS.map((manager) => ({
+    ...manager,
+    companies: companies.filter(({ accountManager }) => accountManager === manager.name),
+  }));
 
   return (
     <>
       <PageHeading
-        eyebrow="사업 선택"
-        title="운영 대시보드로 이동하세요"
-        description="등록된 기업과 사업을 한곳에서 확인하고, 바로 사업 운영 대시보드로 이동할 수 있습니다."
+        eyebrow="기업 담당"
+        title="담당자별 기업을 확인하세요"
+        description="기업별 담당자를 기준으로 사업 등록과 운영 대시보드 진입을 관리합니다."
         actions={
-          <Button asChild variant="outline">
+          <Button asChild>
             <Link href={routes.companyCreate(routes.projects)}>
               <Building2 className="size-4" aria-hidden="true" />
               기업 추가하기
@@ -74,10 +80,43 @@ export default function ProjectsPage() {
       ) : companies.length === 0 ? (
         <EmptyCompanyState />
       ) : (
-        <div className="grid gap-4">
-          <section className="grid gap-4" aria-label="등록 기업과 사업">
-            {companies.map((company) => (
-              <CompanyProjectCard key={company.id} company={company} />
+        <div className="-mx-4 overflow-x-auto px-4 pb-3">
+          <section
+            className="flex w-max gap-4"
+            aria-label="담당자별 기업과 사업"
+          >
+            {managerSections.map((manager) => (
+              <section
+                className="grid w-80 shrink-0 content-start gap-3 rounded-lg border bg-card p-3"
+                key={manager.name}
+                aria-labelledby={`manager-${manager.name}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2
+                      className="text-base font-semibold"
+                      id={`manager-${manager.name}`}
+                    >
+                      {manager.name}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {manager.team} {manager.role}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium tabular-nums text-muted-foreground">
+                    {manager.companies.length}
+                  </span>
+                </div>
+                {manager.companies.length > 0 ? (
+                  manager.companies.map((company) => (
+                    <CompanyProjectCard key={company.id} company={company} />
+                  ))
+                ) : (
+                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                    배정된 기업이 없습니다.
+                  </div>
+                )}
+              </section>
             ))}
           </section>
         </div>
@@ -137,25 +176,23 @@ function EmptyCompanyState() {
 }
 
 function CompanyProjectCard({ company }: { company: CompanyResponse }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const projectsQuery = useCompanyProjectsQuery(company.id, isOpen);
+  const projectsQuery = useCompanyProjectsQuery(company.id);
   const { prefetchDashboard, prefetchProject } = useProjectNavigationPrefetch();
+  const [isOpen, setIsOpen] = useState(false);
+  const contentId = useId();
   const projects = projectsQuery.data ?? [];
 
   return (
-    <Card className="shadow-none">
-      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <Card className="overflow-hidden rounded-md border bg-background shadow-none">
+      <CardHeader className="gap-3 p-4">
         <button
+          aria-controls={contentId}
           aria-expanded={isOpen}
-          className="min-w-0 flex-1 text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex min-w-0 items-center gap-2 text-left"
           onClick={() => setIsOpen((current) => !current)}
           type="button"
         >
           <div className="flex items-center gap-2">
-            <ChevronDown
-              className={`size-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`}
-              aria-hidden="true"
-            />
             <span
               className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"
               aria-hidden="true"
@@ -166,7 +203,7 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               <CardTitle className="truncate text-lg" role="heading" aria-level={2}>
                 {company.companyName}
               </CardTitle>
-              <CardDescription className="mt-1 tabular-nums">
+              <CardDescription className="mt-1 truncate tabular-nums">
                 사업자등록번호{" "}
                 {formatBusinessRegistrationNumber(
                   company.businessRegistrationNumber,
@@ -174,8 +211,15 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               </CardDescription>
             </div>
           </div>
+          <ChevronDown
+            className={cn(
+              "ml-auto size-4 shrink-0 text-muted-foreground transition-transform",
+              isOpen && "rotate-180"
+            )}
+            aria-hidden="true"
+          />
         </button>
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button asChild size="sm" variant="outline">
             <Link href={routes.companyProjectCreate(company.id, routes.projects)}>
               <Plus className="size-4" aria-hidden="true" />
@@ -191,7 +235,7 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
         </div>
       </CardHeader>
       {isOpen ? (
-        <CardContent>
+        <CardContent className="p-4 pt-0" id={contentId}>
           {projectsQuery.isPending ? (
             <div className="flex items-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -216,35 +260,37 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
             </div>
           ) : projects.length === 0 ? (
             <div className="rounded-md border border-dashed p-4">
-              <p className="text-sm font-medium">아직 등록된 사업이 없습니다</p>
+              <p className="text-sm font-medium">
+                아직 등록된 사업이 없습니다
+              </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 이 기업의 첫 사업을 등록하면 대시보드가 생성됩니다.
               </p>
               <Button asChild className="mt-3" size="sm">
-                <Link href={routes.companyProjectCreate(company.id, routes.projects)}>
+                <Link
+                  href={routes.companyProjectCreate(company.id, routes.projects)}
+                >
                   사업 등록하기
                 </Link>
               </Button>
             </div>
           ) : (
             <ul
-              className="divide-y rounded-md border"
+              className="grid gap-2"
               aria-label={`${company.companyName} 사업 목록`}
             >
               {projects.map((project) => (
                 <li
-                  className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="grid gap-3 rounded-md border p-3"
                   key={project.id}
                 >
                   <div className="min-w-0">
-                    <p className="truncate font-medium">{project.projectName}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {project.hostInstitution} · {project.agreementStartDate} ~{" "}
-                      {project.agreementEndDate}
+                    <p className="truncate font-medium">
+                      {project.projectName}
                     </p>
                   </div>
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    <Button asChild>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button asChild size="sm">
                       <Link
                         href={routes.project(project.id)}
                         onFocus={() => void prefetchDashboard(project.id)}
@@ -254,7 +300,7 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
                         대시보드
                       </Link>
                     </Button>
-                    <Button asChild variant="outline">
+                    <Button asChild size="sm" variant="outline">
                       <Link
                         href={routes.projectManagement(project.id)}
                         onFocus={() => void prefetchProject(project.id)}

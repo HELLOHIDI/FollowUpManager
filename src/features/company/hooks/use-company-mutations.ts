@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   createCompanyRequest,
   deleteCompanyRequest,
+  updateCompanyAccountManagerRequest,
   updateCompanyRequest,
 } from "../api";
 import type { CompanyResponse } from "../lib/dto";
@@ -46,6 +47,10 @@ export const useCompanyMutations = () => {
     mutationFn: updateCompanyRequest,
     onSuccess: applyAuthoritativeCompany,
   });
+  const updateAccountManagerMutation = useMutation({
+    mutationFn: updateCompanyAccountManagerRequest,
+    onSuccess: applyAuthoritativeCompany,
+  });
   const deleteMutation = useMutation({
     mutationFn: deleteCompanyRequest,
     onSuccess: (_, companyId) => {
@@ -58,5 +63,10 @@ export const useCompanyMutations = () => {
     },
   });
 
-  return { createMutation, deleteMutation, updateMutation };
+  return {
+    createMutation,
+    deleteMutation,
+    updateAccountManagerMutation,
+    updateMutation,
+  };
 };

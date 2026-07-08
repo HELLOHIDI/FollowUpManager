@@ -6,6 +6,7 @@ import {
 } from "./schema";
 
 const validCompany = {
+  accountManager: "정현정" as const,
   businessRegistrationNumber: "123-45-67890",
   businessType: "corporation" as const,
   companyName: " 테스트 기업 ",
@@ -99,6 +100,7 @@ describe("company input contract", () => {
 
 describe("company response contract", () => {
   const response = {
+    accountManager: "정현정" as const,
     businessRegistrationNumber: "1234567890",
     businessType: "corporation" as const,
     companyName: "테스트 기업",

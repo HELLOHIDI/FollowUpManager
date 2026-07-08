@@ -6,13 +6,18 @@ import {
   type AppEnv,
 } from "@/backend/hono/context";
 import type { MutationClientFactory } from "@/backend/supabase/client";
-import { CompanyInputSchema, CompanyParamsSchema } from "./schema";
+import {
+  CompanyAccountManagerInputSchema,
+  CompanyInputSchema,
+  CompanyParamsSchema,
+} from "./schema";
 import {
   createCompany,
   deleteCompany,
   getCompany,
   listCompanies,
   updateCompany,
+  updateCompanyAccountManager,
 } from "./service";
 
 type CompanyRouteOptions = {
@@ -145,6 +150,53 @@ export const registerCompanyRoutes = (
     logCompanyFailure(
       getLogger(context),
       "PATCH /companies/:companyId",
+      result,
+      parsedParams.data.companyId
+    );
+    return respond(context, result);
+  });
+
+  app.patch("/companies/:companyId/account-manager", async (context) => {
+    const parsedParams = CompanyParamsSchema.safeParse({
+      companyId: context.req.param("companyId"),
+    });
+
+    if (!parsedParams.success) {
+      return respond(
+        context,
+        failure(
+          400,
+          "INVALID_COMPANY_PARAMS",
+          "기업 ID를 확인해 주세요.",
+          parsedParams.error.flatten()
+        )
+      );
+    }
+
+    const parsedBody = CompanyAccountManagerInputSchema.safeParse(
+      await parseBody(context.req)
+    );
+
+    if (!parsedBody.success) {
+      return respond(
+        context,
+        failure(
+          400,
+          "INVALID_COMPANY_BODY",
+          "담당자를 확인해 주세요.",
+          parsedBody.error.flatten()
+        )
+      );
+    }
+
+    const result = await updateCompanyAccountManager(
+      options.createCompanyMutationClient,
+      parsedParams.data.companyId,
+      parsedBody.data.accountManager
+    );
+    logCompanyFailure(
+      getLogger(context),
+      "PATCH /companies/:companyId/account-manager",
       result,
       parsedParams.data.companyId
     );

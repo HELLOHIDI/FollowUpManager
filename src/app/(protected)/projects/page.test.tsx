@@ -38,6 +38,7 @@ vi.mock("@/features/dashboard/api", () => dashboardApi);
 vi.mock("@/features/projects/api", () => projectApi);
 
 const company = (overrides: Partial<CompanyResponse> = {}): CompanyResponse => ({
+  accountManager: "정현정",
   businessRegistrationNumber: "1234567890",
   businessType: "sole_proprietor",
   companyName: "테스트 기업",
@@ -143,19 +144,10 @@ describe("ProjectsPage", () => {
     });
 
     renderProjectsPage();
-    const companyToggle = (
-      await screen.findByText(registeredCompany.companyName)
-    ).closest("button");
-    expect(companyToggle).not.toBeNull();
 
-    expect(projectApi.fetchCompanyProjects).not.toHaveBeenCalled();
-    await userEvent.click(companyToggle!);
-    const dashboardLink = await screen.findByRole("link", {
-      name: /대시보드/,
-    });
-
-    expect(screen.getByText(registeredCompany.companyName)).toBeInTheDocument();
-    expect(screen.getByText(registeredProject.projectName)).toBeInTheDocument();
+    expect(await screen.findByText("테스트 기업")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "정현정" })).toBeInTheDocument();
+    expect(screen.queryByText("운영 대시보드 사업")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^사업 등록$/ })).toHaveAttribute(
       "href",
       `/settings/company?mode=project-create&projectCompanyId=${registeredCompany.id}&returnTo=%2Fprojects`,
@@ -166,6 +158,17 @@ describe("ProjectsPage", () => {
       "href",
       `/settings/company?companyId=${registeredCompany.id}&returnTo=%2Fprojects`,
     );
+    expect(screen.queryByRole("button", { name: /기업 삭제/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /사업 삭제/ })).not.toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /테스트 기업/ }),
+    );
+    const dashboardLink = await screen.findByRole("link", {
+      name: /대시보드/,
+    });
+    expect(screen.getByText("운영 대시보드 사업")).toBeInTheDocument();
+    expect(screen.queryByText(/창업진흥원/)).not.toBeInTheDocument();
     expect(dashboardLink).toHaveAttribute(
       "href",
       `/projects/${registeredProject.id}`,

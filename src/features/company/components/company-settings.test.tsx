@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   createCompanyRequest: vi.fn(),
   deleteCompanyRequest: vi.fn(),
   fetchCompanies: vi.fn(),
+  updateCompanyAccountManagerRequest: vi.fn(),
   updateCompanyRequest: vi.fn(),
 }));
 const dashboardApi = vi.hoisted(() => ({
@@ -50,6 +51,7 @@ vi.mock("@/lib/remote/api-client", () => ({
 }));
 
 const company = (overrides: Partial<CompanyResponse> = {}): CompanyResponse => ({
+  accountManager: "정현정",
   businessRegistrationNumber: "1234567890",
   businessType: "sole_proprietor",
   companyName: "기존 기업",
@@ -106,6 +108,7 @@ describe("CompanySettings", () => {
     api.createCompanyRequest.mockReset();
     api.deleteCompanyRequest.mockReset();
     api.fetchCompanies.mockReset();
+    api.updateCompanyAccountManagerRequest.mockReset();
     api.updateCompanyRequest.mockReset();
     dashboardApi.fetchProjectDashboard.mockReset();
     projectApi.createProjectRequest.mockReset();
@@ -156,6 +159,7 @@ describe("CompanySettings", () => {
     ).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("기업명"), "추가 기업");
+    await user.selectOptions(await screen.findByLabelText("담당자"), "박종열");
     await user.selectOptions(screen.getByLabelText("기업규모"), "small_enterprise");
     await user.type(screen.getByLabelText("사업자등록번호"), "9876543210");
     await user.type(screen.getByLabelText("설립일"), "2020-01-01");
@@ -163,6 +167,7 @@ describe("CompanySettings", () => {
 
     await waitFor(() => {
       expect(api.createCompanyRequest.mock.calls[0]?.[0]).toEqual({
+        accountManager: "박종열",
         businessRegistrationNumber: "9876543210",
         businessType: "sole_proprietor",
         companyName: "추가 기업",
@@ -204,6 +209,34 @@ describe("CompanySettings", () => {
       });
     });
     expect(router.push).toHaveBeenCalledWith("/projects");
+  });
+
+  it("updates only the company account manager from the edit form", async () => {
+    const existingCompany = company();
+    const updated = company({ accountManager: "박종열" });
+    navigationState.searchParams = new URLSearchParams(
+      `companyId=${existingCompany.id}&returnTo=%2Fprojects`,
+    );
+    api.fetchCompanies.mockResolvedValue([existingCompany]);
+    api.updateCompanyAccountManagerRequest.mockResolvedValue(updated);
+    renderSettings();
+    const user = userEvent.setup();
+
+    expect(
+      await screen.findByRole("heading", { name: "기업 정보 수정" }),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(await screen.findByLabelText("담당자"), "박종열");
+    await user.click(screen.getByRole("button", { name: "담당자 저장" }));
+
+    await waitFor(() => {
+      expect(api.updateCompanyAccountManagerRequest.mock.calls[0]?.[0]).toEqual({
+        accountManager: "박종열",
+        companyId: existingCompany.id,
+      });
+    });
+    expect(api.updateCompanyRequest).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
   });
 
   it("opens a focused project-create flow and navigates to project setup", async () => {
@@ -288,6 +321,7 @@ describe("CompanySettings", () => {
     expect(screen.queryByLabelText("법인등록번호")).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("기업명"), "신규 법인");
+    await user.selectOptions(screen.getByLabelText("담당자"), "허진석");
     await user.selectOptions(screen.getByLabelText("회사 형태"), "corporation");
     await user.selectOptions(screen.getByLabelText("기업규모"), "small_enterprise");
     await user.type(screen.getByLabelText("사업자등록번호"), "987-65-43210");
@@ -297,6 +331,7 @@ describe("CompanySettings", () => {
 
     await waitFor(() => {
       expect(api.createCompanyRequest.mock.calls[0]?.[0]).toEqual({
+        accountManager: "허진석",
         businessRegistrationNumber: "9876543210",
         businessType: "corporation",
         companyName: "신규 법인",
@@ -321,6 +356,7 @@ describe("CompanySettings", () => {
 
     await screen.findByLabelText("기업명");
     await user.type(screen.getByLabelText("기업명"), "중복 기업");
+    await user.selectOptions(screen.getByLabelText("담당자"), "정현정");
     await user.selectOptions(screen.getByLabelText("기업규모"), "small_enterprise");
     await user.type(screen.getByLabelText("사업자등록번호"), "1234567890");
     await user.type(screen.getByLabelText("설립일"), "2020-01-01");

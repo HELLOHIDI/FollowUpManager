@@ -21,6 +21,7 @@ test.beforeAll(async () => {
   emptyProjectId = crypto.randomUUID();
   const suffix = String(Date.now()).slice(-10);
   const { error } = await admin.from("companies").insert({
+    account_manager: "정현정",
     id: companyId,
     business_registration_number: suffix,
     business_type: "sole_proprietor",

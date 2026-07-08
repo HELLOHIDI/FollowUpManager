@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, type UseFormReturn, useForm } from "react-hook-form";
@@ -32,12 +32,14 @@ import { uploadProjectDocuments } from "@/features/projects/api";
 import { useCompaniesQuery } from "../hooks/use-companies-query";
 import { useCompanyMutations } from "../hooks/use-company-mutations";
 import {
+  COMPANY_ACCOUNT_MANAGER_OPTIONS,
   CompanyInputSchema,
   type CompanyInput,
   type CompanyResponse,
 } from "../lib/dto";
 
 const EMPTY_COMPANY: CompanyInput = {
+  accountManager: "" as CompanyInput["accountManager"],
   businessRegistrationNumber: "",
   businessType: "sole_proprietor",
   companyName: "",
@@ -62,6 +64,7 @@ const getSafeReturnPath = (returnTo: string | null) =>
   returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : null;
 
 const toFormValues = (company: CompanyResponse): CompanyInput => ({
+  accountManager: company.accountManager,
   businessRegistrationNumber: company.businessRegistrationNumber,
   businessType: company.businessType,
   companyName: company.companyName,
@@ -81,14 +84,14 @@ function CompanyForm({
   businessType,
   form,
   isSubmitting,
-  onDelete,
+  onAccountManagerSubmit,
   onSubmit,
   submitLabel,
 }: {
   businessType: CompanyInput["businessType"];
   form: UseFormReturn<CompanyInput>;
   isSubmitting: boolean;
-  onDelete?: () => void;
+  onAccountManagerSubmit?: () => void;
   onSubmit: () => void;
   submitLabel: string;
 }) {
@@ -103,6 +106,37 @@ function CompanyForm({
         />
         <FieldError message={form.formState.errors.companyName?.message} />
       </label>
+
+      <div className="grid gap-2 text-sm font-medium sm:col-span-2">
+        <label htmlFor="accountManager">담당자</label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <select
+            className="h-10 flex-1 rounded-md border bg-background px-3 text-sm"
+            id="accountManager"
+            {...form.register("accountManager")}
+          >
+            <option value="">담당자를 선택하세요</option>
+            {COMPANY_ACCOUNT_MANAGER_OPTIONS.map(({ name, role, team }) => (
+              <option key={name} value={name}>
+                {name} {team} {role}
+              </option>
+            ))}
+          </select>
+          {onAccountManagerSubmit ? (
+            <Button
+              disabled={
+                !form.formState.dirtyFields.accountManager || isSubmitting
+              }
+              onClick={onAccountManagerSubmit}
+              type="button"
+              variant="outline"
+            >
+              담당자 저장
+            </Button>
+          ) : null}
+        </div>
+        <FieldError message={form.formState.errors.accountManager?.message} />
+      </div>
 
       <label className="grid gap-2 text-sm font-medium">
         회사 형태
@@ -179,25 +213,12 @@ function CompanyForm({
             ? "필수 정보가 모두 입력되었습니다."
             : "필수 정보를 입력하면 저장할 수 있습니다."}
         </p>
-        <div className="flex flex-wrap justify-end gap-2">
-          {onDelete ? (
-            <Button
-              disabled={isSubmitting}
-              onClick={onDelete}
-              type="button"
-              variant="weak-danger"
-            >
-              <Trash2 className="size-4" aria-hidden="true" />
-              기업 삭제
-            </Button>
+        <Button type="submit" disabled={!form.formState.isValid || isSubmitting}>
+          {isSubmitting ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
           ) : null}
-          <Button type="submit" disabled={!form.formState.isValid || isSubmitting}>
-            {isSubmitting ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            ) : null}
-            {submitLabel}
-          </Button>
-        </div>
+          {submitLabel}
+        </Button>
       </div>
     </form>
   );
@@ -207,7 +228,11 @@ export function CompanySettings() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const companiesQuery = useCompaniesQuery();
-  const { createMutation, deleteMutation, updateMutation } = useCompanyMutations();
+  const {
+    createMutation,
+    updateAccountManagerMutation,
+    updateMutation,
+  } = useCompanyMutations();
   const { toast } = useToast();
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [projectCompanyId, setProjectCompanyId] = useState<string | null>(null);
@@ -248,7 +273,9 @@ export function CompanySettings() {
     Boolean(projectCompanyId),
   );
   const isSubmitting =
-    createMutation.isPending || deleteMutation.isPending || updateMutation.isPending;
+    createMutation.isPending ||
+    updateAccountManagerMutation.isPending ||
+    updateMutation.isPending;
 
   useEffect(() => {
     if (!isFocusedCompanyForm && !isFocusedProjectCreate) {
@@ -360,21 +387,25 @@ export function CompanySettings() {
     }
   });
 
-  const deleteCompany = async () => {
-    if (!focusedEditCompany) return;
-    if (!confirm(`${focusedEditCompany.companyName} 기업과 연결된 사업을 삭제할까요?`)) return;
+  const submitAccountManager = async () => {
+    if (!editingCompanyId || !(await form.trigger("accountManager"))) {
+      return;
+    }
 
     try {
-      await deleteMutation.mutateAsync(focusedEditCompany.id);
-      toast({
-        title: "기업을 삭제했습니다.",
-        description: `${focusedEditCompany.companyName} 기업을 목록에서 숨겼습니다.`,
+      const company = await updateAccountManagerMutation.mutateAsync({
+        accountManager: form.getValues("accountManager"),
+        companyId: editingCompanyId,
       });
-      router.push(safeReturnTo ?? routes.projects);
+      form.reset(toFormValues(company));
+      toast({
+        title: "담당자를 저장했습니다.",
+        description: `${company.companyName} 담당자를 변경했습니다.`,
+      });
     } catch (error) {
       toast({
-        title: "기업을 삭제하지 못했습니다.",
-        description: extractApiErrorMessage(error),
+        title: "담당자를 저장하지 못했습니다.",
+        description: extractApiErrorMessage(error, "다시 시도해 주세요."),
         variant: "destructive",
       });
     }
@@ -583,7 +614,9 @@ export function CompanySettings() {
                 businessType={businessType}
                 form={form}
                 isSubmitting={isSubmitting}
-                onDelete={focusedEditCompany ? () => void deleteCompany() : undefined}
+                onAccountManagerSubmit={
+                  isFocusedEdit ? () => void submitAccountManager() : undefined
+                }
                 onSubmit={submit}
                 submitLabel={
                   isFocusedCreate ? "기업 추가하기" : "기업 정보 수정"

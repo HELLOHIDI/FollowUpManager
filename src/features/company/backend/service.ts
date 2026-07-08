@@ -16,7 +16,7 @@ import type { Database } from "@/lib/supabase/types";
 
 const COMPANY_TABLE = "companies";
 const COMPANY_SELECT =
-  "id, company_name, business_type, company_size, business_registration_number, corporate_registration_number, founded_at, profile_status, created_at, updated_at, deleted_at";
+  "id, account_manager, company_name, business_type, company_size, business_registration_number, corporate_registration_number, founded_at, profile_status, created_at, updated_at, deleted_at";
 const BUSINESS_REGISTRATION_UNIQUE_CONSTRAINT =
   "companies_business_registration_number_active_unique";
 
@@ -43,6 +43,7 @@ const mapCompanyRow = (row: unknown, status: 200 | 201 = 200): CompanyResult => 
   }
 
   const company = {
+    accountManager: parsedRow.data.account_manager,
     businessRegistrationNumber: parsedRow.data.business_registration_number,
     businessType: parsedRow.data.business_type,
     companyName: parsedRow.data.company_name,
@@ -98,6 +99,7 @@ const mapWriteError = (error: {
 };
 
 const toWritePayload = (input: CompanyInput) => ({
+  account_manager: input.accountManager,
   business_registration_number: input.businessRegistrationNumber,
   business_type: input.businessType,
   company_name: input.companyName,
@@ -241,6 +243,29 @@ export const updateCompany = async (
   const { data, error } = await client
     .from(COMPANY_TABLE)
     .update(toWritePayload(input))
+    .eq("id", companyId)
+    .is("deleted_at", null)
+    .select(COMPANY_SELECT)
+    .maybeSingle<CompanyRow>();
+
+  if (error) {
+    return mapWriteError(error);
+  }
+
+  return data
+    ? mapCompanyRow(data)
+    : failure(404, companyErrorCodes.notFound, "기업을 찾을 수 없습니다.");
+};
+
+export const updateCompanyAccountManager = async (
+  createClient: MutationClientFactory,
+  companyId: string,
+  accountManager: CompanyInput["accountManager"]
+): Promise<CompanyResult> => {
+  const client = createClient();
+  const { data, error } = await client
+    .from(COMPANY_TABLE)
+    .update({ account_manager: accountManager })
     .eq("id", companyId)
     .is("deleted_at", null)
     .select(COMPANY_SELECT)
