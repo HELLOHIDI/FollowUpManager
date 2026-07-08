@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import { ProjectInputSchema, type ProjectInput, type ProjectResponse } from "../lib/dto";
 
@@ -55,9 +56,9 @@ export function ProjectForm({ assignmentError, companyName, initialValues = EMPT
     <label className="grid gap-2 text-sm font-medium">담당자명<Input {...form.register("managerName")} /><ErrorText message={form.formState.errors.managerName?.message} /></label>
     <label className="grid gap-2 text-sm font-medium">담당자 이메일<Controller control={form.control} name="managerEmail" render={({ field }) => <Input type="email" {...field} value={field.value ?? ""} />} /><ErrorText message={form.formState.errors.managerEmail?.message} /></label>
     <label className="grid gap-2 text-sm font-medium sm:col-span-2">담당자 연락처<Controller control={form.control} name="managerPhone" render={({ field }) => <Input {...field} value={field.value ?? ""} />} /><ErrorText message={form.formState.errors.managerPhone?.message} /></label>
-    <label className="grid gap-2 text-sm font-medium">정부지원금<Input inputMode="numeric" {...form.register("governmentSubsidyAmount")} /><ErrorText message={form.formState.errors.governmentSubsidyAmount?.message} /></label>
-    <label className="grid gap-2 text-sm font-medium">자기부담금(현금)<Input inputMode="numeric" {...form.register("selfCashAmount")} /><ErrorText message={form.formState.errors.selfCashAmount?.message} /></label>
-    <label className="grid gap-2 text-sm font-medium">자기부담금(현물)<Input inputMode="numeric" {...form.register("selfInKindAmount")} /><ErrorText message={form.formState.errors.selfInKindAmount?.message} /></label>
+    <label className="grid gap-2 text-sm font-medium">정부지원금<Controller control={form.control} name="governmentSubsidyAmount" render={({ field }) => <NumberInput name={field.name} onBlur={field.onBlur} onValueChange={field.onChange} ref={field.ref} value={field.value} />} /><ErrorText message={form.formState.errors.governmentSubsidyAmount?.message} /></label>
+    <label className="grid gap-2 text-sm font-medium">자기부담금(현금)<Controller control={form.control} name="selfCashAmount" render={({ field }) => <NumberInput name={field.name} onBlur={field.onBlur} onValueChange={field.onChange} ref={field.ref} value={field.value} />} /><ErrorText message={form.formState.errors.selfCashAmount?.message} /></label>
+    <label className="grid gap-2 text-sm font-medium">자기부담금(현물)<Controller control={form.control} name="selfInKindAmount" render={({ field }) => <NumberInput name={field.name} onBlur={field.onBlur} onValueChange={field.onChange} ref={field.ref} value={field.value} />} /><ErrorText message={form.formState.errors.selfInKindAmount?.message} /></label>
     <div className="rounded-md border p-3 text-sm"><span className="text-muted-foreground">총 사업비</span><strong className="ml-2 tabular-nums">{total}원</strong></div>
     <label className="grid gap-2 text-sm font-medium sm:col-span-2">유의사항<Controller control={form.control} name="projectNotes" render={({ field }) => <Textarea rows={4} {...field} value={field.value ?? ""} />} /><ErrorText message={form.formState.errors.projectNotes?.message} /></label>
     {showAttachments ? <label className="grid gap-2 text-sm font-medium sm:col-span-2">추가 첨부파일<Input accept=".pdf,.doc,.docx,.hwp,.hwpx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp,.zip" multiple type="file" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /><span className="text-xs text-muted-foreground">정책 PDF와 기관 양식 외 참고 파일을 추가합니다. 파일당 최대 20MB입니다.</span></label> : null}

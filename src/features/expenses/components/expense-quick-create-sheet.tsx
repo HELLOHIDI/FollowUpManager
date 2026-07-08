@@ -5,6 +5,7 @@ import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumberInput } from "@/components/ui/number-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
@@ -185,7 +186,18 @@ export function ExpenseQuickCreateSheet({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="expense-amount">금액</Label>
-            <Input id="expense-amount" inputMode="numeric" type="number" min={0} step={1} {...form.register("amount", { valueAsNumber: true, required: true })} />
+            <Controller
+              control={form.control}
+              name="amount"
+              render={({ field }) => (
+                <NumberInput
+                  id="expense-amount"
+                  onBlur={field.onBlur}
+                  onValueChange={(value) => field.onChange(Number(value || 0))}
+                  value={field.value}
+                />
+              )}
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="expense-date">지출 예정일 (선택)</Label>
