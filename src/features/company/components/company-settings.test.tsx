@@ -253,6 +253,40 @@ describe("CompanySettings", () => {
     });
   });
 
+  it("saves a newly entered corporate registration number when editing a corporation", async () => {
+    const existingCompany = company({
+      businessType: "corporation",
+      companyName: "법인번호 없는 법인",
+      corporateRegistrationNumber: null,
+    });
+    const updated = company({
+      ...existingCompany,
+      corporateRegistrationNumber: "1234567890123",
+    });
+    navigationState.searchParams = new URLSearchParams(
+      `companyId=${existingCompany.id}&returnTo=%2Fprojects`,
+    );
+    api.fetchCompanies.mockResolvedValue([existingCompany]);
+    api.updateCompanyRequest.mockResolvedValue(updated);
+    renderSettings();
+    const user = userEvent.setup();
+
+    const corporateNumberInput = await screen.findByLabelText("법인등기번호");
+    await user.type(corporateNumberInput, "123456-7890123");
+    expect(corporateNumberInput).toHaveValue("1234567890123");
+    await user.click(screen.getByRole("button", { name: "기업 정보 수정" }));
+
+    await waitFor(() => {
+      expect(api.updateCompanyRequest.mock.calls[0]?.[0]).toEqual({
+        companyId: existingCompany.id,
+        input: expect.objectContaining({
+          businessType: "corporation",
+          corporateRegistrationNumber: "1234567890123",
+        }),
+      });
+    });
+  });
+
   it("updates only the company account manager from the edit form", async () => {
     const existingCompany = company();
     const updated = company({ accountManager: "박종열" });

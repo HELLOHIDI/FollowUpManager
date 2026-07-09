@@ -197,6 +197,7 @@ function CompanyForm({
                 inputMode="numeric"
                 placeholder="000000-0000000"
                 {...field}
+                onChange={(event) => field.onChange(event.target.value.replace(/\D/g, ""))}
                 value={field.value ?? ""}
               />
             )}
