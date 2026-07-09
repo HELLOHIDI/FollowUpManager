@@ -21,7 +21,8 @@ import {
 } from "./schema";
 
 type Client = SupabaseClient<Database>;
-type Result<T> = HandlerResult<T, ProjectServiceError, unknown>;
+type DbError = { code?: string; details?: string; hint?: string; message?: string };
+type Result<T> = HandlerResult<T, ProjectServiceError, DbError>;
 const PROJECT_SELECT = "id, company_id, project_name, host_institution, agreement_start_date, agreement_end_date, government_subsidy_amount, government_subsidy_ratio, self_cash_amount, self_cash_ratio, self_in_kind_amount, self_in_kind_ratio, self_contribution_amount, total_project_budget, assignment_number, assignment_name, manager_name, manager_email, manager_phone, project_notes, profile_status, created_at, updated_at";
 const LEGACY_PROJECT_SELECT = "id, company_id, project_name, host_institution, agreement_start_date, agreement_end_date, government_subsidy_amount, self_cash_amount, self_in_kind_amount, self_contribution_amount, total_project_budget, assignment_number, assignment_name, manager_name, manager_email, manager_phone, project_notes, profile_status, created_at, updated_at";
 const DOCUMENT_SELECT = "id, project_id, original_file_name, file_size, mime_type, document_purpose, created_at";
@@ -113,10 +114,17 @@ const withLegacyManagerFallback = <T extends Record<string, unknown>>(payload: T
   manager_phone: payload.manager_phone || LEGACY_EMPTY_MANAGER,
 });
 
-const writeFailure = (error: { code?: string; message?: string }) =>
+const dbErrorDetails = (error: DbError): DbError => ({
+  code: error.code,
+  details: error.details,
+  hint: error.hint,
+  message: error.message,
+});
+
+const writeFailure = (error: DbError) =>
   error.code === "23505" && error.message?.includes(ASSIGNMENT_CONSTRAINT)
     ? failure(409, projectErrorCodes.assignmentConflict, "같은 기업에 이미 등록된 과제번호입니다.")
-    : failure(500, projectErrorCodes.writeError, "사업 정보를 저장하지 못했습니다.");
+    : failure(500, projectErrorCodes.writeError, "사업 정보를 저장하지 못했습니다.", dbErrorDetails(error));
 
 const getActiveCompany = (client: Client, companyId: string) =>
   client.from("companies").select("id").eq("id", companyId).is("deleted_at", null).maybeSingle();

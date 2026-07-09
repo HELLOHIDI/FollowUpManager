@@ -9,8 +9,8 @@ const parseBody = async (request: { json: () => Promise<unknown> }) => request.j
 
 export const registerProjectRoutes = (app: Hono<AppEnv>, options: { createProjectMutationClient: MutationClientFactory }) => {
   const invalid = (context: Parameters<typeof respond>[0], code: string, message: string, details?: unknown) => respond(context, failure(400, code, message, details));
-  const log = (context: Parameters<typeof respond>[0], route: string, result: { ok: boolean; error?: { code: string } }, ids: Record<string, string> = {}) => {
-    if (!result.ok && result.error) getLogger(context).error("Project API request failed", { code: result.error.code, route, ...ids });
+  const log = (context: Parameters<typeof respond>[0], route: string, result: { ok: boolean; error?: { code: string; details?: unknown } }, ids: Record<string, string> = {}) => {
+    if (!result.ok && result.error) getLogger(context).error("Project API request failed", { code: result.error.code, details: result.error.details, route, ...ids });
   };
   const shouldRetryWithAuthenticatedClient = (result: { ok: boolean; error?: { code: string }; status?: number }) =>
     !result.ok && result.status === 500 && ["PROJECT_FETCH_ERROR", "PROJECT_WRITE_ERROR"].includes(result.error?.code ?? "");
