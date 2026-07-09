@@ -32,10 +32,16 @@ import {
 } from "@/features/projects/hooks/use-projects";
 import { cn } from "@/lib/utils";
 
+const TEAM_FILTER_OPTIONS = ["전체", "1팀", "2팀", "블랜"] as const;
+type TeamFilter = (typeof TEAM_FILTER_OPTIONS)[number];
+
 export default function ProjectsPage() {
   const companiesQuery = useCompaniesQuery();
   const companies = companiesQuery.data ?? [];
-  const managerSections = COMPANY_ACCOUNT_MANAGER_OPTIONS.map((manager) => ({
+  const [teamFilter, setTeamFilter] = useState<TeamFilter>("전체");
+  const managerSections = COMPANY_ACCOUNT_MANAGER_OPTIONS.filter(
+    (manager) => teamFilter === "전체" || manager.team.includes(teamFilter),
+  ).map((manager) => ({
     ...manager,
     companies: companies.filter(({ accountManager }) => accountManager === manager.name),
   }));
@@ -47,12 +53,29 @@ export default function ProjectsPage() {
         title="담당자별 기업을 확인하세요"
         description="기업별 담당자를 기준으로 사업 등록과 운영 대시보드 진입을 관리합니다."
         actions={
-          <Button asChild>
-            <Link href={routes.companyCreate(routes.projects)}>
-              <Building2 className="size-4" aria-hidden="true" />
-              기업 추가하기
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="sr-only" htmlFor="team-filter">
+              팀 필터
+            </label>
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-xs focus:outline-hidden focus:ring-2 focus:ring-ring"
+              id="team-filter"
+              onChange={(event) => setTeamFilter(event.target.value as TeamFilter)}
+              value={teamFilter}
+            >
+              {TEAM_FILTER_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            <Button asChild>
+              <Link href={routes.companyCreate(routes.projects)}>
+                <Building2 className="size-4" aria-hidden="true" />
+                기업 추가하기
+              </Link>
+            </Button>
+          </div>
         }
       />
 

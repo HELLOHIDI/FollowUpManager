@@ -142,6 +142,40 @@ describe("ProjectsPage", () => {
     expect(screen.queryByText(/123456-1234567/)).not.toBeInTheDocument();
   });
 
+  it("filters companies by manager team", async () => {
+    companyApi.fetchCompanies.mockResolvedValue([
+      company({
+        accountManager: "정현정",
+        companyName: "1팀 기업",
+        id: "11111111-1111-4111-8111-111111111111",
+      }),
+      company({
+        accountManager: "허진석",
+        companyName: "2팀 기업",
+        id: "22222222-2222-4222-8222-222222222222",
+      }),
+      company({
+        accountManager: "손명훈",
+        companyName: "블랜 기업",
+        id: "33333333-3333-4333-8333-333333333333",
+      }),
+    ]);
+    projectApi.fetchCompanyProjects.mockResolvedValue([]);
+
+    renderProjectsPage();
+
+    expect(await screen.findByText("1팀 기업")).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("팀 필터"), "블랜");
+
+    expect(screen.getByText("블랜 기업")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "손명훈" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "이하승" })).toBeInTheDocument();
+    expect(screen.queryByText("1팀 기업")).not.toBeInTheDocument();
+    expect(screen.queryByText("2팀 기업")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "정현정" })).not.toBeInTheDocument();
+  });
+
   it("lists registered companies and links projects to their dashboards", async () => {
     const registeredCompany = company({
       businessType: "corporation",

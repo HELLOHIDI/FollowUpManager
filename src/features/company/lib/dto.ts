@@ -15,6 +15,8 @@ export const COMPANY_ACCOUNT_MANAGER_OPTIONS = [
   { name: "박종열", role: "팀원", team: "사업기획 1팀" },
   { name: "이정준", role: "팀원", team: "사업기획 2팀" },
   { name: "류희재", role: "팀원", team: "사업기획 1팀" },
+  { name: "손명훈", role: "대표", team: "블랜" },
+  { name: "이하승", role: "팀원", team: "블랜" },
 ] as const;
 
 export const formatBusinessRegistrationNumber = (value: string) =>

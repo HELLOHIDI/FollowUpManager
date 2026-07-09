@@ -19,6 +19,8 @@ export const COMPANY_ACCOUNT_MANAGERS = [
   "박종열",
   "이정준",
   "류희재",
+  "손명훈",
+  "이하승",
 ] as const;
 
 const BUSINESS_REGISTRATION_PATTERN = /^(?:[0-9]{10}|[0-9]{3}-[0-9]{2}-[0-9]{5})$/;

@@ -118,7 +118,7 @@ function CompanyForm({
             <option value="">담당자를 선택하세요</option>
             {COMPANY_ACCOUNT_MANAGER_OPTIONS.map(({ name, role, team }) => (
               <option key={name} value={name}>
-                {name} {team} {role}
+                {team} {name} {role}
               </option>
             ))}
           </select>
