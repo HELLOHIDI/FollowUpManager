@@ -28,9 +28,17 @@ const DOCUMENT_SELECT = "id, project_id, original_file_name, file_size, mime_typ
 const TEMPLATE_DOCUMENT_TYPE_SELECT = "id, project_id, document_key, display_name, source, stage_key, sort_order, category_key, category_name, subcategory_key, subcategory_name";
 const ASSIGNMENT_CONSTRAINT = "projects_company_assignment_number_unique";
 const RATIO_COLUMNS = ["government_subsidy_ratio", "self_cash_ratio", "self_in_kind_ratio"];
+const LEGACY_EMPTY_MANAGER = "__empty_manager__";
 
 const isMissingBudgetRatioColumn = (error: { code?: string; message?: string }) =>
   error.code === "42703" || RATIO_COLUMNS.some((column) => error.message?.includes(column));
+
+const isLegacyManagerConstraint = (error: { code?: string; message?: string }) =>
+  error.code === "23514" && (
+    error.message?.includes("projects_manager_contact_check") ||
+    error.message?.includes("projects_manager_name_check") ||
+    error.message?.includes("manager_name")
+  );
 
 const ratioFromAmount = (amount: unknown, total: unknown) => {
   const amountNumber = Number(amount ?? 0);
@@ -45,7 +53,7 @@ const mapProject = (row: Record<string, unknown>, status: 200 | 201 = 200): Resu
     agreementEndDate: row.agreement_end_date, agreementStartDate: row.agreement_start_date,
     assignmentName: row.assignment_name, assignmentNumber: row.assignment_number, companyId: row.company_id,
     createdAt: row.created_at, governmentSubsidyAmount: row.government_subsidy_amount, governmentSubsidyRatio: subsidyRatio, hostInstitution: row.host_institution,
-    id: row.id, managerEmail: row.manager_email, managerName: row.manager_name ?? "", managerPhone: row.manager_phone,
+    id: row.id, managerEmail: row.manager_email, managerName: row.manager_name === LEGACY_EMPTY_MANAGER ? "" : row.manager_name ?? "", managerPhone: row.manager_phone === LEGACY_EMPTY_MANAGER ? null : row.manager_phone,
     profileStatus: row.profile_status, projectName: row.project_name, projectNotes: row.project_notes,
     selfCashAmount: row.self_cash_amount, selfCashRatio: cashRatio, selfContributionAmount: row.self_contribution_amount,
     selfInKindAmount: row.self_in_kind_amount, selfInKindRatio: row.self_in_kind_ratio ?? Math.round((100 - Number(subsidyRatio) - Number(cashRatio)) * 100) / 100, totalProjectBudget: row.total_project_budget, updatedAt: row.updated_at,
@@ -94,6 +102,13 @@ const toPayload = (input: ProjectInput) => {
     total_project_budget: amount.total,
   };
 };
+
+const withLegacyManagerFallback = <T extends Record<string, unknown>>(payload: T) => ({
+  ...payload,
+  // ponytail: remove this retry payload after migration 0036 is applied to every hosted DB.
+  manager_name: payload.manager_name || LEGACY_EMPTY_MANAGER,
+  manager_phone: payload.manager_email || payload.manager_phone ? payload.manager_phone : LEGACY_EMPTY_MANAGER,
+});
 
 const writeFailure = (error: { code?: string; message?: string }) =>
   error.code === "23505" && error.message?.includes(ASSIGNMENT_CONSTRAINT)
@@ -144,6 +159,13 @@ export const createProject = async (client: Client, companyId: string, input: Pr
     const { government_subsidy_ratio: _subsidyRatio, self_cash_ratio: _cashRatio, self_in_kind_ratio: _inKindRatio, ...legacyPayload } = payload;
     ({ data, error } = await client.from("projects").insert({ company_id: companyId, ...legacyPayload }).select(LEGACY_PROJECT_SELECT).single());
   }
+  if (error && isLegacyManagerConstraint(error)) {
+    ({ data, error } = await client.from("projects").insert(withLegacyManagerFallback({ company_id: companyId, ...payload })).select(PROJECT_SELECT).single());
+    if (error && isMissingBudgetRatioColumn(error)) {
+      const { government_subsidy_ratio: _subsidyRatio, self_cash_ratio: _cashRatio, self_in_kind_ratio: _inKindRatio, ...legacyPayload } = payload;
+      ({ data, error } = await client.from("projects").insert(withLegacyManagerFallback({ company_id: companyId, ...legacyPayload })).select(LEGACY_PROJECT_SELECT).single());
+    }
+  }
   return error ? writeFailure(error) : mapProject(data as Record<string, unknown>, 201);
 };
 
@@ -153,6 +175,13 @@ export const updateProject = async (client: Client, projectId: string, input: Pr
   if (error && isMissingBudgetRatioColumn(error)) {
     const { government_subsidy_ratio: _subsidyRatio, self_cash_ratio: _cashRatio, self_in_kind_ratio: _inKindRatio, ...legacyPayload } = payload;
     ({ data, error } = await client.from("projects").update(legacyPayload).eq("id", projectId).is("deleted_at", null).select(LEGACY_PROJECT_SELECT).maybeSingle());
+  }
+  if (error && isLegacyManagerConstraint(error)) {
+    ({ data, error } = await client.from("projects").update(withLegacyManagerFallback(payload)).eq("id", projectId).is("deleted_at", null).select(PROJECT_SELECT).maybeSingle());
+    if (error && isMissingBudgetRatioColumn(error)) {
+      const { government_subsidy_ratio: _subsidyRatio, self_cash_ratio: _cashRatio, self_in_kind_ratio: _inKindRatio, ...legacyPayload } = payload;
+      ({ data, error } = await client.from("projects").update(withLegacyManagerFallback(legacyPayload)).eq("id", projectId).is("deleted_at", null).select(LEGACY_PROJECT_SELECT).maybeSingle());
+    }
   }
   if (error) return writeFailure(error);
   return data ? mapProject(data as Record<string, unknown>) : failure(404, projectErrorCodes.notFound, "사업을 찾을 수 없습니다.");

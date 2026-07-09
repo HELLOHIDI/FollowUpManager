@@ -47,6 +47,15 @@ const createClient = () => {
         insert: (payload: Record<string, unknown>) => ({
           select: () => ({
             single: async () => {
+              if (!payload.manager_name || (!payload.manager_email && !payload.manager_phone)) {
+                return {
+                  data: null,
+                  error: {
+                    code: "23514",
+                    message: "violates check constraint projects_manager_contact_check",
+                  },
+                };
+              }
               const row = {
                 ...payload,
                 created_at: "2026-01-01T00:00:00.000Z",
