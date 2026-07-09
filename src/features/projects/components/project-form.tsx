@@ -30,6 +30,7 @@ const ErrorText = ({ message }: { message?: string }) => message ? <p className=
 const toBasisPoints = (value: string) => /^(100(?:\.0{1,2})?|\d{1,2}(?:\.\d{1,2})?)$/.test(value) ? Math.round(Number(value) * 100) : null;
 const formatWon = (value: bigint | null) => value === null ? "-" : `${value.toLocaleString("ko-KR")}원`;
 const toFiles = (fileList: FileList | null) => Array.from(fileList ?? []);
+const fileKey = (file: File) => `${file.name}-${file.size}-${file.lastModified}`;
 
 const calculateBudgetAmounts = ([totalValue, subsidyValue, cashValue, inKindValue]: string[]) => {
   if (!/^\d+$/.test(totalValue)) return null;
@@ -50,6 +51,7 @@ export function ProjectForm({ assignmentError, companyName, initialValues = EMPT
 }) {
   const form = useForm<ProjectInput>({ defaultValues: initialValues, mode: "onChange", resolver: zodResolver(ProjectInputSchema) });
   const [files, setFiles] = useState<File[]>([]);
+  const [checkedFileKeys, setCheckedFileKeys] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const projectName = form.watch("projectName");
@@ -62,12 +64,19 @@ export function ProjectForm({ assignmentError, companyName, initialValues = EMPT
     if (assignmentError) form.setError("assignmentNumber", { message: assignmentError, type: "server" });
   }, [assignmentError, form]);
   useEffect(() => onDirtyChange?.(form.formState.isDirty || files.length > 0), [files.length, form.formState.isDirty, onDirtyChange]);
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => setFiles(toFiles(event.target.files));
+  const setSelectedFiles = (nextFiles: File[]) => {
+    setFiles(nextFiles);
+    setCheckedFileKeys([]);
+  };
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => setSelectedFiles(toFiles(event.target.files));
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDragging(false);
-    setFiles(toFiles(event.dataTransfer.files));
+    setSelectedFiles(toFiles(event.dataTransfer.files));
   };
+  const toggleCheckedFile = (key: string, checked: boolean) =>
+    setCheckedFileKeys((keys) => checked ? [...keys, key] : keys.filter((value) => value !== key));
+  const removeCheckedFiles = () => setSelectedFiles(files.filter((file) => !checkedFileKeys.includes(fileKey(file))));
 
   return <form className="grid gap-5 sm:grid-cols-2" onSubmit={form.handleSubmit((input) => onSubmit(input, files))}>
     <div className="rounded-md bg-muted px-4 py-3 text-sm sm:col-span-2"><span className="text-muted-foreground">등록 기업</span><strong className="ml-2">{companyName}</strong></div>
@@ -107,9 +116,21 @@ export function ProjectForm({ assignmentError, companyName, initialValues = EMPT
           <Button type="button" onClick={() => fileInputRef.current?.click()}><Upload className="size-4" aria-hidden="true" />파일선택</Button>
           <Input ref={fileInputRef} accept={DEFAULT_UPLOAD_ACCEPT} className="hidden" multiple type="file" onChange={handleFileChange} />
           <p className="text-xs font-normal text-muted-foreground">협약 PDF와 기관 양식 등 참고 파일을 추가합니다. 파일은 최대 20MB입니다.</p>
-          {files.length > 0 ? <ul className="grid gap-1 text-xs font-normal text-muted-foreground">
-            {files.map((file) => <li key={`${file.name}-${file.lastModified}`}>{file.name}</li>)}
-          </ul> : null}
+          {files.length > 0 ? <div className="grid w-full max-w-xl gap-2 text-left">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-normal text-muted-foreground">선택된 파일 {files.length}개</span>
+              <Button disabled={checkedFileKeys.length === 0} size="sm" type="button" variant="outline" onClick={removeCheckedFiles}>선택 삭제</Button>
+            </div>
+            <ul className="grid gap-1 text-xs font-normal text-muted-foreground">
+              {files.map((file) => {
+                const key = fileKey(file);
+                return <li className="flex items-center gap-2 rounded-md bg-background/70 px-3 py-2" key={key}>
+                  <input aria-label={`${file.name} 삭제 선택`} checked={checkedFileKeys.includes(key)} className="size-4" type="checkbox" onChange={(event) => toggleCheckedFile(key, event.target.checked)} />
+                  <span className="truncate">{file.name}</span>
+                </li>;
+              })}
+            </ul>
+          </div> : null}
         </div>
       </div>
     </div> : null}

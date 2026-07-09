@@ -21,4 +21,27 @@ describe("ProjectForm attachments", () => {
 
     expect(screen.getByText("grant-agreement.pdf")).toBeInTheDocument();
   });
+
+  it("removes checked attachment files", () => {
+    const keepFile = new File(["keep"], "keep.pdf", { type: "application/pdf" });
+    const removeFile = new File(["remove"], "remove.pdf", { type: "application/pdf" });
+
+    render(
+      <ProjectForm
+        companyName="테스트 기업"
+        isSubmitting={false}
+        onSubmit={vi.fn()}
+        showAttachments
+      />
+    );
+
+    fireEvent.drop(screen.getByText(/첨부할 파일/).closest("div")!, {
+      dataTransfer: { files: [keepFile, removeFile] },
+    });
+    fireEvent.click(screen.getByLabelText("remove.pdf 삭제 선택"));
+    fireEvent.click(screen.getByRole("button", { name: "선택 삭제" }));
+
+    expect(screen.getByText("keep.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("remove.pdf")).not.toBeInTheDocument();
+  });
 });
