@@ -29,6 +29,7 @@ const DOCUMENT_SELECT = "id, project_id, original_file_name, file_size, mime_typ
 const TEMPLATE_DOCUMENT_TYPE_SELECT = "id, project_id, document_key, display_name, source, stage_key, sort_order, category_key, category_name, subcategory_key, subcategory_name";
 const ASSIGNMENT_CONSTRAINT = "projects_company_assignment_number_unique";
 const RATIO_COLUMNS = ["government_subsidy_ratio", "self_cash_ratio", "self_in_kind_ratio"];
+const LEGACY_EMPTY_ASSIGNMENT_PREFIX = "__empty_assignment__";
 const LEGACY_EMPTY_MANAGER = "__empty_manager__";
 
 const isMissingBudgetRatioColumn = (error: { code?: string; message?: string }) =>
@@ -43,6 +44,9 @@ const isLegacyManagerConstraint = (error: { code?: string; message?: string }) =
     error.message?.includes("manager_name")
   );
 
+const isLegacyAssignmentConstraint = (error: { code?: string; message?: string }) =>
+  ["23502", "23514"].includes(error.code ?? "") && error.message?.includes("assignment_number");
+
 const ratioFromAmount = (amount: unknown, total: unknown) => {
   const amountNumber = Number(amount ?? 0);
   const totalNumber = Number(total ?? 0);
@@ -54,7 +58,9 @@ const mapProject = (row: Record<string, unknown>, status: 200 | 201 = 200): Resu
   const cashRatio = row.self_cash_ratio ?? ratioFromAmount(row.self_cash_amount, row.total_project_budget);
   const parsed = ProjectResponseSchema.safeParse({
     agreementEndDate: row.agreement_end_date, agreementStartDate: row.agreement_start_date,
-    assignmentName: row.assignment_name, assignmentNumber: row.assignment_number, companyId: row.company_id,
+    assignmentName: row.assignment_name,
+    assignmentNumber: typeof row.assignment_number === "string" && row.assignment_number.startsWith(LEGACY_EMPTY_ASSIGNMENT_PREFIX) ? null : row.assignment_number,
+    companyId: row.company_id,
     createdAt: row.created_at, governmentSubsidyAmount: row.government_subsidy_amount, governmentSubsidyRatio: subsidyRatio, hostInstitution: row.host_institution,
     id: row.id, managerEmail: row.manager_email === LEGACY_EMPTY_MANAGER ? null : row.manager_email, managerName: row.manager_name === LEGACY_EMPTY_MANAGER ? "" : row.manager_name ?? "", managerPhone: row.manager_phone === LEGACY_EMPTY_MANAGER ? null : row.manager_phone,
     profileStatus: row.profile_status, projectName: row.project_name, projectNotes: row.project_notes,
@@ -114,6 +120,12 @@ const withLegacyManagerFallback = <T extends Record<string, unknown>>(payload: T
   manager_phone: payload.manager_phone || LEGACY_EMPTY_MANAGER,
 });
 
+const withLegacyAssignmentFallback = <T extends Record<string, unknown>>(payload: T) => ({
+  ...payload,
+  // ponytail: remove this retry payload after migration 0034 is applied to every hosted DB.
+  assignment_number: payload.assignment_number || `${LEGACY_EMPTY_ASSIGNMENT_PREFIX}${randomUUID()}`,
+});
+
 const dbErrorDetails = (error: DbError): DbError => ({
   code: error.code,
   details: error.details,
@@ -170,11 +182,18 @@ export const createProject = async (client: Client, companyId: string, input: Pr
     const { government_subsidy_ratio: _subsidyRatio, self_cash_ratio: _cashRatio, self_in_kind_ratio: _inKindRatio, ...legacyPayload } = payload;
     ({ data, error } = await client.from("projects").insert({ company_id: companyId, ...legacyPayload }).select(LEGACY_PROJECT_SELECT).single());
   }
-  if (error && isLegacyManagerConstraint(error)) {
-    ({ data, error } = await client.from("projects").insert(withLegacyManagerFallback({ company_id: companyId, ...payload })).select(PROJECT_SELECT).single());
+  if (error && isLegacyAssignmentConstraint(error)) {
+    ({ data, error } = await client.from("projects").insert(withLegacyAssignmentFallback({ company_id: companyId, ...payload })).select(PROJECT_SELECT).single());
     if (error && isMissingBudgetRatioColumn(error)) {
       const { government_subsidy_ratio: _subsidyRatio, self_cash_ratio: _cashRatio, self_in_kind_ratio: _inKindRatio, ...legacyPayload } = payload;
-      ({ data, error } = await client.from("projects").insert(withLegacyManagerFallback({ company_id: companyId, ...legacyPayload })).select(LEGACY_PROJECT_SELECT).single());
+      ({ data, error } = await client.from("projects").insert(withLegacyAssignmentFallback({ company_id: companyId, ...legacyPayload })).select(LEGACY_PROJECT_SELECT).single());
+    }
+  }
+  if (error && isLegacyManagerConstraint(error)) {
+    ({ data, error } = await client.from("projects").insert(withLegacyManagerFallback(withLegacyAssignmentFallback({ company_id: companyId, ...payload }))).select(PROJECT_SELECT).single());
+    if (error && isMissingBudgetRatioColumn(error)) {
+      const { government_subsidy_ratio: _subsidyRatio, self_cash_ratio: _cashRatio, self_in_kind_ratio: _inKindRatio, ...legacyPayload } = payload;
+      ({ data, error } = await client.from("projects").insert(withLegacyManagerFallback(withLegacyAssignmentFallback({ company_id: companyId, ...legacyPayload }))).select(LEGACY_PROJECT_SELECT).single());
     }
   }
   return error ? writeFailure(error) : mapProject(data as Record<string, unknown>, 201);
@@ -187,11 +206,18 @@ export const updateProject = async (client: Client, projectId: string, input: Pr
     const { government_subsidy_ratio: _subsidyRatio, self_cash_ratio: _cashRatio, self_in_kind_ratio: _inKindRatio, ...legacyPayload } = payload;
     ({ data, error } = await client.from("projects").update(legacyPayload).eq("id", projectId).is("deleted_at", null).select(LEGACY_PROJECT_SELECT).maybeSingle());
   }
-  if (error && isLegacyManagerConstraint(error)) {
-    ({ data, error } = await client.from("projects").update(withLegacyManagerFallback(payload)).eq("id", projectId).is("deleted_at", null).select(PROJECT_SELECT).maybeSingle());
+  if (error && isLegacyAssignmentConstraint(error)) {
+    ({ data, error } = await client.from("projects").update(withLegacyAssignmentFallback(payload)).eq("id", projectId).is("deleted_at", null).select(PROJECT_SELECT).maybeSingle());
     if (error && isMissingBudgetRatioColumn(error)) {
       const { government_subsidy_ratio: _subsidyRatio, self_cash_ratio: _cashRatio, self_in_kind_ratio: _inKindRatio, ...legacyPayload } = payload;
-      ({ data, error } = await client.from("projects").update(withLegacyManagerFallback(legacyPayload)).eq("id", projectId).is("deleted_at", null).select(LEGACY_PROJECT_SELECT).maybeSingle());
+      ({ data, error } = await client.from("projects").update(withLegacyAssignmentFallback(legacyPayload)).eq("id", projectId).is("deleted_at", null).select(LEGACY_PROJECT_SELECT).maybeSingle());
+    }
+  }
+  if (error && isLegacyManagerConstraint(error)) {
+    ({ data, error } = await client.from("projects").update(withLegacyManagerFallback(withLegacyAssignmentFallback(payload))).eq("id", projectId).is("deleted_at", null).select(PROJECT_SELECT).maybeSingle());
+    if (error && isMissingBudgetRatioColumn(error)) {
+      const { government_subsidy_ratio: _subsidyRatio, self_cash_ratio: _cashRatio, self_in_kind_ratio: _inKindRatio, ...legacyPayload } = payload;
+      ({ data, error } = await client.from("projects").update(withLegacyManagerFallback(withLegacyAssignmentFallback(legacyPayload))).eq("id", projectId).is("deleted_at", null).select(LEGACY_PROJECT_SELECT).maybeSingle());
     }
   }
   if (error) return writeFailure(error);
