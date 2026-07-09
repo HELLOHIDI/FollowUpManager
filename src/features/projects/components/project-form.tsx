@@ -13,20 +13,34 @@ import { ProjectInputSchema, type ProjectInput, type ProjectResponse } from "../
 
 export const EMPTY_PROJECT: ProjectInput = {
   agreementEndDate: "", agreementStartDate: "", assignmentName: "", assignmentNumber: "",
-  governmentSubsidyAmount: "0", hostInstitution: "", managerEmail: null, managerName: "", managerPhone: null,
-  projectName: "", projectNotes: null, selfCashAmount: "0", selfInKindAmount: "0",
+  governmentSubsidyRatio: "100", hostInstitution: "", managerEmail: null, managerName: "", managerPhone: null,
+  projectName: "", projectNotes: null, selfCashRatio: "0", selfInKindRatio: "0", totalProjectBudget: "0",
 };
 
 export const projectToInput = (project: ProjectResponse): ProjectInput => ({
   agreementEndDate: project.agreementEndDate, agreementStartDate: project.agreementStartDate,
   assignmentName: project.assignmentName, assignmentNumber: project.assignmentNumber ?? "",
-  governmentSubsidyAmount: String(project.governmentSubsidyAmount), hostInstitution: project.hostInstitution,
+  governmentSubsidyRatio: String(project.governmentSubsidyRatio), hostInstitution: project.hostInstitution,
   managerEmail: project.managerEmail, managerName: project.managerName, managerPhone: project.managerPhone,
-  projectName: project.projectName, projectNotes: project.projectNotes, selfCashAmount: String(project.selfCashAmount),
-  selfInKindAmount: String(project.selfInKindAmount),
+  projectName: project.projectName, projectNotes: project.projectNotes, selfCashRatio: String(project.selfCashRatio),
+  selfInKindRatio: String(project.selfInKindRatio), totalProjectBudget: String(project.totalProjectBudget),
 });
 
 const ErrorText = ({ message }: { message?: string }) => message ? <p className="text-sm font-medium text-destructive" role="alert">{message}</p> : null;
+const toBasisPoints = (value: string) => /^(100(?:\.0{1,2})?|\d{1,2}(?:\.\d{1,2})?)$/.test(value) ? Math.round(Number(value) * 100) : null;
+const formatWon = (value: bigint | null) => value === null ? "-" : `${value.toLocaleString("ko-KR")}원`;
+
+const calculateBudgetAmounts = ([totalValue, subsidyValue, cashValue, inKindValue]: string[]) => {
+  if (!/^\d+$/.test(totalValue)) return null;
+  const total = BigInt(totalValue);
+  const subsidyRatio = toBasisPoints(subsidyValue);
+  const cashRatio = toBasisPoints(cashValue);
+  const inKindRatio = toBasisPoints(inKindValue);
+  if (subsidyRatio === null || cashRatio === null || inKindRatio === null || subsidyRatio + cashRatio + inKindRatio !== 10000) return null;
+  const subsidy = (total * BigInt(subsidyRatio)) / BigInt(10000);
+  const cash = (total * BigInt(cashRatio)) / BigInt(10000);
+  return { cash, inKind: total - subsidy - cash, subsidy };
+};
 
 export function ProjectForm({ assignmentError, companyName, initialValues = EMPTY_PROJECT, isSubmitting, onDirtyChange, onSubmit, projects = [], showAttachments = false, submitLabel = "사업 등록" }: {
   assignmentError?: string | null;
@@ -36,8 +50,8 @@ export function ProjectForm({ assignmentError, companyName, initialValues = EMPT
   const form = useForm<ProjectInput>({ defaultValues: initialValues, mode: "onChange", resolver: zodResolver(ProjectInputSchema) });
   const [files, setFiles] = useState<File[]>([]);
   const projectName = form.watch("projectName");
-  const amounts = form.watch(["governmentSubsidyAmount", "selfCashAmount", "selfInKindAmount"]);
-  const total = useMemo(() => amounts.every((value) => /^\d+$/.test(value)) ? amounts.reduce((sum, value) => sum + BigInt(value), BigInt(0)).toLocaleString("ko-KR") : "-", [amounts]);
+  const budgetInputs = form.watch(["totalProjectBudget", "governmentSubsidyRatio", "selfCashRatio", "selfInKindRatio"]);
+  const budget = useMemo(() => calculateBudgetAmounts(budgetInputs), [budgetInputs]);
   const duplicateName = projectName.trim() && projects.some((project) => project.projectName === projectName.trim());
 
   useEffect(() => form.reset(initialValues), [form, initialValues]);
@@ -57,12 +71,20 @@ export function ProjectForm({ assignmentError, companyName, initialValues = EMPT
     <label className="grid gap-2 text-sm font-medium">기관 담당자명<Input {...form.register("managerName")} /><ErrorText message={form.formState.errors.managerName?.message} /></label>
     <label className="grid gap-2 text-sm font-medium">기관 담당자 이메일<Controller control={form.control} name="managerEmail" render={({ field }) => <Input type="email" {...field} value={field.value ?? ""} />} /><ErrorText message={form.formState.errors.managerEmail?.message} /></label>
     <label className="grid gap-2 text-sm font-medium sm:col-span-2">기관 담당자 연락처<Controller control={form.control} name="managerPhone" render={({ field }) => <Input {...field} value={field.value ?? ""} />} /><ErrorText message={form.formState.errors.managerPhone?.message} /></label>
-    <label className="grid gap-2 text-sm font-medium">정부지원금<Controller control={form.control} name="governmentSubsidyAmount" render={({ field }) => <NumberInput name={field.name} onBlur={field.onBlur} onValueChange={field.onChange} ref={field.ref} value={field.value} />} /><ErrorText message={form.formState.errors.governmentSubsidyAmount?.message} /></label>
-    <label className="grid gap-2 text-sm font-medium">자기부담금(현금)<Controller control={form.control} name="selfCashAmount" render={({ field }) => <NumberInput name={field.name} onBlur={field.onBlur} onValueChange={field.onChange} ref={field.ref} value={field.value} />} /><ErrorText message={form.formState.errors.selfCashAmount?.message} /></label>
-    <label className="grid gap-2 text-sm font-medium">자기부담금(현물)<Controller control={form.control} name="selfInKindAmount" render={({ field }) => <NumberInput name={field.name} onBlur={field.onBlur} onValueChange={field.onChange} ref={field.ref} value={field.value} />} /><ErrorText message={form.formState.errors.selfInKindAmount?.message} /></label>
-    <div className="rounded-md border p-3 text-sm"><span className="text-muted-foreground">총 사업비</span><strong className="ml-2 tabular-nums">{total}원</strong></div>
+    <label className="grid gap-2 text-sm font-medium sm:col-span-2">총 사업비<Controller control={form.control} name="totalProjectBudget" render={({ field }) => <NumberInput name={field.name} onBlur={field.onBlur} onValueChange={field.onChange} ref={field.ref} value={field.value} />} /><ErrorText message={form.formState.errors.totalProjectBudget?.message} /></label>
+    <label className="grid gap-2 text-sm font-medium">정부지원금 비율(%)<Input inputMode="decimal" {...form.register("governmentSubsidyRatio")} /><ErrorText message={form.formState.errors.governmentSubsidyRatio?.message} /></label>
+    <label className="grid gap-2 text-sm font-medium">현금 비율(%)<Input inputMode="decimal" {...form.register("selfCashRatio")} /><ErrorText message={form.formState.errors.selfCashRatio?.message} /></label>
+    <label className="grid gap-2 text-sm font-medium">현물 비율(%)<Input inputMode="decimal" {...form.register("selfInKindRatio")} /><ErrorText message={form.formState.errors.selfInKindRatio?.message} /></label>
+    <div className="rounded-md border p-3 text-sm">
+      <p className="text-muted-foreground">산출 금액</p>
+      <div className="mt-2 grid gap-1 tabular-nums">
+        <span>정부지원금 <strong>{formatWon(budget?.subsidy ?? null)}</strong></span>
+        <span>현금 <strong>{formatWon(budget?.cash ?? null)}</strong></span>
+        <span>현물 <strong>{formatWon(budget?.inKind ?? null)}</strong></span>
+      </div>
+    </div>
     <label className="grid gap-2 text-sm font-medium sm:col-span-2">유의사항<Controller control={form.control} name="projectNotes" render={({ field }) => <Textarea rows={4} {...field} value={field.value ?? ""} />} /><ErrorText message={form.formState.errors.projectNotes?.message} /></label>
-    {showAttachments ? <label className="grid gap-2 text-sm font-medium sm:col-span-2">추가 첨부파일<Input accept={DEFAULT_UPLOAD_ACCEPT} multiple type="file" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /><span className="text-xs text-muted-foreground">정책 PDF와 기관 양식 외 참고 파일을 추가합니다. 파일당 최대 20MB입니다.</span></label> : null}
+    {showAttachments ? <label className="grid gap-2 text-sm font-medium sm:col-span-2">추가 첨부파일<Input accept={DEFAULT_UPLOAD_ACCEPT} multiple type="file" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /><span className="text-xs text-muted-foreground">협약 PDF와 기관 양식 등 참고 파일을 추가합니다. 파일은 최대 20MB입니다.</span></label> : null}
     <div className="flex justify-end border-t pt-5 sm:col-span-2"><Button disabled={!form.formState.isValid || isSubmitting} type="submit">{isSubmitting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}{submitLabel}</Button></div>
   </form>;
 }

@@ -966,6 +966,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           government_subsidy_amount: number
+          government_subsidy_ratio: number
           host_institution: string
           id: string
           manager_email: string | null
@@ -975,8 +976,10 @@ export type Database = {
           project_name: string
           project_notes: string | null
           self_cash_amount: number
+          self_cash_ratio: number
           self_contribution_amount: number
           self_in_kind_amount: number
+          self_in_kind_ratio: number
           total_project_budget: number
           updated_at: string
         }
@@ -990,6 +993,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           government_subsidy_amount?: number
+          government_subsidy_ratio?: number
           host_institution: string
           id?: string
           manager_email?: string | null
@@ -999,8 +1003,10 @@ export type Database = {
           project_name: string
           project_notes?: string | null
           self_cash_amount?: number
+          self_cash_ratio?: number
           self_contribution_amount?: number
           self_in_kind_amount?: number
+          self_in_kind_ratio?: number
           total_project_budget?: number
           updated_at?: string
         }
@@ -1014,6 +1020,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           government_subsidy_amount?: number
+          government_subsidy_ratio?: number
           host_institution?: string
           id?: string
           manager_email?: string | null
@@ -1023,8 +1030,10 @@ export type Database = {
           project_name?: string
           project_notes?: string | null
           self_cash_amount?: number
+          self_cash_ratio?: number
           self_contribution_amount?: number
           self_in_kind_amount?: number
+          self_in_kind_ratio?: number
           total_project_budget?: number
           updated_at?: string
         }
