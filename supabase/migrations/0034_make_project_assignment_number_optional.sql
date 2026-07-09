@@ -2,6 +2,8 @@ alter table public.projects
   drop constraint if exists projects_assignment_number_check,
   alter column assignment_number drop not null;
 
+drop index if exists public.projects_company_assignment_number_unique;
+
 alter table public.expenses
   drop constraint if exists expenses_funding_source_key_check,
   add constraint expenses_funding_source_key_check
