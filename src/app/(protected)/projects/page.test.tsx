@@ -152,8 +152,8 @@ describe("ProjectsPage", () => {
     renderProjectsPage();
 
     expect(await screen.findByText("테스트 기업")).toBeInTheDocument();
-    expect(screen.queryByText(/사업자등록번호/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/법인등록번호/)).not.toBeInTheDocument();
+    expect(screen.getByText(/123-45-67890/)).toBeInTheDocument();
+    expect(screen.getByText(/123456-1234567/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "정현정" })).toBeInTheDocument();
     expect(screen.queryByText("운영 대시보드 사업")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^사업 등록$/ })).not.toBeInTheDocument();

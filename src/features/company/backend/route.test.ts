@@ -348,6 +348,33 @@ describe("company API boundary", () => {
     expect(createCompanyMutationClient).toHaveBeenCalledTimes(1);
   });
 
+  it("updates a corporate registration number", async () => {
+    const auth = authorizedClient();
+    const mutation = mutationClient({
+      updateRow: { ...COMPANY_ROW, corporate_registration_number: "9876549876543" },
+    });
+    createCompanyMutationClient.mockReturnValue(mutation.client);
+    const app = createHonoApp({
+      createAuthenticatedClient: vi.fn(() => auth.client),
+      createCompanyMutationClient,
+    });
+    const response = await app.request(
+      `/api/companies/${COMPANY_ID}`,
+      requestOptions("PATCH", {
+        ...COMPANY_INPUT,
+        corporateRegistrationNumber: "987654-9876543",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mutation.update).toHaveBeenCalledWith(
+      expect.objectContaining({ corporate_registration_number: "9876549876543" })
+    );
+    expect(await response.json()).toEqual(
+      expect.objectContaining({ corporateRegistrationNumber: "9876549876543" })
+    );
+  });
+
   it("updates only the account manager through the mutation client", async () => {
     const auth = authorizedClient();
     const mutation = mutationClient({

@@ -35,6 +35,8 @@ const percentSchema = z
   .trim()
   .regex(/^(100(?:\.0{1,2})?|\d{1,2}(?:\.\d{1,2})?)$/, "비율은 0~100 사이로 입력해 주세요.");
 
+const toBasisPoints = (value: string) => Math.round(Number(value) * 100);
+
 const optionalText = (max: number) =>
   z.preprocess(
     (value) => (typeof value === "string" && value.trim() === "" ? null : value),
@@ -119,7 +121,7 @@ export const ProjectInputSchema = z
       (value) => (typeof value === "string" && value.trim() === "" ? null : value),
       z.string().trim().email("이메일 형식이 올바르지 않습니다.").max(254).nullable().optional().default(null)
     ),
-    managerName: z.string().trim().min(1).max(100),
+    managerName: z.string().trim().max(100),
     managerPhone: z.preprocess(
       (value) => (typeof value === "string" && value.trim() === "" ? null : value),
       z.string().trim().regex(PHONE_PATTERN, "연락처 형식이 올바르지 않습니다.").nullable().optional().default(null)
@@ -134,9 +136,6 @@ export const ProjectInputSchema = z
     if (value.agreementEndDate < value.agreementStartDate) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["agreementEndDate"], message: "협약 종료일은 시작일보다 빠를 수 없습니다." });
     }
-    if (!value.managerEmail && !value.managerPhone) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ["managerEmail"], message: "담당자 이메일 또는 연락처 중 하나를 입력해 주세요." });
-    }
     const total = BigInt(value.totalProjectBudget);
     if (total === BigInt(0)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["totalProjectBudget"], message: "총 사업비는 0보다 커야 합니다." });
@@ -144,8 +143,8 @@ export const ProjectInputSchema = z
     if (total > MAX_SAFE_AMOUNT) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["totalProjectBudget"], message: "총 사업비가 허용 범위를 초과합니다." });
     }
-    const ratioTotal = Number(value.governmentSubsidyRatio) + Number(value.selfCashRatio) + Number(value.selfInKindRatio);
-    if (Math.round(ratioTotal * 100) !== 10000) {
+    const ratioTotal = toBasisPoints(value.governmentSubsidyRatio) + toBasisPoints(value.selfCashRatio) + toBasisPoints(value.selfInKindRatio);
+    if (ratioTotal !== 10000) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["governmentSubsidyRatio"], message: "정부지원금, 현금, 현물 비율의 합계는 100%여야 합니다." });
     }
   });

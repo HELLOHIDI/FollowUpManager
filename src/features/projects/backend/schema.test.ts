@@ -21,12 +21,17 @@ describe("ProjectInputSchema", () => {
 
     expect(parsed.assignmentNumber).toBeNull();
   });
-  it("requires one contact", () => expect(ProjectInputSchema.safeParse({ ...validProject, managerEmail: null, managerPhone: null }).success).toBe(false));
+  it("accepts projects without institution manager contact fields", () => {
+    const parsed = ProjectInputSchema.parse({ ...validProject, managerEmail: "", managerName: "", managerPhone: "" });
+
+    expect(parsed).toMatchObject({ managerEmail: null, managerName: "", managerPhone: null });
+  });
   it("rejects zero total and reversed dates", () => {
     expect(ProjectInputSchema.safeParse({ ...validProject, totalProjectBudget: "0" }).success).toBe(false);
     expect(ProjectInputSchema.safeParse({ ...validProject, agreementEndDate: "2025-12-31" }).success).toBe(false);
   });
   it("requires budget ratios to total 100%", () => expect(ProjectInputSchema.safeParse({ ...validProject, selfInKindRatio: "1" }).success).toBe(false));
+  it("accepts 70/30/0 budget ratios", () => expect(ProjectInputSchema.safeParse({ ...validProject, governmentSubsidyRatio: "70", selfCashRatio: "30", selfInKindRatio: "0" }).success).toBe(true));
   it("rejects impossible calendar dates", () => expect(ProjectInputSchema.safeParse({ ...validProject, agreementStartDate: "2026-02-30" }).success).toBe(false));
   it("rejects amounts beyond the JavaScript-safe boundary", () => expect(ProjectInputSchema.safeParse({ ...validProject, totalProjectBudget: "9007199254740992" }).success).toBe(false));
 });
