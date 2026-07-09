@@ -24,7 +24,6 @@ import { routes } from "@/constants/routes";
 import { useCompaniesQuery } from "@/features/company/hooks/use-companies-query";
 import {
   COMPANY_ACCOUNT_MANAGER_OPTIONS,
-  formatBusinessRegistrationNumber,
   type CompanyResponse,
 } from "@/features/company/lib/dto";
 import {
@@ -32,9 +31,6 @@ import {
   useProjectNavigationPrefetch,
 } from "@/features/projects/hooks/use-projects";
 import { cn } from "@/lib/utils";
-
-const formatCorporateRegistrationNumber = (value: string) =>
-  value.replace(/^([0-9]{6})([0-9]{7})$/, "$1-$2");
 
 export default function ProjectsPage() {
   const companiesQuery = useCompaniesQuery();
@@ -206,14 +202,6 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               <CardTitle className="truncate text-lg" role="heading" aria-level={2}>
                 {company.companyName}
               </CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">
-                사업자 {formatBusinessRegistrationNumber(company.businessRegistrationNumber)}
-              </p>
-              {company.businessType === "corporation" && company.corporateRegistrationNumber ? (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  법인 {formatCorporateRegistrationNumber(company.corporateRegistrationNumber)}
-                </p>
-              ) : null}
             </div>
           </div>
           <ChevronDown

@@ -126,6 +126,22 @@ describe("ProjectsPage", () => {
     ).toHaveAttribute("href", "/settings/company?mode=create&returnTo=%2Fprojects");
   });
 
+  it("does not show registration numbers on the company list", async () => {
+    companyApi.fetchCompanies.mockResolvedValue([
+      company({
+        businessType: "corporation",
+        corporateRegistrationNumber: "1234561234567",
+      }),
+    ]);
+    projectApi.fetchCompanyProjects.mockResolvedValue([]);
+
+    renderProjectsPage();
+
+    await waitFor(() => expect(projectApi.fetchCompanyProjects).toHaveBeenCalled());
+    expect(screen.queryByText(/123-45-67890/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/123456-1234567/)).not.toBeInTheDocument();
+  });
+
   it("lists registered companies and links projects to their dashboards", async () => {
     const registeredCompany = company({
       businessType: "corporation",
@@ -152,8 +168,6 @@ describe("ProjectsPage", () => {
     renderProjectsPage();
 
     expect(await screen.findByText("테스트 기업")).toBeInTheDocument();
-    expect(screen.getByText(/123-45-67890/)).toBeInTheDocument();
-    expect(screen.getByText(/123456-1234567/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "정현정" })).toBeInTheDocument();
     expect(screen.queryByText("운영 대시보드 사업")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^사업 등록$/ })).not.toBeInTheDocument();
