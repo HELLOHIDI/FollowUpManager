@@ -30,6 +30,10 @@ const amountSchema = z
   .trim()
   .regex(/^\d+$/, "금액은 0 이상의 정수로 입력해 주세요.")
   .refine((value) => BigInt(value) <= MAX_SAFE_AMOUNT, "금액이 너무 큽니다.");
+const percentSchema = z
+  .string()
+  .trim()
+  .regex(/^(100(?:\.0{1,2})?|\d{1,2}(?:\.\d{1,2})?)$/, "비율은 0~100 사이로 입력해 주세요.");
 
 const optionalText = (max: number) =>
   z.preprocess(
@@ -109,7 +113,7 @@ export const ProjectInputSchema = z
     agreementStartDate: dateSchema,
     assignmentName: z.string().trim().min(1).max(200),
     assignmentNumber: optionalText(100),
-    governmentSubsidyAmount: amountSchema,
+    governmentSubsidyRatio: percentSchema,
     hostInstitution: z.string().trim().min(1).max(200),
     managerEmail: z.preprocess(
       (value) => (typeof value === "string" && value.trim() === "" ? null : value),
@@ -122,8 +126,9 @@ export const ProjectInputSchema = z
     ),
     projectName: z.string().trim().min(1).max(200),
     projectNotes: optionalText(4000),
-    selfCashAmount: amountSchema,
-    selfInKindAmount: amountSchema,
+    selfCashRatio: percentSchema,
+    selfInKindRatio: percentSchema,
+    totalProjectBudget: amountSchema,
   })
   .superRefine((value, context) => {
     if (value.agreementEndDate < value.agreementStartDate) {
@@ -132,12 +137,16 @@ export const ProjectInputSchema = z
     if (!value.managerEmail && !value.managerPhone) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["managerEmail"], message: "담당자 이메일 또는 연락처 중 하나를 입력해 주세요." });
     }
-    const total = BigInt(value.governmentSubsidyAmount) + BigInt(value.selfCashAmount) + BigInt(value.selfInKindAmount);
+    const total = BigInt(value.totalProjectBudget);
     if (total === BigInt(0)) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ["governmentSubsidyAmount"], message: "총 사업비는 0보다 커야 합니다." });
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["totalProjectBudget"], message: "총 사업비는 0보다 커야 합니다." });
     }
     if (total > MAX_SAFE_AMOUNT) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ["governmentSubsidyAmount"], message: "총 사업비가 허용 범위를 초과합니다." });
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["totalProjectBudget"], message: "총 사업비가 허용 범위를 초과합니다." });
+    }
+    const ratioTotal = Number(value.governmentSubsidyRatio) + Number(value.selfCashRatio) + Number(value.selfInKindRatio);
+    if (Math.round(ratioTotal * 100) !== 10000) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["governmentSubsidyRatio"], message: "정부지원금, 현금, 현물 비율의 합계는 100%여야 합니다." });
     }
   });
 
@@ -159,10 +168,11 @@ export const getDocumentMetadata = (input: z.infer<typeof UploadIntentInputSchem
 
 export const ProjectResponseSchema = z.object({
   agreementEndDate: z.string(), agreementStartDate: z.string(), assignmentName: z.string(), assignmentNumber: z.string().nullable(),
-  companyId: z.string().uuid(), createdAt: z.string(), governmentSubsidyAmount: z.number(), hostInstitution: z.string(), id: z.string().uuid(),
-  managerEmail: z.string().nullable(), managerName: z.string(), managerPhone: z.string().nullable(), profileStatus: z.literal("complete"),
-  projectName: z.string(), projectNotes: z.string().nullable(), selfCashAmount: z.number(), selfContributionAmount: z.number(),
-  selfInKindAmount: z.number(), totalProjectBudget: z.number(), updatedAt: z.string(),
+  companyId: z.string().uuid(), createdAt: z.string(), governmentSubsidyAmount: z.number(), governmentSubsidyRatio: z.number(),
+  hostInstitution: z.string(), id: z.string().uuid(), managerEmail: z.string().nullable(), managerName: z.string(),
+  managerPhone: z.string().nullable(), profileStatus: z.literal("complete"), projectName: z.string(), projectNotes: z.string().nullable(),
+  selfCashAmount: z.number(), selfCashRatio: z.number(), selfContributionAmount: z.number(), selfInKindAmount: z.number(),
+  selfInKindRatio: z.number(), totalProjectBudget: z.number(), updatedAt: z.string(),
 });
 export const ProjectListResponseSchema = z.array(ProjectResponseSchema);
 

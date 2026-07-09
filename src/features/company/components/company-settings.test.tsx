@@ -73,6 +73,7 @@ const project = {
   companyId: "11111111-1111-4111-8111-111111111111",
   createdAt: "2026-06-22T00:00:00.000Z",
   governmentSubsidyAmount: 700,
+  governmentSubsidyRatio: 70,
   hostInstitution: "KISED",
   id: "22222222-2222-4222-8222-222222222222",
   managerEmail: null,
@@ -82,8 +83,10 @@ const project = {
   projectName: "Fast Dashboard Project",
   projectNotes: null,
   selfCashAmount: 200,
+  selfCashRatio: 20,
   selfContributionAmount: 300,
   selfInKindAmount: 100,
+  selfInKindRatio: 10,
   totalProjectBudget: 1000,
   updatedAt: "2026-06-22T00:00:00.000Z",
 };
@@ -316,9 +319,16 @@ describe("CompanySettings", () => {
     await user.type(screen.getByLabelText("협약 종료일"), "2026-12-31");
     await user.type(screen.getByLabelText("기관 담당자명"), "PM");
     await user.type(screen.getByLabelText("기관 담당자 이메일"), "pm@example.com");
-    const governmentSubsidyInput = screen.getByLabelText("정부지원금");
-    await user.clear(governmentSubsidyInput);
-    await user.type(governmentSubsidyInput, "1000");
+    await user.type(screen.getByLabelText("총 사업비"), "1000");
+    const governmentSubsidyRatioInput = screen.getByLabelText("정부지원금 비율(%)");
+    const selfCashRatioInput = screen.getByLabelText("현금 비율(%)");
+    const selfInKindRatioInput = screen.getByLabelText("현물 비율(%)");
+    await user.clear(governmentSubsidyRatioInput);
+    await user.type(governmentSubsidyRatioInput, "70");
+    await user.clear(selfCashRatioInput);
+    await user.type(selfCashRatioInput, "20");
+    await user.clear(selfInKindRatioInput);
+    await user.type(selfInKindRatioInput, "10");
     await user.click(screen.getByRole("button", { name: "사업 등록" }));
 
     await waitFor(() => {
@@ -327,10 +337,13 @@ describe("CompanySettings", () => {
         input: expect.objectContaining({
           assignmentName: "Grant Project",
           assignmentNumber: "A-001",
-          governmentSubsidyAmount: "1000",
+          governmentSubsidyRatio: "70",
           hostInstitution: "KISED",
           managerName: "PM",
           projectName: "Fast Dashboard Project",
+          selfCashRatio: "20",
+          selfInKindRatio: "10",
+          totalProjectBudget: "1000",
         }),
       });
     });

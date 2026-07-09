@@ -22,7 +22,7 @@ import {
 
 type Client = SupabaseClient<Database>;
 type Result<T> = HandlerResult<T, ProjectServiceError, unknown>;
-const PROJECT_SELECT = "id, company_id, project_name, host_institution, agreement_start_date, agreement_end_date, government_subsidy_amount, self_cash_amount, self_in_kind_amount, self_contribution_amount, total_project_budget, assignment_number, assignment_name, manager_name, manager_email, manager_phone, project_notes, profile_status, created_at, updated_at";
+const PROJECT_SELECT = "id, company_id, project_name, host_institution, agreement_start_date, agreement_end_date, government_subsidy_amount, government_subsidy_ratio, self_cash_amount, self_cash_ratio, self_in_kind_amount, self_in_kind_ratio, self_contribution_amount, total_project_budget, assignment_number, assignment_name, manager_name, manager_email, manager_phone, project_notes, profile_status, created_at, updated_at";
 const DOCUMENT_SELECT = "id, project_id, original_file_name, file_size, mime_type, document_purpose, created_at";
 const TEMPLATE_DOCUMENT_TYPE_SELECT = "id, project_id, document_key, display_name, source, stage_key, sort_order, category_key, category_name, subcategory_key, subcategory_name";
 const ASSIGNMENT_CONSTRAINT = "projects_company_assignment_number_unique";
@@ -31,11 +31,11 @@ const mapProject = (row: Record<string, unknown>, status: 200 | 201 = 200): Resu
   const parsed = ProjectResponseSchema.safeParse({
     agreementEndDate: row.agreement_end_date, agreementStartDate: row.agreement_start_date,
     assignmentName: row.assignment_name, assignmentNumber: row.assignment_number, companyId: row.company_id,
-    createdAt: row.created_at, governmentSubsidyAmount: row.government_subsidy_amount, hostInstitution: row.host_institution,
+    createdAt: row.created_at, governmentSubsidyAmount: row.government_subsidy_amount, governmentSubsidyRatio: row.government_subsidy_ratio, hostInstitution: row.host_institution,
     id: row.id, managerEmail: row.manager_email, managerName: row.manager_name, managerPhone: row.manager_phone,
     profileStatus: row.profile_status, projectName: row.project_name, projectNotes: row.project_notes,
-    selfCashAmount: row.self_cash_amount, selfContributionAmount: row.self_contribution_amount,
-    selfInKindAmount: row.self_in_kind_amount, totalProjectBudget: row.total_project_budget, updatedAt: row.updated_at,
+    selfCashAmount: row.self_cash_amount, selfCashRatio: row.self_cash_ratio, selfContributionAmount: row.self_contribution_amount,
+    selfInKindAmount: row.self_in_kind_amount, selfInKindRatio: row.self_in_kind_ratio, totalProjectBudget: row.total_project_budget, updatedAt: row.updated_at,
   });
   return parsed.success ? success(parsed.data, status) : failure(500, projectErrorCodes.responseInvalid, "저장된 사업 정보가 올바르지 않습니다.");
 };
@@ -48,11 +48,25 @@ const mapDocument = (row: Record<string, unknown>): Result<ProjectDocumentRespon
   return parsed.success ? success(parsed.data) : failure(500, projectErrorCodes.responseInvalid, "첨부파일 정보가 올바르지 않습니다.");
 };
 
+const toBasisPoints = (value: string) => Math.round(Number(value) * 100);
+
 const totals = (input: ProjectInput) => {
-  const subsidy = BigInt(input.governmentSubsidyAmount);
-  const cash = BigInt(input.selfCashAmount);
-  const inKind = BigInt(input.selfInKindAmount);
-  return { cash: Number(cash), inKind: Number(inKind), self: Number(cash + inKind), subsidy: Number(subsidy), total: Number(subsidy + cash + inKind) };
+  const total = BigInt(input.totalProjectBudget);
+  const subsidyRatio = toBasisPoints(input.governmentSubsidyRatio);
+  const cashRatio = toBasisPoints(input.selfCashRatio);
+  const subsidy = (total * BigInt(subsidyRatio)) / BigInt(10000);
+  const cash = (total * BigInt(cashRatio)) / BigInt(10000);
+  const inKind = total - subsidy - cash;
+  return {
+    cash: Number(cash),
+    cashRatio: Number(input.selfCashRatio),
+    inKind: Number(inKind),
+    inKindRatio: Number(input.selfInKindRatio),
+    self: Number(cash + inKind),
+    subsidy: Number(subsidy),
+    subsidyRatio: Number(input.governmentSubsidyRatio),
+    total: Number(total),
+  };
 };
 
 const toPayload = (input: ProjectInput) => {
@@ -60,10 +74,10 @@ const toPayload = (input: ProjectInput) => {
   return {
     agreement_end_date: input.agreementEndDate, agreement_start_date: input.agreementStartDate,
     assignment_name: input.assignmentName, assignment_number: input.assignmentNumber ?? null,
-    government_subsidy_amount: amount.subsidy, host_institution: input.hostInstitution,
+    government_subsidy_amount: amount.subsidy, government_subsidy_ratio: amount.subsidyRatio, host_institution: input.hostInstitution,
     manager_email: input.managerEmail, manager_name: input.managerName, manager_phone: input.managerPhone,
     profile_status: "complete", project_name: input.projectName, project_notes: input.projectNotes,
-    self_cash_amount: amount.cash, self_contribution_amount: amount.self, self_in_kind_amount: amount.inKind,
+    self_cash_amount: amount.cash, self_cash_ratio: amount.cashRatio, self_contribution_amount: amount.self, self_in_kind_amount: amount.inKind, self_in_kind_ratio: amount.inKindRatio,
     total_project_budget: amount.total,
   };
 };
