@@ -13,6 +13,11 @@ export const fetchCompanies = async () => {
   return CompanyListResponseSchema.parse(data);
 };
 
+export const fetchCompany = async (companyId: string) => {
+  const { data } = await apiClient.get(`/api/companies/${companyId}`);
+  return CompanyResponseSchema.parse(data);
+};
+
 export const createCompanyRequest = async (input: CompanyInput) => {
   const { data } = await apiClient.post("/api/companies", input);
   return CompanyResponseSchema.parse(data);

@@ -9,6 +9,7 @@ import { CompanySettings } from "./company-settings";
 const api = vi.hoisted(() => ({
   createCompanyRequest: vi.fn(),
   deleteCompanyRequest: vi.fn(),
+  fetchCompany: vi.fn(),
   fetchCompanies: vi.fn(),
   updateCompanyAccountManagerRequest: vi.fn(),
   updateCompanyRequest: vi.fn(),
@@ -110,6 +111,8 @@ describe("CompanySettings", () => {
   beforeEach(() => {
     api.createCompanyRequest.mockReset();
     api.deleteCompanyRequest.mockReset();
+    api.fetchCompany.mockReset();
+    api.fetchCompany.mockResolvedValue(company());
     api.fetchCompanies.mockReset();
     api.updateCompanyAccountManagerRequest.mockReset();
     api.updateCompanyRequest.mockReset();
@@ -189,6 +192,7 @@ describe("CompanySettings", () => {
       `companyId=${existingCompany.id}&returnTo=%2Fprojects`,
     );
     api.fetchCompanies.mockResolvedValue([existingCompany]);
+    api.fetchCompany.mockResolvedValue(existingCompany);
     api.updateCompanyRequest.mockResolvedValue(updated);
     renderSettings();
     const user = userEvent.setup();
@@ -227,7 +231,10 @@ describe("CompanySettings", () => {
     navigationState.searchParams = new URLSearchParams(
       `companyId=${existingCompany.id}&returnTo=%2Fprojects`,
     );
-    api.fetchCompanies.mockResolvedValue([existingCompany]);
+    api.fetchCompanies.mockResolvedValue([
+      { ...existingCompany, corporateRegistrationNumber: null },
+    ]);
+    api.fetchCompany.mockResolvedValue(existingCompany);
     api.updateCompanyRequest.mockResolvedValue(updated);
     renderSettings();
     const user = userEvent.setup();
@@ -267,6 +274,7 @@ describe("CompanySettings", () => {
       `companyId=${existingCompany.id}&returnTo=%2Fprojects`,
     );
     api.fetchCompanies.mockResolvedValue([existingCompany]);
+    api.fetchCompany.mockResolvedValue(existingCompany);
     api.updateCompanyRequest.mockResolvedValue(updated);
     renderSettings();
     const user = userEvent.setup();

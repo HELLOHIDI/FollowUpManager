@@ -29,7 +29,7 @@ import {
 } from "@/features/projects/hooks/use-projects";
 import type { ProjectInput } from "@/features/projects/lib/dto";
 import { uploadProjectDocuments } from "@/features/projects/api";
-import { useCompaniesQuery } from "../hooks/use-companies-query";
+import { useCompaniesQuery, useCompanyQuery } from "../hooks/use-companies-query";
 import { useCompanyMutations } from "../hooks/use-company-mutations";
 import {
   COMPANY_ACCOUNT_MANAGER_OPTIONS,
@@ -259,11 +259,12 @@ export function CompanySettings() {
   const safeReturnTo = getSafeReturnPath(searchParams.get("returnTo"));
   const isFocusedCreate = requestedMode === "create";
   const isFocusedEdit = Boolean(requestedCompanyId);
+  const editCompanyQuery = useCompanyQuery(requestedCompanyId, isFocusedEdit);
   const isFocusedCompanyForm = isFocusedCreate || isFocusedEdit;
   const isFocusedProjectCreate =
     requestedMode === "project-create" && Boolean(requestedProjectCompanyId);
   const focusedEditCompany = requestedCompanyId
-    ? companies.find(({ id }) => id === requestedCompanyId)
+    ? editCompanyQuery.data ?? companies.find(({ id }) => id === requestedCompanyId)
     : null;
   const focusedProjectCompany = requestedProjectCompanyId
     ? companies.find(({ id }) => id === requestedProjectCompanyId)
@@ -299,7 +300,7 @@ export function CompanySettings() {
       return;
     }
 
-    if (!requestedCompanyId || companiesQuery.isPending) {
+    if (!requestedCompanyId || (companiesQuery.isPending && editCompanyQuery.isPending)) {
       return;
     }
 
@@ -309,6 +310,7 @@ export function CompanySettings() {
     }
   }, [
     companiesQuery.isPending,
+    editCompanyQuery.isPending,
     focusedEditCompany,
     form,
     isFocusedCompanyForm,
