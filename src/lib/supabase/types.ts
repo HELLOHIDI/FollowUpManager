@@ -970,7 +970,7 @@ export type Database = {
           host_institution: string
           id: string
           manager_email: string | null
-          manager_name: string
+          manager_name: string | null
           manager_phone: string | null
           profile_status: string
           project_name: string
@@ -997,7 +997,7 @@ export type Database = {
           host_institution: string
           id?: string
           manager_email?: string | null
-          manager_name: string
+          manager_name?: string | null
           manager_phone?: string | null
           profile_status?: string
           project_name: string
@@ -1024,7 +1024,7 @@ export type Database = {
           host_institution?: string
           id?: string
           manager_email?: string | null
-          manager_name?: string
+          manager_name?: string | null
           manager_phone?: string | null
           profile_status?: string
           project_name?: string

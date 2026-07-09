@@ -45,7 +45,7 @@ const mapProject = (row: Record<string, unknown>, status: 200 | 201 = 200): Resu
     agreementEndDate: row.agreement_end_date, agreementStartDate: row.agreement_start_date,
     assignmentName: row.assignment_name, assignmentNumber: row.assignment_number, companyId: row.company_id,
     createdAt: row.created_at, governmentSubsidyAmount: row.government_subsidy_amount, governmentSubsidyRatio: subsidyRatio, hostInstitution: row.host_institution,
-    id: row.id, managerEmail: row.manager_email, managerName: row.manager_name, managerPhone: row.manager_phone,
+    id: row.id, managerEmail: row.manager_email, managerName: row.manager_name ?? "", managerPhone: row.manager_phone,
     profileStatus: row.profile_status, projectName: row.project_name, projectNotes: row.project_notes,
     selfCashAmount: row.self_cash_amount, selfCashRatio: cashRatio, selfContributionAmount: row.self_contribution_amount,
     selfInKindAmount: row.self_in_kind_amount, selfInKindRatio: row.self_in_kind_ratio ?? Math.round((100 - Number(subsidyRatio) - Number(cashRatio)) * 100) / 100, totalProjectBudget: row.total_project_budget, updatedAt: row.updated_at,

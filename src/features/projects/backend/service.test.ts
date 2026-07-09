@@ -79,6 +79,22 @@ const createClient = () => {
 };
 
 describe("project service", () => {
+  it("creates a project without institution manager contact fields", async () => {
+    const client = createClient();
+    const result = await createProject(client, COMPANY_ID, {
+      ...input,
+      managerEmail: null,
+      managerName: "",
+      managerPhone: null,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok === false) return;
+    expect(result.data.managerEmail).toBeNull();
+    expect(result.data.managerName).toBe("");
+    expect(result.data.managerPhone).toBeNull();
+  });
+
   it("creates a project again after deleting the same assignment number twice", async () => {
     const client = createClient();
     const first = await createProject(client, COMPANY_ID, input);

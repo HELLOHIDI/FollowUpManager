@@ -58,7 +58,7 @@ export default function ProjectsPage() {
               팀 필터
             </label>
             <select
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-xs focus:outline-hidden focus:ring-2 focus:ring-ring"
+              className="h-10 min-w-24 rounded-md border border-input bg-background px-3 pr-9 text-sm font-medium text-foreground shadow-xs focus:outline-hidden focus:ring-2 focus:ring-ring"
               id="team-filter"
               onChange={(event) => setTeamFilter(event.target.value as TeamFilter)}
               value={teamFilter}
