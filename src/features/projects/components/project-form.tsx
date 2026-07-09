@@ -1,8 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Loader2, Upload } from "lucide-react";
+import { type ChangeEvent, type DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,7 @@ export const projectToInput = (project: ProjectResponse): ProjectInput => ({
 const ErrorText = ({ message }: { message?: string }) => message ? <p className="text-sm font-medium text-destructive" role="alert">{message}</p> : null;
 const toBasisPoints = (value: string) => /^(100(?:\.0{1,2})?|\d{1,2}(?:\.\d{1,2})?)$/.test(value) ? Math.round(Number(value) * 100) : null;
 const formatWon = (value: bigint | null) => value === null ? "-" : `${value.toLocaleString("ko-KR")}원`;
+const toFiles = (fileList: FileList | null) => Array.from(fileList ?? []);
 
 const calculateBudgetAmounts = ([totalValue, subsidyValue, cashValue, inKindValue]: string[]) => {
   if (!/^\d+$/.test(totalValue)) return null;
@@ -49,6 +50,8 @@ export function ProjectForm({ assignmentError, companyName, initialValues = EMPT
 }) {
   const form = useForm<ProjectInput>({ defaultValues: initialValues, mode: "onChange", resolver: zodResolver(ProjectInputSchema) });
   const [files, setFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const projectName = form.watch("projectName");
   const budgetInputs = form.watch(["totalProjectBudget", "governmentSubsidyRatio", "selfCashRatio", "selfInKindRatio"]);
   const budget = useMemo(() => calculateBudgetAmounts(budgetInputs), [budgetInputs]);
@@ -59,6 +62,12 @@ export function ProjectForm({ assignmentError, companyName, initialValues = EMPT
     if (assignmentError) form.setError("assignmentNumber", { message: assignmentError, type: "server" });
   }, [assignmentError, form]);
   useEffect(() => onDirtyChange?.(form.formState.isDirty || files.length > 0), [files.length, form.formState.isDirty, onDirtyChange]);
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => setFiles(toFiles(event.target.files));
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+    setFiles(toFiles(event.dataTransfer.files));
+  };
 
   return <form className="grid gap-5 sm:grid-cols-2" onSubmit={form.handleSubmit((input) => onSubmit(input, files))}>
     <div className="rounded-md bg-muted px-4 py-3 text-sm sm:col-span-2"><span className="text-muted-foreground">등록 기업</span><strong className="ml-2">{companyName}</strong></div>
@@ -84,7 +93,26 @@ export function ProjectForm({ assignmentError, companyName, initialValues = EMPT
       </div>
     </div>
     <label className="grid gap-2 text-sm font-medium sm:col-span-2">유의사항<Controller control={form.control} name="projectNotes" render={({ field }) => <Textarea rows={4} {...field} value={field.value ?? ""} />} /><ErrorText message={form.formState.errors.projectNotes?.message} /></label>
-    {showAttachments ? <label className="grid gap-2 text-sm font-medium sm:col-span-2">추가 첨부파일<Input accept={DEFAULT_UPLOAD_ACCEPT} multiple type="file" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /><span className="text-xs text-muted-foreground">협약 PDF와 기관 양식 등 참고 파일을 추가합니다. 파일은 최대 20MB입니다.</span></label> : null}
+    {showAttachments ? <div className="grid gap-2 text-sm font-medium sm:col-span-2">
+      <span>추가 첨부파일</span>
+      <div
+        className={`grid min-h-44 place-items-center rounded-lg border border-dashed bg-muted/70 p-6 text-center transition-colors ${isDragging ? "border-primary bg-primary/10" : "border-muted-foreground/25"}`}
+        onDragEnter={(event) => { event.preventDefault(); setIsDragging(true); }}
+        onDragOver={(event) => event.preventDefault()}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+      >
+        <div className="grid justify-items-center gap-4">
+          <p className="text-sm font-medium text-muted-foreground">첨부할 파일을 여기에 끌어다 놓거나, 파일 선택 버튼을 직접 선택해주세요.</p>
+          <Button type="button" onClick={() => fileInputRef.current?.click()}><Upload className="size-4" aria-hidden="true" />파일선택</Button>
+          <Input ref={fileInputRef} accept={DEFAULT_UPLOAD_ACCEPT} className="hidden" multiple type="file" onChange={handleFileChange} />
+          <p className="text-xs font-normal text-muted-foreground">협약 PDF와 기관 양식 등 참고 파일을 추가합니다. 파일은 최대 20MB입니다.</p>
+          {files.length > 0 ? <ul className="grid gap-1 text-xs font-normal text-muted-foreground">
+            {files.map((file) => <li key={`${file.name}-${file.lastModified}`}>{file.name}</li>)}
+          </ul> : null}
+        </div>
+      </div>
+    </div> : null}
     <div className="flex justify-end border-t pt-5 sm:col-span-2"><Button disabled={!form.formState.isValid || isSubmitting} type="submit">{isSubmitting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}{submitLabel}</Button></div>
   </form>;
 }
