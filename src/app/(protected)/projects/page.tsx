@@ -53,12 +53,12 @@ export default function ProjectsPage() {
         title="담당자별 기업을 확인하세요"
         description="기업별 담당자를 기준으로 사업 등록과 운영 대시보드 진입을 관리합니다."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="sr-only" htmlFor="team-filter">
               팀 필터
             </label>
             <select
-              className="h-10 min-w-24 rounded-md border border-input bg-background px-3 pr-9 text-sm font-medium text-foreground shadow-xs focus:outline-hidden focus:ring-2 focus:ring-ring"
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-xs focus:outline-hidden focus:ring-2 focus:ring-ring"
               id="team-filter"
               onChange={(event) => setTeamFilter(event.target.value as TeamFilter)}
               value={teamFilter}
