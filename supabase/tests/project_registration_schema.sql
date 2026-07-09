@@ -30,6 +30,16 @@ begin
     raise exception 'assignment_number must be optional';
   end if;
 
+  if exists (
+    select 1
+    from pg_indexes
+    where schemaname = 'public'
+      and tablename = 'projects'
+      and indexname = 'projects_company_assignment_number_unique'
+  ) then
+    raise exception 'assignment_number must not be unique';
+  end if;
+
   if has_table_privilege('authenticated', 'public.project_documents', 'SELECT')
     or has_table_privilege('authenticated', 'public.project_documents', 'INSERT')
     or has_table_privilege('authenticated', 'public.project_documents', 'UPDATE')
@@ -55,7 +65,7 @@ begin
 end
 $$;
 
-select pass('budget ratio columns, assignment requirement, privileges, bucket privacy, and policy absence are valid');
+select pass('budget ratio columns, optional assignment number, privileges, bucket privacy, and policy absence are valid');
 select ok((select relrowsecurity from pg_class where oid = 'public.project_documents'::regclass), 'project_documents RLS is enabled');
 select is((select file_size_limit from storage.buckets where id = 'project-documents'), 20971520::bigint, 'bucket size limit is 20MB');
 select is((select cardinality(allowed_mime_types) from storage.buckets where id = 'project-documents'), 11, 'bucket has exact canonical MIME count');
@@ -88,7 +98,7 @@ select throws_ok(
   $$update public.projects set government_subsidy_ratio = 60, self_cash_ratio = 20, self_in_kind_ratio = 30 where assignment_number = 'SCHEMA-001'$$,
   '23514', null, 'budget ratios must total 100 percent'
 );
-select throws_ok(
+select lives_ok(
   $$insert into public.projects (
       company_id, project_name, host_institution, agreement_start_date, agreement_end_date,
       government_subsidy_amount, government_subsidy_ratio, self_contribution_amount, self_cash_ratio, self_in_kind_ratio, total_project_budget,
@@ -96,7 +106,7 @@ select throws_ok(
     ) select id, 'Duplicate', 'Host', current_date, current_date, 1, 100, 0, 0, 0, 1,
       'SCHEMA-001', 'Duplicate Assignment', 'Manager', '010-0000-0000', 'complete'
       from public.companies where business_registration_number = '5555555555'$$,
-  '23505', null, 'assignment number is unique within a company'
+  'assignment number does not block duplicates'
 );
 update public.projects
 set deleted_at = now()

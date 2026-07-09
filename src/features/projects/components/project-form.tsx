@@ -71,7 +71,7 @@ export function ProjectForm({ assignmentError, companyName, initialValues = EMPT
 
   return <form className="grid gap-5 sm:grid-cols-2" onSubmit={form.handleSubmit((input) => onSubmit(input, files))}>
     <div className="rounded-md bg-muted px-4 py-3 text-sm sm:col-span-2"><span className="text-muted-foreground">등록 기업</span><strong className="ml-2">{companyName}</strong></div>
-    <label className="grid gap-2 text-sm font-medium sm:col-span-2">사업명<Input {...form.register("projectName")} /><ErrorText message={form.formState.errors.projectName?.message} />{duplicateName ? <p className="text-sm text-amber-700">같은 기업에 동일한 사업명이 있습니다. 과제번호가 다르면 등록할 수 있습니다.</p> : null}</label>
+    <label className="grid gap-2 text-sm font-medium sm:col-span-2">사업명<Input {...form.register("projectName")} /><ErrorText message={form.formState.errors.projectName?.message} />{duplicateName ? <p className="text-sm text-amber-700">같은 기업에 동일한 사업명이 있습니다. 그래도 등록할 수 있습니다.</p> : null}</label>
     <label className="grid gap-2 text-sm font-medium">주관기관<Input {...form.register("hostInstitution")} /><ErrorText message={form.formState.errors.hostInstitution?.message} /></label>
     <label className="grid gap-2 text-sm font-medium">과제번호 (선택)<Input {...form.register("assignmentNumber")} /><ErrorText message={form.formState.errors.assignmentNumber?.message} /></label>
     <label className="grid gap-2 text-sm font-medium sm:col-span-2">과제명<Input {...form.register("assignmentName")} /><ErrorText message={form.formState.errors.assignmentName?.message} /></label>
