@@ -278,6 +278,7 @@ export function CompanySettings() {
     createMutation.isPending ||
     updateAccountManagerMutation.isPending ||
     updateMutation.isPending;
+  const isBusinessTypeDirty = Boolean(form.formState.dirtyFields.businessType);
 
   useEffect(() => {
     if (!isFocusedCompanyForm && !isFocusedProjectCreate) {
@@ -339,13 +340,13 @@ export function CompanySettings() {
   ]);
 
   useEffect(() => {
-    if (businessType === "sole_proprietor") {
+    if (businessType === "sole_proprietor" && isBusinessTypeDirty) {
       form.setValue("corporateRegistrationNumber", null, {
         shouldDirty: form.formState.isDirty,
         shouldValidate: true,
       });
     }
-  }, [businessType, form]);
+  }, [businessType, form, isBusinessTypeDirty]);
 
   const submit = form.handleSubmit(async (input) => {
     try {
