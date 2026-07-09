@@ -23,19 +23,32 @@ import {
 type Client = SupabaseClient<Database>;
 type Result<T> = HandlerResult<T, ProjectServiceError, unknown>;
 const PROJECT_SELECT = "id, company_id, project_name, host_institution, agreement_start_date, agreement_end_date, government_subsidy_amount, government_subsidy_ratio, self_cash_amount, self_cash_ratio, self_in_kind_amount, self_in_kind_ratio, self_contribution_amount, total_project_budget, assignment_number, assignment_name, manager_name, manager_email, manager_phone, project_notes, profile_status, created_at, updated_at";
+const LEGACY_PROJECT_SELECT = "id, company_id, project_name, host_institution, agreement_start_date, agreement_end_date, government_subsidy_amount, self_cash_amount, self_in_kind_amount, self_contribution_amount, total_project_budget, assignment_number, assignment_name, manager_name, manager_email, manager_phone, project_notes, profile_status, created_at, updated_at";
 const DOCUMENT_SELECT = "id, project_id, original_file_name, file_size, mime_type, document_purpose, created_at";
 const TEMPLATE_DOCUMENT_TYPE_SELECT = "id, project_id, document_key, display_name, source, stage_key, sort_order, category_key, category_name, subcategory_key, subcategory_name";
 const ASSIGNMENT_CONSTRAINT = "projects_company_assignment_number_unique";
+const RATIO_COLUMNS = ["government_subsidy_ratio", "self_cash_ratio", "self_in_kind_ratio"];
+
+const isMissingBudgetRatioColumn = (error: { code?: string; message?: string }) =>
+  error.code === "42703" || RATIO_COLUMNS.some((column) => error.message?.includes(column));
+
+const ratioFromAmount = (amount: unknown, total: unknown) => {
+  const amountNumber = Number(amount ?? 0);
+  const totalNumber = Number(total ?? 0);
+  return totalNumber > 0 ? Math.round((amountNumber * 10000) / totalNumber) / 100 : 0;
+};
 
 const mapProject = (row: Record<string, unknown>, status: 200 | 201 = 200): Result<ProjectResponse> => {
+  const subsidyRatio = row.government_subsidy_ratio ?? ratioFromAmount(row.government_subsidy_amount, row.total_project_budget);
+  const cashRatio = row.self_cash_ratio ?? ratioFromAmount(row.self_cash_amount, row.total_project_budget);
   const parsed = ProjectResponseSchema.safeParse({
     agreementEndDate: row.agreement_end_date, agreementStartDate: row.agreement_start_date,
     assignmentName: row.assignment_name, assignmentNumber: row.assignment_number, companyId: row.company_id,
-    createdAt: row.created_at, governmentSubsidyAmount: row.government_subsidy_amount, governmentSubsidyRatio: row.government_subsidy_ratio, hostInstitution: row.host_institution,
+    createdAt: row.created_at, governmentSubsidyAmount: row.government_subsidy_amount, governmentSubsidyRatio: subsidyRatio, hostInstitution: row.host_institution,
     id: row.id, managerEmail: row.manager_email, managerName: row.manager_name, managerPhone: row.manager_phone,
     profileStatus: row.profile_status, projectName: row.project_name, projectNotes: row.project_notes,
-    selfCashAmount: row.self_cash_amount, selfCashRatio: row.self_cash_ratio, selfContributionAmount: row.self_contribution_amount,
-    selfInKindAmount: row.self_in_kind_amount, selfInKindRatio: row.self_in_kind_ratio, totalProjectBudget: row.total_project_budget, updatedAt: row.updated_at,
+    selfCashAmount: row.self_cash_amount, selfCashRatio: cashRatio, selfContributionAmount: row.self_contribution_amount,
+    selfInKindAmount: row.self_in_kind_amount, selfInKindRatio: row.self_in_kind_ratio ?? Math.round((100 - Number(subsidyRatio) - Number(cashRatio)) * 100) / 100, totalProjectBudget: row.total_project_budget, updatedAt: row.updated_at,
   });
   return parsed.success ? success(parsed.data, status) : failure(500, projectErrorCodes.responseInvalid, "저장된 사업 정보가 올바르지 않습니다.");
 };
@@ -94,11 +107,18 @@ export const listProjects = async (client: Client, companyId: string): Promise<R
   const company = await getActiveCompany(client, companyId);
   if (company.error) return failure(500, projectErrorCodes.fetchError, "기업 정보를 확인하지 못했습니다.");
   if (!company.data) return failure(404, projectErrorCodes.notFound, "기업을 찾을 수 없습니다.");
-  const { data, error } = await client.from("projects").select(PROJECT_SELECT).eq("company_id", companyId).is("deleted_at", null).order("created_at").order("id");
+  const response = await client.from("projects").select(PROJECT_SELECT).eq("company_id", companyId).is("deleted_at", null).order("created_at").order("id");
+  let data = response.data as Record<string, unknown>[] | null;
+  let error = response.error;
+  if (error && isMissingBudgetRatioColumn(error)) {
+    const fallbackResponse = await client.from("projects").select(LEGACY_PROJECT_SELECT).eq("company_id", companyId).is("deleted_at", null).order("created_at").order("id");
+    data = fallbackResponse.data as Record<string, unknown>[] | null;
+    error = fallbackResponse.error;
+  }
   if (error) return failure(500, projectErrorCodes.fetchError, "사업 목록을 불러오지 못했습니다.");
   const result: ProjectResponse[] = [];
   for (const row of data ?? []) {
-    const mapped = mapProject(row as Record<string, unknown>);
+    const mapped = mapProject(row);
     if (mapped.ok === false) return failure(mapped.status, mapped.error.code, mapped.error.message, mapped.error.details);
     result.push(mapped.data);
   }
@@ -106,7 +126,10 @@ export const listProjects = async (client: Client, companyId: string): Promise<R
 };
 
 export const getProject = async (client: Client, projectId: string): Promise<Result<ProjectResponse>> => {
-  const { data, error } = await client.from("projects").select(PROJECT_SELECT).eq("id", projectId).is("deleted_at", null).maybeSingle();
+  let { data, error } = await client.from("projects").select(PROJECT_SELECT).eq("id", projectId).is("deleted_at", null).maybeSingle();
+  if (error && isMissingBudgetRatioColumn(error)) {
+    ({ data, error } = await client.from("projects").select(LEGACY_PROJECT_SELECT).eq("id", projectId).is("deleted_at", null).maybeSingle());
+  }
   if (error) return failure(500, projectErrorCodes.fetchError, "사업 정보를 불러오지 못했습니다.");
   return data ? mapProject(data as Record<string, unknown>) : failure(404, projectErrorCodes.notFound, "사업을 찾을 수 없습니다.");
 };
@@ -115,12 +138,22 @@ export const createProject = async (client: Client, companyId: string, input: Pr
   const company = await getActiveCompany(client, companyId);
   if (company.error) return failure(500, projectErrorCodes.fetchError, "기업 정보를 확인하지 못했습니다.");
   if (!company.data) return failure(404, projectErrorCodes.notFound, "기업을 찾을 수 없습니다.");
-  const { data, error } = await client.from("projects").insert({ company_id: companyId, ...toPayload(input) }).select(PROJECT_SELECT).single();
+  const payload = toPayload(input);
+  let { data, error } = await client.from("projects").insert({ company_id: companyId, ...payload }).select(PROJECT_SELECT).single();
+  if (error && isMissingBudgetRatioColumn(error)) {
+    const { government_subsidy_ratio: _subsidyRatio, self_cash_ratio: _cashRatio, self_in_kind_ratio: _inKindRatio, ...legacyPayload } = payload;
+    ({ data, error } = await client.from("projects").insert({ company_id: companyId, ...legacyPayload }).select(LEGACY_PROJECT_SELECT).single());
+  }
   return error ? writeFailure(error) : mapProject(data as Record<string, unknown>, 201);
 };
 
 export const updateProject = async (client: Client, projectId: string, input: ProjectInput): Promise<Result<ProjectResponse>> => {
-  const { data, error } = await client.from("projects").update(toPayload(input)).eq("id", projectId).is("deleted_at", null).select(PROJECT_SELECT).maybeSingle();
+  const payload = toPayload(input);
+  let { data, error } = await client.from("projects").update(payload).eq("id", projectId).is("deleted_at", null).select(PROJECT_SELECT).maybeSingle();
+  if (error && isMissingBudgetRatioColumn(error)) {
+    const { government_subsidy_ratio: _subsidyRatio, self_cash_ratio: _cashRatio, self_in_kind_ratio: _inKindRatio, ...legacyPayload } = payload;
+    ({ data, error } = await client.from("projects").update(legacyPayload).eq("id", projectId).is("deleted_at", null).select(LEGACY_PROJECT_SELECT).maybeSingle());
+  }
   if (error) return writeFailure(error);
   return data ? mapProject(data as Record<string, unknown>) : failure(404, projectErrorCodes.notFound, "사업을 찾을 수 없습니다.");
 };

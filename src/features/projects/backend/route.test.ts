@@ -87,6 +87,37 @@ const projectClient = () => {
   };
 };
 
+const legacyProjectClient = () => {
+  const companyMaybeSingle = vi.fn().mockResolvedValue({ data: { id: COMPANY_ID }, error: null });
+  const companyIs = vi.fn(() => ({ maybeSingle: companyMaybeSingle }));
+  const companyEq = vi.fn(() => ({ is: companyIs }));
+
+  const legacyRow = {
+    ...PROJECT_ROW,
+    government_subsidy_ratio: undefined,
+    self_cash_ratio: undefined,
+    self_in_kind_ratio: undefined,
+  };
+  const missingColumn = { code: "42703", message: "column projects.government_subsidy_ratio does not exist" };
+  const projectSecondOrder = vi
+    .fn()
+    .mockResolvedValueOnce({ data: null, error: missingColumn })
+    .mockResolvedValueOnce({ data: [legacyRow], error: null });
+  const projectFirstOrder = vi.fn(() => ({ order: projectSecondOrder }));
+  const projectIs = vi.fn(() => ({ order: projectFirstOrder }));
+  const projectEq = vi.fn(() => ({ is: projectIs }));
+
+  const from = vi.fn((table: string) => ({
+    select: vi.fn(() => table === "companies" ? { eq: companyEq } : { eq: projectEq }),
+  }));
+
+  return {
+    client: { from } as unknown as SupabaseClient<Database>,
+    from,
+    projectSecondOrder,
+  };
+};
+
 const createProjectClient = (insertResult: { data: unknown; error: unknown }) => {
   const companyMaybeSingle = vi.fn().mockResolvedValue({ data: { id: COMPANY_ID }, error: null });
   const companyIs = vi.fn(() => ({ maybeSingle: companyMaybeSingle }));
@@ -158,6 +189,28 @@ describe("project routes", () => {
     expect(service.from).toHaveBeenCalledWith("companies");
     expect(service.from).toHaveBeenCalledWith("projects");
     expect(mutation.from).not.toHaveBeenCalled();
+  });
+
+  it("lists projects when budget ratio columns are not migrated yet", async () => {
+    const service = legacyProjectClient();
+    const authenticated = authClient(service.from);
+    const app = createHonoApp({
+      createAuthenticatedClient: vi.fn(() => authenticated.client),
+      createProjectMutationClient: vi.fn(),
+    });
+
+    const response = await app.request(`/api/companies/${COMPANY_ID}/projects`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject([{
+      governmentSubsidyRatio: 70,
+      id: PROJECT_ID,
+      selfCashRatio: 20,
+      selfInKindRatio: 10,
+    }]);
+    expect(service.projectSecondOrder).toHaveBeenCalledTimes(2);
   });
 
   it("falls back to the authenticated client when service project inserts are not granted", async () => {
