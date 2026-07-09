@@ -26,7 +26,15 @@ export const projectToInput = (project: ProjectResponse): ProjectInput => ({
   selfInKindRatio: String(project.selfInKindRatio), totalProjectBudget: String(project.totalProjectBudget),
 });
 
-const ErrorText = ({ message }: { message?: string }) => message ? <p className="text-sm font-medium text-destructive" role="alert">{message}</p> : null;
+const ErrorText = ({ message }: { message?: string }) => (
+  <p
+    aria-live="polite"
+    className={`min-h-5 text-sm font-medium ${message ? "text-destructive" : ""}`}
+    role={message ? "alert" : undefined}
+  >
+    {message ?? ""}
+  </p>
+);
 const toBasisPoints = (value: string) => /^(100(?:\.0{1,2})?|\d{1,2}(?:\.\d{1,2})?)$/.test(value) ? Math.round(Number(value) * 100) : null;
 const formatWon = (value: bigint | null) => value === null ? "-" : `${value.toLocaleString("ko-KR")}원`;
 const toFiles = (fileList: FileList | null) => Array.from(fileList ?? []);
