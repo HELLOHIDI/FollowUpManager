@@ -47,7 +47,7 @@ const createClient = () => {
         insert: (payload: Record<string, unknown>) => ({
           select: () => ({
             single: async () => {
-              if (!payload.manager_name || (!payload.manager_email && !payload.manager_phone)) {
+              if (!payload.manager_name || !payload.manager_email || !payload.manager_phone) {
                 return {
                   data: null,
                   error: {
