@@ -14,6 +14,7 @@
 /coverage
 playwright-report
 test-results
+uiux-audit-*/
 
 # next.js
 /.next/
