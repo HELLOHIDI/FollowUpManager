@@ -208,6 +208,11 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
     }
   });
 
+  const handleStageMemoBlur = (stageKey: ExpenseStageKey) => {
+    if (!form.getFieldState(`stageFields.stageChecklists.${stageKey}.memo`).isDirty) return;
+    void handleSave();
+  };
+
   const handleMoveNext = async () => {
     if (!nextStageKey) return;
     try {
@@ -286,6 +291,7 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
                   isEditable={index <= currentStageIndex}
                   policyDocumentOptions={stage.key === "execution_request" ? executionRequestDocumentOptions : snapshotDocumentOptions}
                   projectId={projectId}
+                  onMemoBlur={handleStageMemoBlur}
                   signedUrlMutation={evidenceMutations.signedUrlMutation}
                   stageKey={stage.key}
                   stageLabel={stage.label}
@@ -372,7 +378,20 @@ function BasicInfoFields({
         </Field>
       ) : null}
         <Field id="expense-amount" label="금액">
-          <Input id="expense-amount" type="number" min={0} {...form.register("amount", { valueAsNumber: true })} />
+          <Controller
+            control={form.control}
+            name="amount"
+            render={({ field }) => (
+              <Input
+                id="expense-amount"
+                inputMode="numeric"
+                onBlur={field.onBlur}
+                onChange={(event) => field.onChange(Number(event.target.value.replaceAll(",", "").replace(/\D/g, "")))}
+                value={Number.isFinite(field.value) ? field.value.toLocaleString("ko-KR") : ""}
+                variant="amount"
+              />
+            )}
+          />
         </Field>
         <Field id="expense-funding-source" label="재원 구분">
           <Controller
@@ -1048,6 +1067,7 @@ function StageSection({
   form,
   isCurrent,
   isEditable,
+  onMemoBlur,
   policyDocumentOptions,
   projectId,
   signedUrlMutation,
@@ -1062,6 +1082,7 @@ function StageSection({
   form: ReturnType<typeof useForm<FormValues>>;
   isCurrent: boolean;
   isEditable: boolean;
+  onMemoBlur: (stageKey: ExpenseStageKey) => void;
   policyDocumentOptions: DetailEvidenceDocumentOption[];
   projectId: string;
   signedUrlMutation: EvidenceMutation<string, { signedUrl?: string }>;
@@ -1137,6 +1158,7 @@ function StageSection({
             readOnly={!isEditable}
             rows={3}
             {...form.register(`stageFields.stageChecklists.${stageKey}.memo` as const)}
+            onBlur={() => onMemoBlur(stageKey)}
           />
         </Field>
 

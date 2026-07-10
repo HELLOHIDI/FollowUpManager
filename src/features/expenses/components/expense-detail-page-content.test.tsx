@@ -232,6 +232,39 @@ describe("ExpenseDetailPageContent", () => {
     }));
   });
 
+  it("autosaves a stage memo when focus leaves the field", async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({});
+    mockLoadedQueries({ stageKey: "pre_approval" }, mutateAsync);
+
+    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
+
+    const memo = document.getElementById("expense-stage-pre_approval-memo") as HTMLTextAreaElement;
+    fireEvent.change(memo, { target: { value: "승인 요청 완료" } });
+    fireEvent.blur(memo);
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      stageFields: expect.objectContaining({
+        stageChecklists: expect.objectContaining({
+          pre_approval: expect.objectContaining({ memo: "승인 요청 완료" }),
+        }),
+      }),
+    })));
+  });
+
+  it("formats the amount with thousands separators while keeping a numeric value", async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({});
+    mockLoadedQueries({}, mutateAsync);
+
+    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
+
+    const amount = document.getElementById("expense-amount") as HTMLInputElement;
+    fireEvent.change(amount, { target: { value: "1000000" } });
+    expect(amount).toHaveValue("1,000,000");
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ amount: 1000000 })));
+  });
+
   it("shows linked institution templates inside a single policy evidence row", () => {
     mockLoadedQueries({
       policySnapshot: {
