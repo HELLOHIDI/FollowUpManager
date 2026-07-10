@@ -159,7 +159,7 @@ describe("ProgramPolicyPanel", () => {
     expect(screen.queryByText("document_abcd1234")).not.toBeInTheDocument();
   });
 
-  it("allows policy confirmation while review warnings remain", async () => {
+  it("does not render a separate policy confirmation button", async () => {
     setupLoadedDraft();
 
     render(<ProgramPolicyPanel projectId={projectId} />);
@@ -170,7 +170,6 @@ describe("ProgramPolicyPanel", () => {
     const confirmButton = screen.getAllByRole("button").find((button) =>
       button.textContent?.includes("정책 확정"),
     );
-    expect(confirmButton).toBeDefined();
-    expect(confirmButton).toBeEnabled();
+    expect(confirmButton).toBeUndefined();
   });
 });
