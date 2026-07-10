@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronRight, GripVertical, Loader2, Plus, Save, Trash2, Upload, X } from "lucide-react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { type DragEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ export function ProjectTemplateLinking({
   const [openSubgroupKeys, setOpenSubgroupKeys] = useState<Set<string>>(new Set());
   const [isOpen, setIsOpen] = useState(true);
   const contentId = useId();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [draggedDocumentId, setDraggedDocumentId] = useState<string | null>(null);
 
@@ -135,6 +136,11 @@ export function ProjectTemplateLinking({
       }
     }
   };
+  const handleUploadDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (event.dataTransfer.files.length === 0) return;
+    event.preventDefault();
+    void upload(event.dataTransfer.files);
+  };
   const openDocument = async (documentId: string) => {
     const tab = window.open("about:blank", "_blank");
     if (!tab) return;
@@ -201,11 +207,27 @@ export function ProjectTemplateLinking({
         <div className="space-y-3 rounded-md border p-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-medium">기관 양식 파일</p>
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium">
-              <Upload className="size-4" />
+          </div>
+          <div
+            className="grid min-h-32 place-items-center gap-3 rounded-md border border-dashed p-4 text-center"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={handleUploadDrop}
+          >
+            <p className="text-sm font-medium text-muted-foreground">
+              기관 양식 파일을 여기에 끌어다 놓거나, 파일 추가 버튼을 선택해주세요.
+            </p>
+            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="size-4" aria-hidden="true" />
               파일 추가
-              <Input className="sr-only" multiple type="file" accept={DEFAULT_UPLOAD_ACCEPT} onChange={(event) => void upload(event.target.files).finally(() => { event.target.value = ""; })} />
-            </label>
+            </Button>
+            <Input
+              ref={fileInputRef}
+              className="hidden"
+              multiple
+              type="file"
+              accept={DEFAULT_UPLOAD_ACCEPT}
+              onChange={(event) => void upload(event.target.files).finally(() => { event.target.value = ""; })}
+            />
           </div>
           {documentsQuery.isPending ? <LoadingMessage text="기관 양식 파일을 불러오는 중입니다." /> : null}
           {availableDocuments.length === 0 && !documentsQuery.isPending ? <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">연결 가능한 기관 양식 파일이 없습니다.</p> : null}
