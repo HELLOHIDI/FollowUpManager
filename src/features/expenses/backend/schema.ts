@@ -100,12 +100,21 @@ export const ExecutionRequestStatusSchema = z.enum([
   "completed",
 ]);
 
+const ExpenseStageChecklistSchema = z.object({
+  prepared: z.boolean().default(false),
+  managerConfirmed: z.boolean().default(false),
+  pmsRegistered: z.boolean().default(false),
+  finalApproved: z.boolean().default(false),
+  memo: z.string().trim().max(2000).nullable().default(null),
+});
+
 export const ExpenseStageFieldsSchema = z.object({
   preApprovalMemo: z.string().trim().max(2000).nullable().optional(),
   approvalReference: z.string().trim().max(500).nullable().optional(),
   executionMemo: z.string().trim().max(2000).nullable().optional(),
   deliverableMemo: z.string().trim().max(2000).nullable().optional(),
   executionRequestMemo: z.string().trim().max(2000).nullable().optional(),
+  stageChecklists: z.record(ExpenseStageChecklistSchema).default({}),
 });
 
 export const ExpenseParamsSchema = z.object({

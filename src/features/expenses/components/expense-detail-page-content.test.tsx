@@ -205,6 +205,33 @@ describe("ExpenseDetailPageContent", () => {
     expect(within(detailCard as HTMLElement).queryByText("변경 이력")).not.toBeInTheDocument();
   });
 
+  it("saves only the simplified checklist and memo for an editable stage", async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({});
+    mockLoadedQueries({ stageKey: "execution_completed" }, mutateAsync);
+
+    render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
+
+    expect(screen.getByLabelText("사전준비")).toBeInTheDocument();
+    expect(screen.getByLabelText("담당자 확인")).toBeInTheDocument();
+    expect(screen.getByLabelText("PMS 등록")).toBeInTheDocument();
+    expect(screen.getByLabelText("최종 승인")).toBeInTheDocument();
+    expect(document.getElementById("expense-stage-execution_completed-memo")).toBeInTheDocument();
+    expect(screen.queryByLabelText("승인 상태")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("사전준비"));
+    fireEvent.change(document.getElementById("expense-stage-execution_completed-memo") as HTMLTextAreaElement, { target: { value: "확인 완료" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      stageFields: expect.objectContaining({
+        stageChecklists: expect.objectContaining({
+          execution_completed: expect.objectContaining({ memo: "확인 완료", prepared: true }),
+        }),
+      }),
+    }));
+  });
+
   it("shows linked institution templates inside a single policy evidence row", () => {
     mockLoadedQueries({
       policySnapshot: {
@@ -270,11 +297,10 @@ describe("ExpenseDetailPageContent", () => {
     expect(screen.getAllByText("Execution template").length).toBeGreaterThan(0);
   });
 
-  it("normalizes cleared date inputs to null before saving", async () => {
+  it("normalizes a cleared expected date before saving", async () => {
     const mutateAsync = vi.fn().mockResolvedValue({});
     mockLoadedQueries(
       {
-        executionRequestDate: "2026-07-10",
         expectedSpendDate: "2026-07-01",
         stageKey: "execution_request",
       },
@@ -284,13 +310,11 @@ describe("ExpenseDetailPageContent", () => {
     render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
 
     fireEvent.change(screen.getByDisplayValue("2026-07-01"), { target: { value: "" } });
-    fireEvent.change(screen.getByDisplayValue("2026-07-10"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
     expect(mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({
-        executionRequestDate: null,
         expectedSpendDate: null,
       }),
     );
