@@ -15,6 +15,7 @@ import { registerDashboardRoutes } from "@/features/dashboard/backend/route";
 import { registerExpenseRoutes } from "@/features/expenses/backend/route";
 import { registerProjectExportRoutes } from "@/features/project-export/backend/route";
 import { registerProgramEvidencePolicyRoutes } from "@/features/program-evidence-policy/backend/route";
+import { registerDiscordBriefingRoutes } from "@/features/discord-briefing/backend/route";
 
 type CreateHonoAppOptions = {
   createAuthenticatedClient?: AuthenticatedClientFactory;
@@ -36,6 +37,10 @@ export const createHonoApp = (options: CreateHonoAppOptions = {}) => {
   app.use("/companies/*", authMiddleware);
   app.use("/projects", authMiddleware);
   app.use("/projects/*", authMiddleware);
+  app.use("/discord/channels", authMiddleware);
+  app.use("/discord/channels/*", authMiddleware);
+  app.use("/discord/deliveries", authMiddleware);
+  app.use("/discord/test", authMiddleware);
 
   app.get("/auth/me", (context) => {
     const user = getCurrentUser(context);
@@ -63,6 +68,7 @@ export const createHonoApp = (options: CreateHonoAppOptions = {}) => {
   });
   registerProgramEvidencePolicyRoutes(app);
   registerProjectExportRoutes(app);
+  registerDiscordBriefingRoutes(app);
 
   return app;
 };

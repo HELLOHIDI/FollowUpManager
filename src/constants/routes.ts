@@ -1,6 +1,7 @@
 export const routes = {
   projects: "/projects",
   companySettings: "/settings/company",
+  discordSettings: "/settings/discord",
   companyCreate: (returnTo?: string) =>
     `/settings/company?mode=create${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`,
   companyEdit: (companyId: string, returnTo?: string) =>

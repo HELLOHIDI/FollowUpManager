@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -113,7 +113,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          account_manager: string
+          account_manager?: string
           business_registration_number: string
           business_type: string
           company_name: string
@@ -142,44 +142,127 @@ export type Database = {
         }
         Relationships: []
       }
-      expense_evidence_requirement_statuses: {
+      discord_briefing_test_deliveries: {
         Row: {
-          changed_at: string
-          changed_by: string | null
-          expense_id: string
+          account_manager: string
+          created_at: string
+          error_message: string | null
           id: string
-          policy_snapshot_hash: string
-          policy_version_id: string | null
-          project_id: string
-          requirement_key: string
           status: string
-          waived_reason: string | null
         }
         Insert: {
-          changed_at?: string
-          changed_by?: string | null
-          expense_id: string
+          account_manager: string
+          created_at?: string
+          error_message?: string | null
           id?: string
-          policy_snapshot_hash: string
-          policy_version_id?: string | null
-          project_id: string
-          requirement_key: string
           status: string
-          waived_reason?: string | null
         }
         Update: {
-          changed_at?: string
-          changed_by?: string | null
-          expense_id?: string
+          account_manager?: string
+          created_at?: string
+          error_message?: string | null
           id?: string
-          policy_snapshot_hash?: string
-          policy_version_id?: string | null
-          project_id?: string
-          requirement_key?: string
           status?: string
-          waived_reason?: string | null
         }
         Relationships: []
+      }
+      discord_manager_channels: {
+        Row: {
+          account_manager: string
+          created_at: string
+          discord_channel_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_manager: string
+          created_at?: string
+          discord_channel_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_manager?: string
+          created_at?: string
+          discord_channel_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      discord_weekly_briefing_deliveries: {
+        Row: {
+          account_manager: string
+          attempt_count: number
+          claim_token: string | null
+          company_id: string | null
+          completed_at: string | null
+          created_at: string
+          external_request_started_at: string | null
+          external_request_step: string | null
+          id: string
+          kind: string
+          last_error: string | null
+          lease_expires_at: string | null
+          message_chunks: Json
+          parent_message_id: string | null
+          scope_key: string
+          sent_message_count: number
+          seoul_week_key: string
+          status: string
+          thread_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_manager: string
+          attempt_count?: number
+          claim_token?: string | null
+          company_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          external_request_started_at?: string | null
+          external_request_step?: string | null
+          id?: string
+          kind?: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          message_chunks?: Json
+          parent_message_id?: string | null
+          scope_key: string
+          sent_message_count?: number
+          seoul_week_key: string
+          status?: string
+          thread_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_manager?: string
+          attempt_count?: number
+          claim_token?: string | null
+          company_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          external_request_started_at?: string | null
+          external_request_step?: string | null
+          id?: string
+          kind?: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          message_chunks?: Json
+          parent_message_id?: string | null
+          scope_key?: string
+          sent_message_count?: number
+          seoul_week_key?: string
+          status?: string
+          thread_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discord_weekly_briefing_deliveries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       expense_evidence_files: {
         Row: {
@@ -298,6 +381,88 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id", "company_id"]
+          },
+        ]
+      }
+      expense_evidence_requirement_statuses: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          expense_id: string
+          id: string
+          policy_snapshot_hash: string
+          policy_version_id: string | null
+          project_id: string
+          requirement_key: string
+          status: string
+          waived_reason: string | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          expense_id: string
+          id?: string
+          policy_snapshot_hash: string
+          policy_version_id?: string | null
+          project_id: string
+          requirement_key: string
+          status: string
+          waived_reason?: string | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          expense_id?: string
+          id?: string
+          policy_snapshot_hash?: string
+          policy_version_id?: string | null
+          project_id?: string
+          requirement_key?: string
+          status?: string
+          waived_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_evidence_requirement_statuses_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_evidence_requirement_statuses_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "project_expenses_by_category"
+            referencedColumns: ["expense_id"]
+          },
+          {
+            foreignKeyName: "expense_evidence_requirement_statuses_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "project_expenses_by_stage"
+            referencedColumns: ["expense_id"]
+          },
+          {
+            foreignKeyName: "expense_evidence_requirement_statuses_policy_version_id_fkey"
+            columns: ["policy_version_id"]
+            isOneToOne: false
+            referencedRelation: "program_policy_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_evidence_requirement_statuses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_kpi_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "expense_evidence_requirement_statuses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -822,13 +987,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "project_budget_categories_category_key_fkey"
-            columns: ["category_key"]
-            isOneToOne: false
-            referencedRelation: "budget_category_policy_templates"
-            referencedColumns: ["category_key"]
-          },
-          {
             foreignKeyName: "project_budget_categories_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
@@ -880,17 +1038,73 @@ export type Database = {
         }
         Relationships: []
       }
+      project_document_template_links: {
+        Row: {
+          created_at: string
+          document_type_id: string
+          id: string
+          project_document_id: string
+          project_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          document_type_id: string
+          id?: string
+          project_document_id: string
+          project_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          document_type_id?: string
+          id?: string
+          project_document_id?: string
+          project_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_document_template_links_document_type_id_fkey"
+            columns: ["document_type_id"]
+            isOneToOne: false
+            referencedRelation: "project_evidence_document_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_document_template_links_project_document_id_fkey"
+            columns: ["project_document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_document_template_links_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_kpi_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "project_document_template_links_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_documents: {
         Row: {
           company_id: string
           created_at: string
           deleted_at: string | null
+          document_purpose: string
           file_extension: string
           file_size: number
           id: string
           mime_type: string
           original_file_name: string
-          document_purpose: string
           project_id: string
           ready_at: string | null
           storage_bucket: string
@@ -904,12 +1118,12 @@ export type Database = {
           company_id: string
           created_at?: string
           deleted_at?: string | null
+          document_purpose?: string
           file_extension: string
           file_size: number
           id?: string
           mime_type: string
           original_file_name: string
-          document_purpose?: string
           project_id: string
           ready_at?: string | null
           storage_bucket?: string
@@ -923,12 +1137,12 @@ export type Database = {
           company_id?: string
           created_at?: string
           deleted_at?: string | null
+          document_purpose?: string
           file_extension?: string
           file_size?: number
           id?: string
           mime_type?: string
           original_file_name?: string
-          document_purpose?: string
           project_id?: string
           ready_at?: string | null
           storage_bucket?: string
@@ -955,17 +1169,84 @@ export type Database = {
           },
         ]
       }
+      project_evidence_document_types: {
+        Row: {
+          category_key: string | null
+          category_name: string | null
+          created_at: string
+          deleted_at: string | null
+          display_name: string
+          document_key: string
+          id: string
+          project_id: string
+          sort_order: number
+          source: string
+          stage_key: string
+          subcategory_key: string | null
+          subcategory_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          category_key?: string | null
+          category_name?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          display_name: string
+          document_key: string
+          id?: string
+          project_id: string
+          sort_order?: number
+          source: string
+          stage_key?: string
+          subcategory_key?: string | null
+          subcategory_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category_key?: string | null
+          category_name?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          display_name?: string
+          document_key?: string
+          id?: string
+          project_id?: string
+          sort_order?: number
+          source?: string
+          stage_key?: string
+          subcategory_key?: string | null
+          subcategory_name?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_evidence_document_types_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_kpi_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "project_evidence_document_types_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           agreement_end_date: string
           agreement_start_date: string
           assignment_name: string
-          assignment_number: string
+          assignment_number: string | null
           company_id: string
           confirmed_policy_version_id: string | null
           created_at: string
           deleted_at: string | null
           government_subsidy_amount: number
+          government_subsidy_ratio: number
           host_institution: string
           id: string
           manager_email: string | null
@@ -975,8 +1256,10 @@ export type Database = {
           project_name: string
           project_notes: string | null
           self_cash_amount: number
+          self_cash_ratio: number
           self_contribution_amount: number
           self_in_kind_amount: number
+          self_in_kind_ratio: number
           total_project_budget: number
           updated_at: string
         }
@@ -984,12 +1267,13 @@ export type Database = {
           agreement_end_date: string
           agreement_start_date: string
           assignment_name: string
-          assignment_number: string
+          assignment_number?: string | null
           company_id: string
           confirmed_policy_version_id?: string | null
           created_at?: string
           deleted_at?: string | null
           government_subsidy_amount?: number
+          government_subsidy_ratio?: number
           host_institution: string
           id?: string
           manager_email?: string | null
@@ -999,8 +1283,10 @@ export type Database = {
           project_name: string
           project_notes?: string | null
           self_cash_amount?: number
+          self_cash_ratio?: number
           self_contribution_amount?: number
           self_in_kind_amount?: number
+          self_in_kind_ratio?: number
           total_project_budget?: number
           updated_at?: string
         }
@@ -1008,12 +1294,13 @@ export type Database = {
           agreement_end_date?: string
           agreement_start_date?: string
           assignment_name?: string
-          assignment_number?: string
+          assignment_number?: string | null
           company_id?: string
           confirmed_policy_version_id?: string | null
           created_at?: string
           deleted_at?: string | null
           government_subsidy_amount?: number
+          government_subsidy_ratio?: number
           host_institution?: string
           id?: string
           manager_email?: string | null
@@ -1023,8 +1310,10 @@ export type Database = {
           project_name?: string
           project_notes?: string | null
           self_cash_amount?: number
+          self_cash_ratio?: number
           self_contribution_amount?: number
           self_in_kind_amount?: number
+          self_in_kind_ratio?: number
           total_project_budget?: number
           updated_at?: string
         }
@@ -1242,6 +1531,23 @@ export type Database = {
         Args: { category_key: string }
         Returns: number
       }
+      claim_discord_weekly_briefing_delivery: {
+        Args: {
+          p_account_manager: string
+          p_company_id: string
+          p_message_chunks: Json
+          p_scope_key: string
+          p_seoul_week_key: string
+        }
+        Returns: {
+          claim_token: string
+          id: string
+          message_chunks: Json
+          parent_message_id: string
+          sent_message_count: number
+          thread_id: string
+        }[]
+      }
       confirm_program_policy_version: {
         Args: {
           p_confirmed_by: string
@@ -1315,6 +1621,49 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_expense_with_policy_lock: {
+        Args: {
+          p_amount: number
+          p_category_key: string
+          p_expected_spend_date: string
+          p_funding_source_key: string
+          p_memo: string
+          p_project_id: string
+          p_subcategory_key: string
+          p_title: string
+        }
+        Returns: {
+          amount: number
+          category_key: string
+          created_at: string
+          deleted_at: string | null
+          execution_progress_status: string | null
+          execution_request_date: string | null
+          execution_request_status: string | null
+          expected_spend_date: string | null
+          funding_source_key: string
+          id: string
+          memo: string | null
+          policy_snapshot: Json | null
+          policy_version_id: string | null
+          pre_approval_status: string | null
+          project_budget_category_id: string | null
+          project_id: string
+          stage_fields: Json
+          stage_key: string
+          subcategory_key: string | null
+          subcategory_name: string | null
+          title: string
+          updated_at: string
+          vendor_name: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "expenses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       delete_expense_evidence_with_history: {
         Args: {
           p_changed_by?: string
@@ -1328,6 +1677,10 @@ export type Database = {
         Args: { project_id: string }
         Returns: Json
       }
+      renew_discord_weekly_briefing_delivery_lease: {
+        Args: { p_claim_token: string; p_delivery_id: string }
+        Returns: boolean
+      }
       replace_program_policy_draft: {
         Args: {
           p_categories: Json
@@ -1336,6 +1689,10 @@ export type Database = {
           p_subcategories: Json
         }
         Returns: undefined
+      }
+      save_project_evidence_template_setup: {
+        Args: { p_document_types: Json; p_links: Json; p_project_id: string }
+        Returns: Json
       }
       seed_project_budget_categories: {
         Args: { target_project_id: string }
