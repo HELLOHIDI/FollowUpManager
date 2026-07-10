@@ -265,7 +265,6 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
                 relinkMutation={evidenceMutations.relinkMutation}
                 signedUrlMutation={evidenceMutations.signedUrlMutation}
                 templateDownloads={templateDownloads}
-                uploadMutation={evidenceMutations.uploadMutation}
                 waiveRequirementMutation={evidenceMutations.waiveRequirementMutation}
               />
             ) : (
@@ -774,7 +773,6 @@ function PolicyEvidenceChecklist({
   relinkMutation,
   signedUrlMutation,
   templateDownloads,
-  uploadMutation,
   waiveRequirementMutation,
 }: {
   deleteMutation: EvidenceMutation<string, unknown>;
@@ -783,7 +781,6 @@ function PolicyEvidenceChecklist({
   relinkMutation: EvidenceMutation<{ documentKey: string; evidenceId: string; requirementKey: string | null }, unknown>;
   signedUrlMutation: EvidenceMutation<string, { signedUrl?: string }>;
   templateDownloads: ProjectEvidenceTemplateDownload[];
-  uploadMutation: EvidenceMutation<{ documentKey: string; file: File; requirementKey?: string | null }, unknown>;
   waiveRequirementMutation: EvidenceMutation<{ requirementKey: string; waivedReason?: string | null }, unknown>;
 }) {
   const { toast } = useToast();
@@ -814,20 +811,10 @@ function PolicyEvidenceChecklist({
     }
     return grouped;
   }, [requirements, templateDownloads]);
-
-  const handleUpload = async (requirementKey: string, documentKey: string, filesToUpload: FileList | null) => {
-    for (const file of Array.from(filesToUpload ?? [])) {
-      try {
-        await uploadMutation.mutateAsync({ documentKey, file, requirementKey });
-      } catch (error) {
-        toast({
-          title: "증빙을 추가하지 못했습니다.",
-          description: extractApiErrorMessage(error, "파일 형식과 크기를 확인해 주세요."),
-          variant: "destructive",
-        });
-      }
-    }
-  };
+  const relevantTemplateDownloads = useMemo(
+    () => [...new Map([...templatesByRequirement.values()].flat().map((template) => [template.id, template])).values()],
+    [templatesByRequirement],
+  );
 
   const openEvidence = async (evidence: ExpenseEvidenceFileResponse) => {
     setOpeningId(evidence.id);
@@ -874,10 +861,10 @@ function PolicyEvidenceChecklist({
   };
 
   const downloadAllTemplates = async () => {
-    if (templateDownloads.length === 0) return;
+    if (relevantTemplateDownloads.length === 0) return;
     setIsDownloadingTemplates(true);
     try {
-      await downloadProjectTemplatesZip(projectId, templateDownloads);
+      await downloadProjectTemplatesZip(projectId, relevantTemplateDownloads);
     } catch (error) {
       toast({ title: "기관 양식을 압축하지 못했습니다.", description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."), variant: "destructive" });
     } finally {
@@ -897,7 +884,7 @@ function PolicyEvidenceChecklist({
           <p className="mt-1 text-xs text-muted-foreground">사업 정책의 증빙서류 목록에서 바로 파일을 첨부합니다.</p>
         </div>
         <div className="flex items-center gap-2">
-          {templateDownloads.length > 0 ? <Button disabled={isDownloadingTemplates} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void downloadAllTemplates(); }} size="sm" type="button" variant="outline"><Download className="mr-2 size-3.5" aria-hidden="true" />{isDownloadingTemplates ? "압축 중" : "등록 양식 ZIP"}</Button> : null}
+          {relevantTemplateDownloads.length > 0 ? <Button disabled={isDownloadingTemplates} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void downloadAllTemplates(); }} size="sm" type="button" variant="outline"><Download className="mr-2 size-3.5" aria-hidden="true" />{isDownloadingTemplates ? "압축 중" : "비목 양식 ZIP"}</Button> : null}
           <Badge variant="info">증빙 {uploadedRequirementCount}/{requirements.length}</Badge>
         </div>
       </summary>
@@ -943,24 +930,6 @@ function PolicyEvidenceChecklist({
                       해당 없음
                     </Button>
                   ) : null}
-                  {requirement.acceptedDocuments.map((document) => (
-                    <label key={document.documentKey} className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium">
-                      {uploadMutation.isPending ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Upload className="size-3.5" aria-hidden="true" />}
-                      파일 선택
-                      <Input
-                        className="sr-only"
-                        disabled={uploadMutation.isPending}
-                        multiple
-                        type="file"
-                        accept=".pdf,.doc,.docx,.hwp,.hwpx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp,.zip"
-                        onChange={(event) => {
-                          void handleUpload(requirement.requirementKey, document.documentKey, event.target.files).finally(() => {
-                            event.target.value = "";
-                          });
-                        }}
-                      />
-                    </label>
-                  ))}
               </div>
               </div>
 

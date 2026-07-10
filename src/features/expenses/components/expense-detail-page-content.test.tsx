@@ -320,8 +320,7 @@ describe("ExpenseDetailPageContent", () => {
     );
   });
 
-  it("uploads directly from a policy-backed evidence checklist row", async () => {
-    const uploadMutateAsync = vi.fn().mockResolvedValue({});
+  it("does not show a file picker in a policy-backed evidence checklist row", () => {
     mockLoadedQueries(
       {
         policySnapshot: {
@@ -359,25 +358,11 @@ describe("ExpenseDetailPageContent", () => {
         }],
         unclassifiedFiles: [],
       },
-      {
-        uploadMutation: {
-          isPending: false,
-          mutateAsync: uploadMutateAsync,
-        },
-      },
     );
 
     render(<ExpenseDetailPageContent projectId={projectId} expenseId={expenseId} />);
 
-    const file = new File(["pdf"], "receipt.pdf", { type: "application/pdf" });
-    fireEvent.change(screen.getByLabelText("파일 선택"), { target: { files: [file] } });
-
-    await waitFor(() => expect(uploadMutateAsync).toHaveBeenCalledWith({
-      documentKey: "receipt",
-      file,
-      requirementKey: "payment_bundle",
-    }));
-    expect(screen.queryAllByText("파일 추가")).toHaveLength(0);
+    expect(screen.queryByLabelText("파일 선택")).not.toBeInTheDocument();
   });
 
   it("opens and deletes uploaded policy evidence files", async () => {

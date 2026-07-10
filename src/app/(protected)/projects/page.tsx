@@ -24,7 +24,6 @@ import { routes } from "@/constants/routes";
 import { useCompaniesQuery } from "@/features/company/hooks/use-companies-query";
 import {
   COMPANY_ACCOUNT_MANAGER_OPTIONS,
-  formatBusinessRegistrationNumber,
   type CompanyResponse,
 } from "@/features/company/lib/dto";
 import {
@@ -203,12 +202,6 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               <CardTitle className="truncate text-lg" role="heading" aria-level={2}>
                 {company.companyName}
               </CardTitle>
-              <CardDescription className="mt-1 truncate tabular-nums">
-                사업자등록번호{" "}
-                {formatBusinessRegistrationNumber(
-                  company.businessRegistrationNumber,
-                )}
-              </CardDescription>
             </div>
           </div>
           <ChevronDown
