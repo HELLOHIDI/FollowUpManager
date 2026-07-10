@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import JSZip from "jszip";
 import { CheckCircle2, ChevronDown, ChevronRight, Download, ExternalLink, Loader2, Trash2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,24 @@ const downloadProjectTemplate = async (projectId: string, template: ProjectEvide
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = template.originalFileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
+
+const downloadProjectTemplatesZip = async (projectId: string, templates: ProjectEvidenceTemplateDownload[]) => {
+  const zip = new JSZip();
+  await Promise.all(templates.map(async (template) => {
+    const { signedUrl } = await getProjectDocumentSignedUrl(projectId, template.id);
+    const response = await fetch(signedUrl);
+    if (!response.ok) throw new Error("Template download failed");
+    zip.file(template.originalFileName, await response.blob());
+  }));
+  const url = URL.createObjectURL(await zip.generateAsync({ type: "blob" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "기관-등록-양식.zip";
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -129,6 +148,10 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
       title: query.data.title,
       vendorName: query.data.vendorName,
     });
+    for (const stage of EXPENSE_STAGES) {
+      const progress = query.data.stageFields.stageChecklists?.[stage.key]?.progress ?? "prepared";
+      form.setValue(`stageFields.stageChecklists.${stage.key}.progress`, progress);
+    }
   }, [form, query.data]);
 
   if (query.isPending) {
@@ -765,6 +788,7 @@ function PolicyEvidenceChecklist({
 }) {
   const { toast } = useToast();
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const [isDownloadingTemplates, setIsDownloadingTemplates] = useState(false);
   const [openTemplateKey, setOpenTemplateKey] = useState<string | null>(null);
   const requirements = evidenceQuery.data?.requirements ?? [];
   const files = useMemo(() => evidenceQuery.data?.files ?? [], [evidenceQuery.data?.files]);
@@ -849,6 +873,18 @@ function PolicyEvidenceChecklist({
     }
   };
 
+  const downloadAllTemplates = async () => {
+    if (templateDownloads.length === 0) return;
+    setIsDownloadingTemplates(true);
+    try {
+      await downloadProjectTemplatesZip(projectId, templateDownloads);
+    } catch (error) {
+      toast({ title: "기관 양식을 압축하지 못했습니다.", description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."), variant: "destructive" });
+    } finally {
+      setIsDownloadingTemplates(false);
+    }
+  };
+
   if (requirements.length === 0) return null;
 
   const uploadedRequirementCount = requirements.filter((requirement) => requirement.status !== "not_uploaded").length;
@@ -860,9 +896,10 @@ function PolicyEvidenceChecklist({
           <h2 className="text-sm font-semibold">정책 증빙서류</h2>
           <p className="mt-1 text-xs text-muted-foreground">사업 정책의 증빙서류 목록에서 바로 파일을 첨부합니다.</p>
         </div>
-        <Badge variant="info">
-          증빙 {uploadedRequirementCount}/{requirements.length}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {templateDownloads.length > 0 ? <Button disabled={isDownloadingTemplates} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void downloadAllTemplates(); }} size="sm" type="button" variant="outline"><Download className="mr-2 size-3.5" aria-hidden="true" />{isDownloadingTemplates ? "압축 중" : "등록 양식 ZIP"}</Button> : null}
+          <Badge variant="info">증빙 {uploadedRequirementCount}/{requirements.length}</Badge>
+        </div>
       </summary>
 
       <div className="mt-4 space-y-3">
@@ -1103,16 +1140,15 @@ function StageSection({
       {open ? <div id={`stage-${stageKey}-content`} className="mt-4 space-y-4">
         <div className="rounded-md border bg-muted/20 p-3">
           <p className="mb-3 text-xs font-medium text-muted-foreground">단계 진행</p>
-          <div aria-label={`${stageLabel} 진행 상태`} className="flex flex-wrap items-center gap-2" role="radiogroup">
+          <div aria-label={`${stageLabel} 진행 상태`} className="grid grid-cols-4 overflow-hidden rounded-lg border bg-gradient-to-r from-primary/10 via-background to-primary/10" role="radiogroup">
           {[
             ["prepared", "사전준비"],
             ["managerConfirmed", "담당자 확인"],
             ["pmsRegistered", "PMS 등록"],
             ["finalApproved", "최종 승인"],
-          ].map(([field, label], index) => (
-            <div className="flex items-center gap-2" key={field}>
-            {index > 0 ? <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" /> : null}
-            <label className="cursor-pointer">
+          ].map(([field, label]) => (
+            <div className="min-w-0 border-l first:border-l-0" key={field}>
+            <label className="block cursor-pointer">
               <input
                 className="peer sr-only"
                 disabled={!isEditable}
@@ -1120,7 +1156,7 @@ function StageSection({
                 value={field}
                 {...form.register(`stageFields.stageChecklists.${stageKey}.progress` as const)}
               />
-              <span className="inline-flex min-h-9 items-center rounded-md border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition-colors peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-50">{label}</span>
+              <span className="flex min-h-11 items-center justify-center bg-background/70 px-2 py-2 text-center text-sm font-semibold text-muted-foreground transition-all peer-checked:bg-gradient-to-r peer-checked:from-primary peer-checked:to-blue-500 peer-checked:text-primary-foreground peer-checked:shadow-sm peer-disabled:cursor-not-allowed peer-disabled:opacity-50">{label}</span>
             </label>
             </div>
           ))}

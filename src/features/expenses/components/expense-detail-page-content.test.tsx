@@ -226,7 +226,7 @@ describe("ExpenseDetailPageContent", () => {
     expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
       stageFields: expect.objectContaining({
         stageChecklists: expect.objectContaining({
-          execution_completed: expect.objectContaining({ memo: "확인 완료", prepared: true }),
+          execution_completed: expect.objectContaining({ memo: "확인 완료", progress: "prepared" }),
         }),
       }),
     }));
