@@ -194,7 +194,17 @@ const readStageChecklists = (stageFields: unknown) => {
   const checklists = stageFields && typeof stageFields === "object" && !Array.isArray(stageFields)
     ? (stageFields as Record<string, unknown>).stage_checklists
     : null;
-  return checklists && typeof checklists === "object" && !Array.isArray(checklists) ? checklists : {};
+  if (!checklists || typeof checklists !== "object" || Array.isArray(checklists)) return {};
+  return Object.fromEntries(
+    Object.entries(checklists as Record<string, unknown>).map(([stageKey, checklist]) => {
+      if (!checklist || typeof checklist !== "object" || Array.isArray(checklist)) return [stageKey, checklist];
+      const values = checklist as Record<string, unknown>;
+      const progress = typeof values.progress === "string"
+        ? values.progress
+        : ["prepared", "managerConfirmed", "pmsRegistered", "finalApproved"].find((key) => values[key] === true) ?? null;
+      return [stageKey, { ...values, progress }];
+    }),
+  );
 };
 
 const mapStageFields = (stageFields: unknown) => ({

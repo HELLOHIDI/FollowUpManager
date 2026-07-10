@@ -101,10 +101,11 @@ export const ExecutionRequestStatusSchema = z.enum([
 ]);
 
 const ExpenseStageChecklistSchema = z.object({
-  prepared: z.boolean().default(false),
-  managerConfirmed: z.boolean().default(false),
-  pmsRegistered: z.boolean().default(false),
-  finalApproved: z.boolean().default(false),
+  prepared: z.boolean().optional(),
+  managerConfirmed: z.boolean().optional(),
+  pmsRegistered: z.boolean().optional(),
+  finalApproved: z.boolean().optional(),
+  progress: z.enum(["prepared", "managerConfirmed", "pmsRegistered", "finalApproved"]).nullable().default(null),
   memo: z.string().trim().max(2000).nullable().default(null),
 });
 
