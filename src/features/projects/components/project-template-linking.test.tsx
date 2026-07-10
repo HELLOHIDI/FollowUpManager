@@ -31,7 +31,7 @@ describe("ProjectTemplateLinking", () => {
     mocks.useProjectMutations.mockReturnValue({
       deleteDocumentMutation: { mutateAsync: vi.fn() },
       saveEvidenceDocumentsMutation: { isPending: false, mutateAsync: vi.fn() },
-      uploadMutation: { mutateAsync: vi.fn() },
+      uploadDocumentsMutation: { isPending: false, mutateAsync: vi.fn() },
     });
 
     render(<ProjectTemplateLinking projectId="project-1" />);
@@ -50,7 +50,7 @@ describe("ProjectTemplateLinking", () => {
     mocks.useProjectMutations.mockReturnValue({
       deleteDocumentMutation: { mutateAsync: vi.fn() },
       saveEvidenceDocumentsMutation: { isPending: false, mutateAsync: vi.fn() },
-      uploadMutation: { mutateAsync: uploadFile },
+      uploadDocumentsMutation: { isPending: false, mutateAsync: uploadFile },
     });
 
     render(<ProjectTemplateLinking projectId="project-1" />);
@@ -62,7 +62,7 @@ describe("ProjectTemplateLinking", () => {
     });
 
     expect(uploadFile).toHaveBeenCalledWith({
-      file: expect.objectContaining({ name: "template.pdf" }),
+      files: [expect.objectContaining({ name: "template.pdf" })],
       projectId: "project-1",
       purpose: "institution_template",
     });

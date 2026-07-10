@@ -42,7 +42,7 @@ export function ProjectTemplateLinking({
 }) {
   const documentsQuery = useProjectDocumentsQuery(projectId);
   const setupQuery = useProjectEvidenceDocumentsQuery(projectId);
-  const { deleteDocumentMutation, saveEvidenceDocumentsMutation, uploadMutation } = useProjectMutations();
+  const { deleteDocumentMutation, saveEvidenceDocumentsMutation, uploadDocumentsMutation } = useProjectMutations();
   const { toast } = useToast();
   const [documentTypes, setDocumentTypes] = useState<DraftType[]>([]);
   const [links, setLinks] = useState<Array<Omit<ProjectDocumentTemplateLink, "documentTypeId"> & { documentTypeId?: string }>>([]);
@@ -66,6 +66,7 @@ export function ProjectTemplateLinking({
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
   const documents = useMemo(() => documentsQuery.data ?? [], [documentsQuery.data]);
+  const isUploading = uploadDocumentsMutation.isPending;
   const linkedIds = useMemo(() => new Set(links.map((link) => link.projectDocumentId)), [links]);
   const availableDocuments = useMemo(() => documents.filter((document) => !linkedIds.has(document.id)), [documents, linkedIds]);
   const groupedDocumentTypes = useMemo(() => {
@@ -128,12 +129,15 @@ export function ProjectTemplateLinking({
     markDirty();
   };
   const upload = async (files: FileList | null) => {
-    for (const file of Array.from(files ?? [])) {
-      try {
-        await uploadMutation.mutateAsync({ file, projectId, purpose: "institution_template" });
-      } catch (error) {
-        toast({ title: "파일을 추가하지 못했습니다.", description: extractApiErrorMessage(error), variant: "destructive" });
+    const selectedFiles = Array.from(files ?? []);
+    if (selectedFiles.length === 0) return;
+    try {
+      const result = await uploadDocumentsMutation.mutateAsync({ files: selectedFiles, projectId, purpose: "institution_template" });
+      if (result.failed > 0) {
+        toast({ title: "일부 파일을 추가하지 못했습니다.", description: `${result.succeeded}개 성공, ${result.failed}개 실패`, variant: "destructive" });
       }
+    } catch (error) {
+      toast({ title: "파일을 추가하지 못했습니다.", description: extractApiErrorMessage(error), variant: "destructive" });
     }
   };
   const handleUploadDrop = (event: DragEvent<HTMLDivElement>) => {
@@ -209,16 +213,16 @@ export function ProjectTemplateLinking({
             <p className="text-sm font-medium">기관 양식 파일</p>
           </div>
           <div
-            className="grid min-h-32 place-items-center gap-3 rounded-md border border-dashed p-4 text-center"
+            className={`grid min-h-32 place-items-center gap-3 rounded-md border border-dashed p-4 text-center transition-colors ${isUploading ? "border-primary/40 bg-primary/5" : ""}`}
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleUploadDrop}
           >
             <p className="text-sm font-medium text-muted-foreground">
-              기관 양식 파일을 여기에 끌어다 놓거나, 파일 추가 버튼을 선택해주세요.
+              {isUploading ? "기관 양식 파일을 업로드하는 중입니다." : "기관 양식 파일을 여기에 끌어다 놓거나, 파일 추가 버튼을 선택해주세요."}
             </p>
-            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="size-4" aria-hidden="true" />
-              파일 추가
+            <Button type="button" variant="outline" disabled={isUploading} onClick={() => fileInputRef.current?.click()}>
+              {isUploading ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Upload className="size-4" aria-hidden="true" />}
+              {isUploading ? "업로드 중" : "파일 추가"}
             </Button>
             <Input
               ref={fileInputRef}
