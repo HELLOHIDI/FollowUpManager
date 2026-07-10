@@ -32,11 +32,7 @@ import {
 } from "../hooks/use-expenses-query";
 import {
   evidenceOptionsForStage,
-  executionProgressStatuses,
-  executionRequestStatuses,
   expenseStageDetailCopy,
-  expenseStageFieldLabels,
-  preApprovalStatuses,
 } from "../lib/expense-detail-policy";
 import { requiresSubcategorySelection } from "../lib/policy-category-options";
 import { getProjectDocumentSignedUrl } from "@/features/projects/api";
@@ -46,8 +42,6 @@ import type { ProjectEvidenceTemplateDownload } from "@/features/projects/lib/dt
 type FormValues = ExpenseUpdateInput;
 type DetailEvidenceDocumentOption = { key: string; label: string; source?: "policy" | "custom" };
 
-const selectedOrNone = (value: string | null | undefined) => value ?? "none";
-const noneToNull = (value: string) => (value === "none" ? null : value);
 const downloadProjectTemplate = async (projectId: string, template: ProjectEvidenceTemplateDownload) => {
   const { signedUrl } = await getProjectDocumentSignedUrl(projectId, template.id);
   const response = await fetch(signedUrl);
@@ -263,7 +257,6 @@ export function ExpenseDetailPageContent({ projectId, expenseId }: { projectId: 
               {EXPENSE_STAGES.map((stage, index) => (
                 <StageSection
                   key={stage.key}
-                  control={form.control}
                   form={form}
                   deleteMutation={evidenceMutations.deleteMutation}
                   evidenceQuery={evidenceQuery}
@@ -1044,7 +1037,6 @@ function EvidenceFileList({
 }
 
 function StageSection({
-  control,
   deleteMutation,
   evidenceQuery,
   form,
@@ -1059,7 +1051,6 @@ function StageSection({
   uploadMutation,
   usesPolicyChecklist,
 }: {
-  control: ReturnType<typeof useForm<FormValues>>["control"];
   deleteMutation: EvidenceMutation<string, unknown>;
   evidenceQuery: ReturnType<typeof useExpenseEvidenceQuery>;
   form: ReturnType<typeof useForm<FormValues>>;
@@ -1144,9 +1135,6 @@ function StageSection({
           />
         </Field>
 
-        <StageStatusFields control={control} isEditable={isEditable} stageKey={stageKey} />
-        {copy.fields.length > 0 ? <div className="grid gap-4">{copy.fields.map((fieldKey) => <Field key={fieldKey} id={`expense-stage-${stageKey}-${fieldKey}`} label={expenseStageFieldLabels[fieldKey]}><Textarea id={`expense-stage-${stageKey}-${fieldKey}`} readOnly={!isEditable} rows={3} {...form.register(`stageFields.${fieldKey}`)} /></Field>)}</div> : null}
-
         {!usesPolicyChecklist ? (
         <div className="border-t pt-4">
           <div className="mb-3">
@@ -1168,11 +1156,4 @@ function StageSection({
       </div> : null}
     </section>
   );
-}
-
-function StageStatusFields({ control, isEditable, stageKey }: { control: ReturnType<typeof useForm<FormValues>>["control"]; isEditable: boolean; stageKey: ExpenseStageKey }) {
-  if (stageKey === "pre_approval") return <Field id="expense-pre-approval-status" label="승인 상태"><Controller control={control} name="preApprovalStatus" render={({ field }) => <Select disabled={!isEditable} value={selectedOrNone(field.value)} onValueChange={(value) => field.onChange(noneToNull(value))}><SelectTrigger id="expense-pre-approval-status"><SelectValue placeholder="승인 상태 선택" /></SelectTrigger><SelectContent><SelectItem value="none">미입력</SelectItem>{preApprovalStatuses.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>} /></Field>;
-  if (stageKey === "execution_in_progress") return <Field id="expense-execution-progress-status" label="수행 상태"><Controller control={control} name="executionProgressStatus" render={({ field }) => <Select disabled={!isEditable} value={selectedOrNone(field.value)} onValueChange={(value) => field.onChange(noneToNull(value))}><SelectTrigger id="expense-execution-progress-status"><SelectValue placeholder="수행 상태 선택" /></SelectTrigger><SelectContent><SelectItem value="none">미입력</SelectItem>{executionProgressStatuses.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>} /></Field>;
-  if (stageKey === "execution_request") return <div className="grid gap-4 sm:grid-cols-2"><Field id="expense-execution-request-status" label="집행 요청 상태"><Controller control={control} name="executionRequestStatus" render={({ field }) => <Select disabled={!isEditable} value={selectedOrNone(field.value)} onValueChange={(value) => field.onChange(noneToNull(value))}><SelectTrigger id="expense-execution-request-status"><SelectValue placeholder="집행 요청 상태 선택" /></SelectTrigger><SelectContent><SelectItem value="none">미입력</SelectItem>{executionRequestStatuses.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>} /></Field><Field id="expense-execution-request-date" label="집행 요청일"><DateInput control={control} id="expense-execution-request-date" name="executionRequestDate" readOnly={!isEditable} /></Field></div>;
-  return null;
 }
