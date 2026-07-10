@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, vi } from "vitest";
 import { ProgramPolicyPanel } from "./program-policy-panel";
@@ -137,10 +136,6 @@ describe("ProgramPolicyPanel", () => {
 
     render(<ProgramPolicyPanel projectId={projectId} />);
 
-    expect(screen.queryByText("비목별 집행 증빙서류")).not.toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole("button", { name: /정책 PDF 및 비목\/증빙서류 세팅/ }),
-    );
 
     expect(screen.getByText("비목별 집행 증빙서류")).toBeInTheDocument();
     expect(screen.getByText("하위항목")).toBeInTheDocument();
@@ -163,9 +158,6 @@ describe("ProgramPolicyPanel", () => {
     setupLoadedDraft();
 
     render(<ProgramPolicyPanel projectId={projectId} />);
-    await userEvent.click(
-      screen.getByRole("button", { name: /정책 PDF 및 비목\/증빙서류 세팅/ }),
-    );
 
     const confirmButton = screen.getAllByRole("button").find((button) =>
       button.textContent?.includes("정책 확정"),

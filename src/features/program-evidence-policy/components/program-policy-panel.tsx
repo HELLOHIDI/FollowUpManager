@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState } from "react";
-import { AlertCircle, ChevronDown, FileUp, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
+import { AlertCircle, ChevronDown, FileUp, Loader2, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
   const draftQuery = usePolicyDraftDetailQuery(projectId, latestVersionId);
   const mutations = useProgramPolicyMutations(projectId, latestVersionId);
   const [draft, setDraft] = useState<PolicyDraftUpdateInput>(createEmptyDraft);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const contentId = useId();
 
   useEffect(() => {
@@ -84,6 +84,7 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
       && draftQuery.data.version.operationStatus !== "extraction_failed"
     : false;
   const latestStatus = statusQuery.data?.operationStatus ?? "legacy_fallback";
+  const isDraftLoading = statusQuery.isPending || (!!latestVersionId && draftQuery.isPending);
   const summary = useMemo(() => ({
     categories: draft.categories.length,
     evidence: draft.evidenceRequirements.length,
@@ -178,6 +179,13 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
             </p>
           ) : null}
         </div>
+
+        {isDraftLoading ? (
+          <div className="flex items-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            정책 PDF와 비목/증빙서류 초안을 불러오는 중입니다.
+          </div>
+        ) : null}
 
         {draftQuery.data ? (
           <div className="grid gap-4">

@@ -49,7 +49,7 @@ export function ProjectTemplateLinking({
   const [dirty, setDirty] = useState(false);
   const [openGroupKeys, setOpenGroupKeys] = useState<Set<string>>(new Set());
   const [openSubgroupKeys, setOpenSubgroupKeys] = useState<Set<string>>(new Set());
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const contentId = useId();
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [draggedDocumentId, setDraggedDocumentId] = useState<string | null>(null);
@@ -58,11 +58,13 @@ export function ProjectTemplateLinking({
     if (!setupQuery.data || dirty) return;
     setDocumentTypes(setupQuery.data.documentTypes);
     setLinks(setupQuery.data.links);
+    setOpenGroupKeys(new Set(setupQuery.data.documentTypes.map((type) => type.categoryKey || "__uncategorized")));
+    setOpenSubgroupKeys(new Set(setupQuery.data.documentTypes.map((type) => `${type.categoryKey || "__uncategorized"}:${type.subcategoryKey || "__common"}`)));
   }, [dirty, setupQuery.data]);
 
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
-  const documents = documentsQuery.data ?? [];
+  const documents = useMemo(() => documentsQuery.data ?? [], [documentsQuery.data]);
   const linkedIds = useMemo(() => new Set(links.map((link) => link.projectDocumentId)), [links]);
   const availableDocuments = useMemo(() => documents.filter((document) => !linkedIds.has(document.id)), [documents, linkedIds]);
   const groupedDocumentTypes = useMemo(() => {
@@ -205,7 +207,7 @@ export function ProjectTemplateLinking({
               <Input className="sr-only" multiple type="file" accept={DEFAULT_UPLOAD_ACCEPT} onChange={(event) => void upload(event.target.files).finally(() => { event.target.value = ""; })} />
             </label>
           </div>
-          {documentsQuery.isPending ? <Loader2 className="size-5 animate-spin" /> : null}
+          {documentsQuery.isPending ? <LoadingMessage text="기관 양식 파일을 불러오는 중입니다." /> : null}
           {availableDocuments.length === 0 && !documentsQuery.isPending ? <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">연결 가능한 기관 양식 파일이 없습니다.</p> : null}
           <ul className="space-y-2">
             {availableDocuments.map((document) => (
@@ -237,7 +239,7 @@ export function ProjectTemplateLinking({
         </div>
 
         <div className="space-y-3">
-          {setupQuery.isPending ? <Loader2 className="size-5 animate-spin" /> : null}
+          {setupQuery.isPending ? <LoadingMessage text="증빙서류 연결 항목을 불러오는 중입니다." /> : null}
           {documentTypes.length === 0 && !setupQuery.isPending ? <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">기관에서 전달받은 양식이 없으면 비워두면 됩니다.</p> : null}
           {groupedDocumentTypes.map((group) => (
             <div key={group.key} className="rounded-md border bg-muted/20 p-3">
@@ -311,5 +313,14 @@ export function ProjectTemplateLinking({
         </div>
       </div> : null}
     </section>
+  );
+}
+
+function LoadingMessage({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+      {text}
+    </div>
   );
 }
