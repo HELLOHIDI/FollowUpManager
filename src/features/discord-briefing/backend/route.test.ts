@@ -91,10 +91,7 @@ describe("Discord API boundary", () => {
     lifecycle.createMutationClient.mockReturnValue(ownedDeliveryClient(updates));
     lifecycle.getSnapshot.mockResolvedValue([company]);
     lifecycle.claim.mockResolvedValue({ data: delivery, error: null });
-    vi.stubGlobal("fetch", vi.fn()
-      .mockResolvedValueOnce(Response.json({ id: "parent-id" }))
-      .mockResolvedValueOnce(Response.json({ id: "thread-id" }))
-      .mockResolvedValueOnce(new Response(null, { status: 204 })));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(Response.json({ id: "message-id" })));
     const app = new Hono();
     registerDiscordBriefingRoutes(app as never);
 
@@ -102,31 +99,23 @@ describe("Discord API boundary", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ delivered: 1, failures: [] });
-    expect(fetch).toHaveBeenCalledTimes(3);
-    for (const [url, init] of (fetch as ReturnType<typeof vi.fn>).mock.calls.filter(([url]) => !String(url).endsWith("/threads"))) {
+    expect(fetch).toHaveBeenCalledTimes(1);
+    for (const [, init] of (fetch as ReturnType<typeof vi.fn>).mock.calls) {
       expect(JSON.parse((init as RequestInit).body as string).allowed_mentions).toEqual({ parse: [] });
     }
     expect(updates).toEqual(expect.arrayContaining([
-      expect.objectContaining({ parent_message_id: "parent-id" }),
-      expect.objectContaining({ thread_id: "thread-id" }),
       expect.objectContaining({ sent_message_count: 1 }),
       expect.objectContaining({ status: "completed" }),
     ]));
     vi.unstubAllGlobals();
   });
 
-  it.each([
-    ["parent", { ...delivery, parent_message_id: "parent-id" }, 2, "/channels/channel/messages/parent-id/threads"],
-    ["thread", { ...delivery, parent_message_id: "parent-id", thread_id: "thread-id" }, 1, "/channels/thread-id/messages"],
-    ["chunk", { ...delivery, parent_message_id: "parent-id", thread_id: "thread-id", sent_message_count: 1 }, 0, undefined],
-  ])("resumes after the %s checkpoint without duplicate Discord calls", async (_checkpoint, resumedDelivery, expectedCalls, firstPath) => {
+  it("resumes after a sent project message without duplicate Discord calls", async () => {
     const updates: Record<string, unknown>[] = [];
     lifecycle.createMutationClient.mockReturnValue(ownedDeliveryClient(updates));
     lifecycle.getSnapshot.mockResolvedValue([company]);
-    lifecycle.claim.mockResolvedValue({ data: resumedDelivery, error: null });
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(Response.json({ id: "thread-id" }))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    lifecycle.claim.mockResolvedValue({ data: { ...delivery, sent_message_count: 1 }, error: null });
+    const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const app = new Hono();
     registerDiscordBriefingRoutes(app as never);
@@ -134,8 +123,7 @@ describe("Discord API boundary", () => {
     const response = await app.request("/discord/weekly-briefing", { headers: { Authorization: "Bearer secret" } });
 
     expect(response.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(expectedCalls);
-    if (firstPath) expect(fetchMock.mock.calls[0]?.[0]).toBe(`https://discord.com/api/v10${firstPath}`);
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(updates).toContainEqual(expect.objectContaining({ status: "completed" }));
     vi.unstubAllGlobals();
   });

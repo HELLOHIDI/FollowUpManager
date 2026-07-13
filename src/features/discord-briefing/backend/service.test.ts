@@ -20,10 +20,10 @@ describe("Discord weekly briefing", () => {
     expect(briefing.projectMessages[0]).toContain("/projects/project");
     expect(briefing.projectMessages[0]).not.toContain("/expenses/");
     expect(briefing.projectMessages[0]).toContain("\uC0AC\uC804\uC900\uBE44");
-    expect(briefing.projectMessages[0]).toContain("\uB2F4\uB2F9\uC790 \uD655\uC778 \uD544\uC694");
+    expect(briefing.projectMessages[0]).not.toContain("|");
   });
 
-  it("keeps each project in its own message with its dashboard link and action plan", () => {
+  it("keeps each project in its own direct message with its dashboard link", () => {
     const briefing = renderCompanyBriefing({ account_manager: "\uC815\uD604\uC815", company_name: "A", id: "company", projects: [
       { id: "project-one", project_name: "\uC0AC\uC5C5 1", expenses: [{ id: "one", title: "\uC9C0\uCD9C 1", stage_key: "budget_registration", stage_fields: {} }] },
       { id: "project-two", project_name: "\uC0AC\uC5C5 2", expenses: [{ id: "two", title: "\uC9C0\uCD9C 2", stage_key: "pre_approval", stage_fields: { stage_checklists: { pre_approval: { progress: "managerConfirmed" } } } }] },
@@ -31,9 +31,9 @@ describe("Discord weekly briefing", () => {
     expect(briefing.projectMessages).toHaveLength(2);
     expect(briefing.projectMessages[0]).toContain("/projects/project-one");
     expect(briefing.projectMessages[0]).not.toContain("project-two");
-    expect(briefing.projectMessages[0]).toContain("\uB2F4\uB2F9\uC790 \uD655\uC778 \uD544\uC694");
+    expect(briefing.projectMessages[0]).toContain("A");
     expect(briefing.projectMessages[1]).toContain("/projects/project-two");
-    expect(briefing.projectMessages[1]).toContain("PMS \uB4F1\uB85D \uD544\uC694");
+    expect(briefing.projectMessages[1]).toContain("\uB2F4\uB2F9\uC790 \uD655\uC778");
   });
 
   it("splits an oversized project only between expense rows", () => {

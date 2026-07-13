@@ -62,10 +62,10 @@ const truncate = (value: string, limit: number) => value.length <= limit ? value
 const DISCORD_MESSAGE_LIMIT = 2_000;
 
 const checklistProgress = [
-  { key: "prepared", label: "\uC0AC\uC804\uC900\uBE44", nextAction: "\uB2F4\uB2F9\uC790 \uD655\uC778 \uD544\uC694" },
-  { key: "managerConfirmed", label: "\uB2F4\uB2F9\uC790 \uD655\uC778", nextAction: "PMS \uB4F1\uB85D \uD544\uC694" },
-  { key: "pmsRegistered", label: "PMS \uB4F1\uB85D", nextAction: "\uCD5C\uC885 \uC2B9\uC778 \uD544\uC694" },
-  { key: "finalApproved", label: "\uCD5C\uC885 \uC2B9\uC778", nextAction: "\uD574\uB2F9 \uB2E8\uACC4 \uC644\uB8CC \uD655\uC778 \uD544\uC694" },
+  { key: "prepared", label: "\uC0AC\uC804\uC900\uBE44" },
+  { key: "managerConfirmed", label: "\uB2F4\uB2F9\uC790 \uD655\uC778" },
+  { key: "pmsRegistered", label: "PMS \uB4F1\uB85D" },
+  { key: "finalApproved", label: "\uCD5C\uC885 \uC2B9\uC778" },
 ] as const;
 const defaultChecklistProgress = checklistProgress[0];
 
@@ -103,30 +103,18 @@ export const getActiveBriefingSnapshot = async (client: DiscordSupabaseClient, d
 
 export const renderCompanyBriefing = (company: CompanySnapshot, appUrl: string, weekLabel: string, isTest = false) => {
   const projects = company.projects ?? [];
-  const parent = [
-    `\uD83D\uDCEE ${isTest ? "\uD83E\uDDEA \uD14C\uC2A4\uD2B8 " : ""}${weekLabel} \uC9C0\uCD9C \uC5C5\uBB34 \uBE0C\uB9AC\uD551`,
-    `**${escapeDiscord(truncate(company.company_name, 300))}**`,
-    `\uC9C4\uD589 \uC0AC\uC5C5 ${projects.length}\uAC74`,
-  ].join("\n");
   const projectMessages = projects.map((project) => {
     const expenses = project.expenses ?? [];
     const pending = expenses.filter(({ stage_key }) => stage_key !== "execution_completed");
     const completed = expenses.length - pending.length;
-    const heading = `**${escapeDiscord(truncate(project.project_name, 300))}** · \uC644\uB8CC ${completed}\uAC74\n${appUrl}/projects/${project.id}`;
+    const heading = [
+      `\uD83D\uDCEE ${isTest ? "\uD83E\uDDEA \uD14C\uC2A4\uD2B8 " : ""}${weekLabel} \uC9C0\uCD9C \uC5C5\uBB34 \uBE0C\uB9AC\uD551`,
+      `**${escapeDiscord(truncate(company.company_name, 300))}**`,
+      `**${escapeDiscord(truncate(project.project_name, 300))}** · \uC644\uB8CC ${completed}\uAC74`,
+      `${appUrl}/projects/${project.id}`,
+    ].join("\n");
     const rows = pending.length ? pending.map((expense) => `- ${escapeDiscord(truncate(expense.title, 120))} · ${escapeDiscord(stageLabel[expense.stage_key] ?? expense.stage_key)} · ${detailProgress(expense).label}`) : ["- \uC9C4\uD589 \uC911\uC778 \uC9C0\uCD9C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."];
-    const actionRows = [...new Map(pending.map((expense) => {
-      const progress = detailProgress(expense);
-      const stage = stageLabel[expense.stage_key] ?? expense.stage_key;
-      return [`${stage}:${progress.key}`, `| ${stage} | ${progress.label} | ${progress.nextAction} |`];
-    })).values()];
-    const actionPlan = actionRows.length
-      ? ["", "**\uC774\uBC88 \uC8FC \uC561\uC158\uD50C\uB79C**", "| \uB2E8\uACC4 | \uD604\uC7AC \uC138\uBD80\uB2E8\uACC4 | \uC774\uBC88 \uC8FC \uC561\uC158 |", "| --- | --- | --- |", ...actionRows].join("\n")
-      : "";
-    const chunks = chunkProjectRows(heading, rows);
-    const lastChunk = chunks[chunks.length - 1];
-    if (`${lastChunk}${actionPlan}`.length <= DISCORD_MESSAGE_LIMIT) chunks[chunks.length - 1] = `${lastChunk}${actionPlan}`;
-    else chunks.push(`${heading}${actionPlan}`);
-    return chunks;
+    return chunkProjectRows(heading, rows);
   }).flat();
-  return { parent, threadName: truncate(`${isTest ? "\uD83E\uDDEA \uD14C\uC2A4\uD2B8 " : ""}${company.company_name} ${weekLabel}`, 100), projectMessages };
+  return { projectMessages };
 };
