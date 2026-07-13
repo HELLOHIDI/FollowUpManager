@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, MessageCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { routes } from "@/constants/routes";
@@ -36,6 +36,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span>FuManager</span>
           </Link>
           <div className="flex-1" />
+          <Button asChild size="sm" variant="outline">
+            <Link href={routes.discordSettings}>
+              <MessageCircle className="size-4" aria-hidden="true" />
+              Discord 브리핑
+            </Link>
+          </Button>
           <span className="max-w-44 truncate text-sm text-muted-foreground" title={user?.email ?? "관리자"}>
             {user?.email ?? "관리자"}
           </span>
