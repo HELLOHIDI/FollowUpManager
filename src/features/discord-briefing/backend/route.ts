@@ -136,8 +136,6 @@ export const registerDiscordBriefingRoutes = (app: Hono<AppEnv>) => {
     const { data: mapping } = await client.from("discord_manager_channels").select("discord_channel_id").eq("account_manager", body.accountManager).maybeSingle();
     if (!mapping) return respond(context, failure(400, "DISCORD_CHANNEL_NOT_CONFIGURED", "Configure the manager channel first."));
     try {
-      const channel = await discordRequest<DiscordChannel>(`/channels/${mapping.discord_channel_id}`, { method: "GET" });
-      if (channel.type !== 0 || !hasRequiredChannelPermissions(channel)) return respond(context, failure(400, "INVALID_DISCORD_CHANNEL", "The bot needs text-channel, thread-creation, and thread-message permissions."));
       const companies = (await getActiveBriefingSnapshot(client)).filter((item) => item.account_manager === body.accountManager);
       if (!companies.length) await sendEmptyState(mapping.discord_channel_id, true);
       for (const company of companies) await sendCompany(mapping.discord_channel_id, company, true);
