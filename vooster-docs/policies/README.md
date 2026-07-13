@@ -3,7 +3,11 @@
   이 디렉터리는 FuManager의 도메인별 정책 문서를 관리한다.
   기능 구현 전 관련 정책 문서를 반드시 확인한다.
 
-  ## Policy Index
+## Policy Index
+
+- discord-weekly-briefing-policy.md
+  - Discord 주간 브리핑의 기업-스레드-사업 메시지 계층과 발송 안전 규칙
+  - 관련 기능: Discord 주간 브리핑, 담당자별 채널 설정
 
   - company-policy.md
     - 기업 등록, 기업 정보 필드, 기업 상태 계산, 사업자등록번호 정책

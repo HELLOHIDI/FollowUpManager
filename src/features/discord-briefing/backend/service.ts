@@ -53,7 +53,6 @@ type ExpenseSnapshot = {
 };
 type ProjectSnapshot = { id: string; project_name: string; expenses: ExpenseSnapshot[] | null };
 export type CompanySnapshot = { id: string; account_manager: DiscordManagerName; company_name: string; projects: ProjectSnapshot[] | null };
-export type ProjectBriefing = { projectId: string; parent: string; threadName: string; messageChunks: string[] };
 
 const stageLabel: Record<string, string> = {
   budget_registration: "\uC0AC\uC5C5\uBE44 \uB4F1\uB85D", pre_approval: "\uC0AC\uC804 \uC2B9\uC778", execution_in_progress: "\uC9D1\uD589 \uC911", execution_request: "\uC9D1\uD589 \uC694\uCCAD", execution_completed: "\uC9D1\uD589 \uC644\uB8CC",
@@ -104,18 +103,18 @@ export const getActiveBriefingSnapshot = async (client: DiscordSupabaseClient, d
 
 export const renderCompanyBriefing = (company: CompanySnapshot, appUrl: string, weekLabel: string, isTest = false) => {
   const projects = company.projects ?? [];
-  const projectBriefings: ProjectBriefing[] = projects.map((project) => {
+  const parent = [
+    `\uD83D\uDCEE ${isTest ? "\uD83E\uDDEA \uD14C\uC2A4\uD2B8 " : ""}${weekLabel} \uC9C0\uCD9C \uC5C5\uBB34 \uBE0C\uB9AC\uD551`,
+    `**${escapeDiscord(truncate(company.company_name, 300))}**`,
+    `\uC9C4\uD589 \uC0AC\uC5C5 ${projects.length}\uAC74`,
+  ].join("\n");
+  const projectMessages = projects.map((project) => {
     const expenses = project.expenses ?? [];
     const pending = expenses.filter(({ stage_key }) => stage_key !== "execution_completed");
     const completed = expenses.length - pending.length;
-    const parent = [
-      `\uD83D\uDCEE ${isTest ? "\uD83E\uDDEA \uD14C\uC2A4\uD2B8 " : ""}${weekLabel} \uC9C0\uCD9C \uC5C5\uBB34 \uBE0C\uB9AC\uD551`,
-      `**${escapeDiscord(truncate(company.company_name, 300))}**`,
-      `**${escapeDiscord(truncate(project.project_name, 300))}** · \uC644\uB8CC ${completed}\uAC74`,
-      `${appUrl}/projects/${project.id}`,
-    ].join("\n");
+    const heading = `**${escapeDiscord(truncate(project.project_name, 300))}** · \uC644\uB8CC ${completed}\uAC74\n${appUrl}/projects/${project.id}`;
     const rows = pending.length ? pending.map((expense) => `- ${escapeDiscord(truncate(expense.title, 120))} · ${escapeDiscord(stageLabel[expense.stage_key] ?? expense.stage_key)} · ${detailProgress(expense).label}`) : ["- \uC9C4\uD589 \uC911\uC778 \uC9C0\uCD9C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."];
-    return { projectId: project.id, parent, threadName: truncate(`${company.company_name} ${project.project_name} ${weekLabel}`, 100), messageChunks: chunkProjectRows(`**${escapeDiscord(truncate(project.project_name, 300))}**`, rows) };
-  });
-  return { projectBriefings };
+    return chunkProjectRows(heading, rows);
+  }).flat();
+  return { parent, threadName: truncate(`${isTest ? "\uD83E\uDDEA \uD14C\uC2A4\uD2B8 " : ""}${company.company_name} ${weekLabel}`, 100), projectMessages };
 };
