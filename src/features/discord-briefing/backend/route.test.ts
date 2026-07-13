@@ -47,7 +47,7 @@ describe("Discord API boundary", () => {
     lifecycle.getSnapshot.mockReset();
     lifecycle.renew.mockReset();
     lifecycle.render.mockReset();
-    lifecycle.render.mockReturnValue({ parent: "parent", projectMessages: ["chunk"], threadName: "thread" });
+    lifecycle.render.mockReturnValue({ projectBriefings: [{ projectId: "project-1", parent: "parent", messageChunks: ["chunk"], threadName: "thread" }] });
     lifecycle.renew.mockResolvedValue({ data: true, error: null });
   });
 
@@ -91,7 +91,10 @@ describe("Discord API boundary", () => {
     lifecycle.createMutationClient.mockReturnValue(ownedDeliveryClient(updates));
     lifecycle.getSnapshot.mockResolvedValue([company]);
     lifecycle.claim.mockResolvedValue({ data: delivery, error: null });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(Response.json({ id: "message-id" })));
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(Response.json({ id: "parent-id" }))
+      .mockResolvedValueOnce(Response.json({ id: "thread-id" }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 })));
     const app = new Hono();
     registerDiscordBriefingRoutes(app as never);
 
@@ -99,11 +102,13 @@ describe("Discord API boundary", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ delivered: 1, failures: [] });
-    expect(fetch).toHaveBeenCalledTimes(1);
-    for (const [, init] of (fetch as ReturnType<typeof vi.fn>).mock.calls) {
+    expect(fetch).toHaveBeenCalledTimes(3);
+    for (const [url, init] of (fetch as ReturnType<typeof vi.fn>).mock.calls.filter(([url]) => !String(url).endsWith("/threads"))) {
       expect(JSON.parse((init as RequestInit).body as string).allowed_mentions).toEqual({ parse: [] });
     }
     expect(updates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ parent_message_id: "parent-id" }),
+      expect.objectContaining({ thread_id: "thread-id" }),
       expect.objectContaining({ sent_message_count: 1 }),
       expect.objectContaining({ status: "completed" }),
     ]));
@@ -114,7 +119,7 @@ describe("Discord API boundary", () => {
     const updates: Record<string, unknown>[] = [];
     lifecycle.createMutationClient.mockReturnValue(ownedDeliveryClient(updates));
     lifecycle.getSnapshot.mockResolvedValue([company]);
-    lifecycle.claim.mockResolvedValue({ data: { ...delivery, sent_message_count: 1 }, error: null });
+    lifecycle.claim.mockResolvedValue({ data: { ...delivery, parent_message_id: "parent-id", thread_id: "thread-id", sent_message_count: 1 }, error: null });
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const app = new Hono();

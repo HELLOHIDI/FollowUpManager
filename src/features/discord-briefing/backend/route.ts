@@ -3,12 +3,13 @@ import { getDiscordBriefingConfig } from "@/backend/config";
 import type { Hono } from "hono";
 import { failure, respond, success } from "@/backend/http/response";
 import { getSupabase, type AppEnv } from "@/backend/hono/context";
-import { claimScheduledDelivery, DISCORD_MANAGER_NAMES, getActiveBriefingSnapshot, getSeoulWeek, isValidCronSecret, renderCompanyBriefing, renewScheduledDeliveryLease, type CompanySnapshot, type DiscordManagerName, type DiscordSupabaseClient } from "./service";
+import { claimScheduledDelivery, DISCORD_MANAGER_NAMES, getActiveBriefingSnapshot, getSeoulWeek, isValidCronSecret, renderCompanyBriefing, renewScheduledDeliveryLease, type CompanySnapshot, type DiscordManagerName, type DiscordSupabaseClient, type ProjectBriefing } from "./service";
 
 class DiscordAmbiguousDeliveryError extends Error {}
 
+type DiscordMessage = { id: string };
 type DiscordChannel = { permissions?: string; type: number };
-type ScheduledDelivery = { claim_token: string; id: string; message_chunks: string[]; sent_message_count: number };
+type ScheduledDelivery = { claim_token: string; id: string; message_chunks: string[]; parent_message_id: string | null; sent_message_count: number; thread_id: string | null };
 
 const discordRequest = async <T>(path: string, init: RequestInit): Promise<T> => {
   const config = getDiscordBriefingConfig();
@@ -38,7 +39,11 @@ const discordRequest = async <T>(path: string, init: RequestInit): Promise<T> =>
 const sendCompany = async (channelId: string, company: CompanySnapshot, test: boolean) => {
   const config = getDiscordBriefingConfig();
   const template = renderCompanyBriefing(company, config.appUrl, getSeoulWeek().label, test);
-  for (const content of template.projectMessages) await discordRequest(`/channels/${channelId}/messages`, { method: "POST", body: JSON.stringify({ content, allowed_mentions: { parse: [] } }) });
+  for (const briefing of template.projectBriefings) {
+    const parent = await discordRequest<DiscordMessage>(`/channels/${channelId}/messages`, { method: "POST", body: JSON.stringify({ content: briefing.parent, allowed_mentions: { parse: [] } }) });
+    const thread = await discordRequest<DiscordMessage>(`/channels/${channelId}/messages/${parent.id}/threads`, { method: "POST", body: JSON.stringify({ name: briefing.threadName, auto_archive_duration: 10080 }) });
+    for (const content of briefing.messageChunks) await discordRequest(`/channels/${thread.id}/messages`, { method: "POST", body: JSON.stringify({ content, allowed_mentions: { parse: [] } }) });
+  }
 };
 
 const ensureDeliveryLease = async (client: DiscordSupabaseClient, delivery: Pick<ScheduledDelivery, "claim_token" | "id">) => {
@@ -56,7 +61,21 @@ const beginExternalRequest = async (client: DiscordSupabaseClient, delivery: Sch
   await updateOwnedDelivery(client, delivery, { external_request_started_at: new Date().toISOString(), external_request_step: step });
 };
 
-const resumeScheduledCompany = async (client: DiscordSupabaseClient, delivery: ScheduledDelivery, channelId: string) => {
+const resumeScheduledProject = async (client: DiscordSupabaseClient, delivery: ScheduledDelivery, channelId: string, briefing: ProjectBriefing) => {
+  let parentId = delivery.parent_message_id;
+  if (!parentId) {
+    await beginExternalRequest(client, delivery, "parent");
+    const parent = await discordRequest<DiscordMessage>(`/channels/${channelId}/messages`, { method: "POST", body: JSON.stringify({ content: briefing.parent, allowed_mentions: { parse: [] } }) });
+    parentId = parent.id;
+    await updateOwnedDelivery(client, delivery, { parent_message_id: parentId, external_request_started_at: null, external_request_step: null });
+  }
+  let threadId = delivery.thread_id;
+  if (!threadId) {
+    await beginExternalRequest(client, delivery, "thread");
+    const thread = await discordRequest<DiscordMessage>(`/channels/${channelId}/messages/${parentId}/threads`, { method: "POST", body: JSON.stringify({ name: briefing.threadName, auto_archive_duration: 10080 }) });
+    threadId = thread.id;
+    await updateOwnedDelivery(client, delivery, { thread_id: threadId, external_request_started_at: null, external_request_step: null });
+  }
   for (let index = delivery.sent_message_count; index < delivery.message_chunks.length; index += 1) {
     await beginExternalRequest(client, delivery, `project-message-${index + 1}`);
     await discordRequest(`/channels/${channelId}/messages`, { method: "POST", body: JSON.stringify({ content: delivery.message_chunks[index], allowed_mentions: { parse: [] } }) });
@@ -170,13 +189,15 @@ export const registerDiscordBriefingRoutes = (app: Hono<AppEnv>) => {
         let delivery: ScheduledDelivery | null = null;
         try {
           const template = renderCompanyBriefing(company, getDiscordBriefingConfig().appUrl, getSeoulWeek().label);
-          const input = { accountManager: mapping.account_manager as DiscordManagerName, companyId: company.id, messageChunks: template.projectMessages, scopeKey: `company:${company.id}`, weekKey: getSeoulWeek().key };
-          const claim = await claimScheduledDelivery(client, input);
-          if (claim.error) throw new Error("Unable to claim the company delivery.");
-          delivery = claim.data as ScheduledDelivery | null;
-          if (!delivery) continue;
-          await resumeScheduledCompany(client, delivery, mapping.discord_channel_id);
-          delivered += 1;
+          for (const briefing of template.projectBriefings) {
+            const input = { accountManager: mapping.account_manager as DiscordManagerName, companyId: company.id, messageChunks: briefing.messageChunks, scopeKey: `project:${briefing.projectId}`, weekKey: getSeoulWeek().key };
+            const claim = await claimScheduledDelivery(client, input);
+            if (claim.error) throw new Error("Unable to claim the project delivery.");
+            delivery = claim.data as ScheduledDelivery | null;
+            if (!delivery) continue;
+            await resumeScheduledProject(client, delivery, mapping.discord_channel_id, briefing);
+            delivered += 1;
+          }
         } catch (error) {
           if (delivery) {
             const status = error instanceof DiscordAmbiguousDeliveryError ? "needs_review" : "failed";
