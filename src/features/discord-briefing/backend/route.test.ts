@@ -47,7 +47,7 @@ describe("Discord API boundary", () => {
     lifecycle.getSnapshot.mockReset();
     lifecycle.renew.mockReset();
     lifecycle.render.mockReset();
-    lifecycle.render.mockReturnValue({ projectBriefings: [{ projectId: "project-1", parent: "parent", messageChunks: ["chunk"], threadName: "thread" }] });
+    lifecycle.render.mockReturnValue({ parent: "parent", projectMessages: ["chunk"], threadName: "thread" });
     lifecycle.renew.mockResolvedValue({ data: true, error: null });
   });
 
