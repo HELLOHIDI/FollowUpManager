@@ -278,11 +278,14 @@ describe("CompanySettings", () => {
     await user.type(screen.getByLabelText("과제명"), "Grant Project");
     await user.type(screen.getByLabelText("협약 시작일"), "2026-01-01");
     await user.type(screen.getByLabelText("협약 종료일"), "2026-12-31");
-    await user.type(screen.getByLabelText("담당자명"), "PM");
-    await user.type(screen.getByLabelText("담당자 이메일"), "pm@example.com");
-    const governmentSubsidyInput = screen.getByLabelText("정부지원금");
+    await user.type(screen.getByLabelText("기관 담당자명"), "PM");
+    await user.type(screen.getByLabelText("기관 담당자 이메일"), "pm@example.com");
+    const totalProjectBudgetInput = screen.getByLabelText("총 사업비");
+    await user.clear(totalProjectBudgetInput);
+    await user.type(totalProjectBudgetInput, "1000");
+    const governmentSubsidyInput = screen.getByLabelText("정부지원금 비율(%)");
     await user.clear(governmentSubsidyInput);
-    await user.type(governmentSubsidyInput, "1000");
+    await user.type(governmentSubsidyInput, "100");
     await user.click(screen.getByRole("button", { name: "사업 등록" }));
 
     await waitFor(() => {
@@ -291,10 +294,11 @@ describe("CompanySettings", () => {
         input: expect.objectContaining({
           assignmentName: "Grant Project",
           assignmentNumber: "A-001",
-          governmentSubsidyAmount: "1000",
+          governmentSubsidyRatio: "100",
           hostInstitution: "KISED",
           managerName: "PM",
           projectName: "Fast Dashboard Project",
+          totalProjectBudget: "1000",
         }),
       });
     });
