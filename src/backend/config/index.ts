@@ -41,3 +41,27 @@ export const getAppConfig = (): AppConfig => {
 
   return cachedConfig;
 };
+
+const discordBriefingEnvSchema = z.object({
+  APP_URL: z.string().url(),
+  CRON_SECRET: z.string().min(1),
+  DISCORD_BOT_TOKEN: z.string().min(1),
+});
+
+export const getDiscordBriefingConfig = () => {
+  const parsed = discordBriefingEnvSchema.safeParse({
+    APP_URL: process.env.APP_URL,
+    CRON_SECRET: process.env.CRON_SECRET,
+    DISCORD_BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,
+  });
+
+  if (!parsed.success) {
+    throw new Error("Discord weekly briefing configuration is invalid.");
+  }
+
+  return {
+    appUrl: parsed.data.APP_URL.replace(/\/$/, ""),
+    botToken: parsed.data.DISCORD_BOT_TOKEN,
+    cronSecret: parsed.data.CRON_SECRET,
+  };
+};

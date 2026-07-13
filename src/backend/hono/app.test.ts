@@ -87,6 +87,9 @@ describe("Hono authentication boundary", () => {
     ["GET", "/api/projects/33333333-3333-4333-8333-333333333333"],
     ["GET", "/api/projects/33333333-3333-4333-8333-333333333333/dashboard"],
     ["PATCH", "/api/projects/33333333-3333-4333-8333-333333333333"],
+    ["GET", "/api/discord/channels"],
+    ["PUT", "/api/discord/channels/%EC%A0%95%ED%98%84%EC%A0%95"],
+    ["POST", "/api/discord/test"],
     ["GET", "/api/projects/33333333-3333-4333-8333-333333333333/documents"],
     ["POST", "/api/projects/33333333-3333-4333-8333-333333333333/documents/upload-intents"],
     ["GET", "/api/projects/33333333-3333-4333-8333-333333333333/expenses/44444444-4444-4444-8444-444444444444/history"],
@@ -261,4 +264,44 @@ describe("Hono authentication boundary", () => {
 
     errorLog.mockRestore();
   });
+
+  it("protects Discord delivery review history and returns review state", async () => {
+    const limit = vi.fn().mockResolvedValue({ data: [{ account_manager: "정현정", external_request_step: "parent", last_error: null, scope_key: "company:1", status: "needs_review" }], error: null });
+    const order = vi.fn(() => ({ limit }));
+    const select = vi.fn(() => ({ order }));
+    const from = vi.fn(() => ({ select }));
+    const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: TEST_USER }, error: null }) }, from } as unknown as SupabaseClient<Database>;
+    const app = createHonoApp({ createAuthenticatedClient: vi.fn(() => client) });
+
+    expect((await app.request("/api/discord/deliveries")).status).toBe(401);
+    const response = await app.request("/api/discord/deliveries", { headers: { Authorization: "Bearer valid-token" } });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject([{ status: "needs_review", external_request_step: "parent" }]);
+  });
+
+  it("rejects a manual Discord test when no manager channel is configured", async () => {
+    const { client } = createClientStub({ row: null });
+    const app = createHonoApp({ createAuthenticatedClient: vi.fn(() => client) });
+    const response = await app.request("/api/discord/test", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body: JSON.stringify({ accountManager: "정현정" }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { code: "DISCORD_CHANNEL_NOT_CONFIGURED" } });
+  });
+
+  it("rejects an unknown manager before a manual Discord test reads the channel", async () => {
+    const { client, from } = createClientStub();
+    const app = createHonoApp({ createAuthenticatedClient: vi.fn(() => client) });
+    const response = await app.request("/api/discord/test", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body: JSON.stringify({ accountManager: "unknown" }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { code: "INVALID_DISCORD_MANAGER" } });
+    expect(from).not.toHaveBeenCalled();
+  });
+
 });
