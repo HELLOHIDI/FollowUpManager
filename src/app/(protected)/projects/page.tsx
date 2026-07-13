@@ -31,7 +31,6 @@ import {
   useProjectNavigationPrefetch,
 } from "@/features/projects/hooks/use-projects";
 import { cn } from "@/lib/utils";
-
 const TEAM_FILTER_OPTIONS = ["전체", "1팀", "2팀", "블랜"] as const;
 type TeamFilter = (typeof TEAM_FILTER_OPTIONS)[number];
 
@@ -282,6 +281,13 @@ function CompanyProjectCard({ company }: { company: CompanyResponse }) {
               <p className="mt-1 text-sm text-muted-foreground">
                 이 기업의 첫 사업을 등록하면 대시보드가 생성됩니다.
               </p>
+              <Button asChild className="mt-3" size="sm">
+                <Link
+                  href={routes.companyProjectCreate(company.id, routes.projects)}
+                >
+                  사업 등록하기
+                </Link>
+              </Button>
             </div>
           ) : (
             <ul

@@ -18,6 +18,7 @@ const PROJECT_INPUT = {
   agreementStartDate: "2026-01-01",
   assignmentName: "Grant",
   assignmentNumber: "A-1",
+  governmentSubsidyAmount: "700",
   governmentSubsidyRatio: "70",
   hostInstitution: "Agency",
   managerEmail: "pm@example.com",
@@ -25,7 +26,9 @@ const PROJECT_INPUT = {
   managerPhone: null,
   projectName: "Project",
   projectNotes: null,
+  selfCashAmount: "200",
   selfCashRatio: "20",
+  selfInKindAmount: "100",
   selfInKindRatio: "10",
   totalProjectBudget: "1000",
 };
