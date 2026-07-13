@@ -34,6 +34,7 @@ export const expenseStageFieldLabels: Record<ExpenseStageMemoFieldKey, string> =
   executionMemo: "수행 상태 메모",
   executionRequestMemo: "최종 요청 메모",
   preApprovalMemo: "주관기관 확인 메모",
+  stageChecklists: "단계별 체크리스트",
 };
 
 export const expenseProcedureSteps = [
