@@ -48,6 +48,32 @@ export const registerCompanyRoutes = (
   app: Hono<AppEnv>,
   options: CompanyRouteOptions
 ) => {
+  const authenticatedMutationClient = (context: Parameters<typeof respond>[0]) =>
+    () => getSupabase(context);
+  const shouldRetryWithAuthenticatedClient = (result: {
+    error?: { code: string };
+    ok: boolean;
+    status?: number;
+  }) =>
+    !result.ok &&
+    result.status === 500 &&
+    ["COMPANY_FETCH_ERROR", "COMPANY_WRITE_ERROR"].includes(
+      result.error?.code ?? ""
+    );
+  const runMutation = async <T>(
+    context: Parameters<typeof respond>[0],
+    mutation: (createClient: MutationClientFactory) => Promise<T & { ok: boolean }>
+  ) => {
+    try {
+      const serviceResult = await mutation(options.createCompanyMutationClient);
+      return shouldRetryWithAuthenticatedClient(serviceResult)
+        ? mutation(authenticatedMutationClient(context))
+        : serviceResult;
+    } catch {
+      return mutation(authenticatedMutationClient(context));
+    }
+  };
+
   app.get("/companies", async (context) => {
     const result = await listCompanies(getSupabase(context));
     logCompanyFailure(getLogger(context), "GET /companies", result);
@@ -71,9 +97,8 @@ export const registerCompanyRoutes = (
       );
     }
 
-    const result = await createCompany(
-      options.createCompanyMutationClient,
-      parsedBody.data
+    const result = await runMutation(context, (createClient) =>
+      createCompany(createClient, parsedBody.data)
     );
     logCompanyFailure(getLogger(context), "POST /companies", result);
     return respond(context, result);
@@ -142,10 +167,8 @@ export const registerCompanyRoutes = (
       );
     }
 
-    const result = await updateCompany(
-      options.createCompanyMutationClient,
-      parsedParams.data.companyId,
-      parsedBody.data
+    const result = await runMutation(context, (createClient) =>
+      updateCompany(createClient, parsedParams.data.companyId, parsedBody.data)
     );
     logCompanyFailure(
       getLogger(context),
@@ -189,10 +212,12 @@ export const registerCompanyRoutes = (
       );
     }
 
-    const result = await updateCompanyAccountManager(
-      options.createCompanyMutationClient,
-      parsedParams.data.companyId,
-      parsedBody.data.accountManager
+    const result = await runMutation(context, (createClient) =>
+      updateCompanyAccountManager(
+        createClient,
+        parsedParams.data.companyId,
+        parsedBody.data.accountManager
+      )
     );
     logCompanyFailure(
       getLogger(context),
@@ -220,9 +245,8 @@ export const registerCompanyRoutes = (
       );
     }
 
-    const result = await deleteCompany(
-      options.createCompanyMutationClient,
-      parsedParams.data.companyId
+    const result = await runMutation(context, (createClient) =>
+      deleteCompany(createClient, parsedParams.data.companyId)
     );
     logCompanyFailure(
       getLogger(context),

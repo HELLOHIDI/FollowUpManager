@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, type UseFormReturn, useForm } from "react-hook-form";
@@ -85,6 +85,7 @@ function CompanyForm({
   form,
   isSubmitting,
   onAccountManagerSubmit,
+  onDelete,
   onSubmit,
   submitLabel,
 }: {
@@ -92,6 +93,7 @@ function CompanyForm({
   form: UseFormReturn<CompanyInput>;
   isSubmitting: boolean;
   onAccountManagerSubmit?: () => void;
+  onDelete?: () => void;
   onSubmit: () => void;
   submitLabel: string;
 }) {
@@ -214,12 +216,15 @@ function CompanyForm({
             ? "필수 정보가 모두 입력되었습니다."
             : "필수 정보를 입력하면 저장할 수 있습니다."}
         </p>
-        <Button type="submit" disabled={!form.formState.isValid || isSubmitting}>
+        <div className="flex items-center gap-2 self-end">
+          {onDelete ? <Button disabled={isSubmitting} onClick={onDelete} type="button" variant="weak-danger"><Trash2 className="size-4" aria-hidden="true" />기업 삭제</Button> : null}
+          <Button type="submit" disabled={!form.formState.isValid || isSubmitting}>
           {isSubmitting ? (
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />
           ) : null}
           {submitLabel}
-        </Button>
+          </Button>
+        </div>
       </div>
     </form>
   );
@@ -231,6 +236,7 @@ export function CompanySettings() {
   const companiesQuery = useCompaniesQuery();
   const {
     createMutation,
+    deleteMutation,
     updateAccountManagerMutation,
     updateMutation,
   } = useCompanyMutations();
@@ -276,6 +282,7 @@ export function CompanySettings() {
   );
   const isSubmitting =
     createMutation.isPending ||
+    deleteMutation.isPending ||
     updateAccountManagerMutation.isPending ||
     updateMutation.isPending;
   const isBusinessTypeDirty = Boolean(form.formState.dirtyFields.businessType);
@@ -412,6 +419,17 @@ export function CompanySettings() {
         description: extractApiErrorMessage(error, "다시 시도해 주세요."),
         variant: "destructive",
       });
+    }
+  };
+
+  const deleteCompany = async () => {
+    if (!focusedEditCompany || !confirm(`${focusedEditCompany.companyName} 기업과 연결된 사업을 삭제할까요?`)) return;
+    try {
+      await deleteMutation.mutateAsync(focusedEditCompany.id);
+      toast({ title: "기업을 삭제했습니다.", description: `${focusedEditCompany.companyName} 기업을 목록에서 숨겼습니다.` });
+      router.push(safeReturnTo ?? routes.projects);
+    } catch (error) {
+      toast({ title: "기업을 삭제하지 못했습니다.", description: extractApiErrorMessage(error, "잠시 후 다시 시도해 주세요."), variant: "destructive" });
     }
   };
 
@@ -621,6 +639,7 @@ export function CompanySettings() {
                 onAccountManagerSubmit={
                   isFocusedEdit ? () => void submitAccountManager() : undefined
                 }
+                onDelete={focusedEditCompany ? () => void deleteCompany() : undefined}
                 onSubmit={submit}
                 submitLabel={
                   isFocusedCreate ? "기업 추가하기" : "기업 정보 수정"

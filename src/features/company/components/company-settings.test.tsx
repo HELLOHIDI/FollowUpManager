@@ -74,7 +74,6 @@ const project = {
   companyId: "11111111-1111-4111-8111-111111111111",
   createdAt: "2026-06-22T00:00:00.000Z",
   governmentSubsidyAmount: 700,
-  governmentSubsidyRatio: 70,
   hostInstitution: "KISED",
   id: "22222222-2222-4222-8222-222222222222",
   managerEmail: null,
@@ -84,10 +83,8 @@ const project = {
   projectName: "Fast Dashboard Project",
   projectNotes: null,
   selfCashAmount: 200,
-  selfCashRatio: 20,
   selfContributionAmount: 300,
   selfInKindAmount: 100,
-  selfInKindRatio: 10,
   totalProjectBudget: 1000,
   updatedAt: "2026-06-22T00:00:00.000Z",
 };
@@ -192,7 +189,6 @@ describe("CompanySettings", () => {
       `companyId=${existingCompany.id}&returnTo=%2Fprojects`,
     );
     api.fetchCompanies.mockResolvedValue([existingCompany]);
-    api.fetchCompany.mockResolvedValue(existingCompany);
     api.updateCompanyRequest.mockResolvedValue(updated);
     renderSettings();
     const user = userEvent.setup();
@@ -216,83 +212,6 @@ describe("CompanySettings", () => {
       });
     });
     expect(router.push).toHaveBeenCalledWith("/projects");
-  });
-
-  it("keeps an existing corporate registration number when editing a corporation", async () => {
-    const existingCompany = company({
-      businessType: "corporation",
-      companyName: "기존 법인",
-      corporateRegistrationNumber: "1234561234567",
-    });
-    const updated = company({
-      ...existingCompany,
-      companyName: "수정 법인",
-    });
-    navigationState.searchParams = new URLSearchParams(
-      `companyId=${existingCompany.id}&returnTo=%2Fprojects`,
-    );
-    api.fetchCompanies.mockResolvedValue([
-      { ...existingCompany, corporateRegistrationNumber: null },
-    ]);
-    api.fetchCompany.mockResolvedValue(existingCompany);
-    api.updateCompanyRequest.mockResolvedValue(updated);
-    renderSettings();
-    const user = userEvent.setup();
-
-    const corporateNumberInput = await screen.findByLabelText("법인등기번호");
-    await waitFor(() => {
-      expect(corporateNumberInput).toHaveValue("1234561234567");
-    });
-
-    const companyNameInput = screen.getByLabelText("기업명");
-    await user.clear(companyNameInput);
-    await user.type(companyNameInput, "수정 법인");
-    await user.click(screen.getByRole("button", { name: "기업 정보 수정" }));
-
-    await waitFor(() => {
-      expect(api.updateCompanyRequest.mock.calls[0]?.[0]).toEqual({
-        companyId: existingCompany.id,
-        input: expect.objectContaining({
-          businessType: "corporation",
-          corporateRegistrationNumber: "1234561234567",
-        }),
-      });
-    });
-  });
-
-  it("saves a newly entered corporate registration number when editing a corporation", async () => {
-    const existingCompany = company({
-      businessType: "corporation",
-      companyName: "법인번호 없는 법인",
-      corporateRegistrationNumber: null,
-    });
-    const updated = company({
-      ...existingCompany,
-      corporateRegistrationNumber: "1234567890123",
-    });
-    navigationState.searchParams = new URLSearchParams(
-      `companyId=${existingCompany.id}&returnTo=%2Fprojects`,
-    );
-    api.fetchCompanies.mockResolvedValue([existingCompany]);
-    api.fetchCompany.mockResolvedValue(existingCompany);
-    api.updateCompanyRequest.mockResolvedValue(updated);
-    renderSettings();
-    const user = userEvent.setup();
-
-    const corporateNumberInput = await screen.findByLabelText("법인등기번호");
-    await user.type(corporateNumberInput, "123456-7890123");
-    expect(corporateNumberInput).toHaveValue("1234567890123");
-    await user.click(screen.getByRole("button", { name: "기업 정보 수정" }));
-
-    await waitFor(() => {
-      expect(api.updateCompanyRequest.mock.calls[0]?.[0]).toEqual({
-        companyId: existingCompany.id,
-        input: expect.objectContaining({
-          businessType: "corporation",
-          corporateRegistrationNumber: "1234567890123",
-        }),
-      });
-    });
   });
 
   it("updates only the company account manager from the edit form", async () => {
@@ -355,22 +274,15 @@ describe("CompanySettings", () => {
 
     await user.type(screen.getByLabelText("사업명"), "Fast Dashboard Project");
     await user.type(screen.getByLabelText("주관기관"), "KISED");
-    await user.type(screen.getByLabelText("과제번호 (선택)"), "A-001");
+    await user.type(screen.getByLabelText("과제번호"), "A-001");
     await user.type(screen.getByLabelText("과제명"), "Grant Project");
     await user.type(screen.getByLabelText("협약 시작일"), "2026-01-01");
     await user.type(screen.getByLabelText("협약 종료일"), "2026-12-31");
-    await user.type(screen.getByLabelText("기관 담당자명"), "PM");
-    await user.type(screen.getByLabelText("기관 담당자 이메일"), "pm@example.com");
-    await user.type(screen.getByLabelText("총 사업비"), "1000");
-    const governmentSubsidyRatioInput = screen.getByLabelText("정부지원금 비율(%)");
-    const selfCashRatioInput = screen.getByLabelText("현금 비율(%)");
-    const selfInKindRatioInput = screen.getByLabelText("현물 비율(%)");
-    await user.clear(governmentSubsidyRatioInput);
-    await user.type(governmentSubsidyRatioInput, "70");
-    await user.clear(selfCashRatioInput);
-    await user.type(selfCashRatioInput, "20");
-    await user.clear(selfInKindRatioInput);
-    await user.type(selfInKindRatioInput, "10");
+    await user.type(screen.getByLabelText("담당자명"), "PM");
+    await user.type(screen.getByLabelText("담당자 이메일"), "pm@example.com");
+    const governmentSubsidyInput = screen.getByLabelText("정부지원금");
+    await user.clear(governmentSubsidyInput);
+    await user.type(governmentSubsidyInput, "1000");
     await user.click(screen.getByRole("button", { name: "사업 등록" }));
 
     await waitFor(() => {
@@ -379,13 +291,10 @@ describe("CompanySettings", () => {
         input: expect.objectContaining({
           assignmentName: "Grant Project",
           assignmentNumber: "A-001",
-          governmentSubsidyRatio: "70",
+          governmentSubsidyAmount: "1000",
           hostInstitution: "KISED",
           managerName: "PM",
           projectName: "Fast Dashboard Project",
-          selfCashRatio: "20",
-          selfInKindRatio: "10",
-          totalProjectBudget: "1000",
         }),
       });
     });

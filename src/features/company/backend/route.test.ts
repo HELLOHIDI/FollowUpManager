@@ -226,33 +226,48 @@ describe("company API boundary", () => {
     });
   });
 
-  it("does not retry company writes with the authenticated client", async () => {
+  it("falls back to the authenticated client when service company inserts are not granted", async () => {
+    const authMutation = mutationClient();
     const auth = authorizedClient();
+    auth.client.from = authMutation.client.from;
     const mutation = mutationClient({
-      insertError: {
-        code: "42501",
-        message: "permission denied for table companies",
-      },
+      insertError: { code: "42501", message: "permission denied for table companies" },
     });
     createCompanyMutationClient.mockReturnValue(mutation.client);
     const app = createHonoApp({
       createAuthenticatedClient: vi.fn(() => auth.client),
       createCompanyMutationClient,
     });
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-
     const response = await app.request(
       "/api/companies",
       requestOptions("POST", COMPANY_INPUT)
     );
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(201);
     expect(createCompanyMutationClient).toHaveBeenCalledTimes(1);
     expect(mutation.insert).toHaveBeenCalledTimes(1);
-    expect(auth.from).not.toHaveBeenCalledWith("companies");
-    consoleError.mockRestore();
+    expect(authMutation.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the authenticated client when service client creation fails", async () => {
+    const authMutation = mutationClient();
+    const auth = authorizedClient();
+    auth.client.from = authMutation.client.from;
+    createCompanyMutationClient.mockImplementation(() => {
+      throw new Error("Invalid backend configuration");
+    });
+    const app = createHonoApp({
+      createAuthenticatedClient: vi.fn(() => auth.client),
+      createCompanyMutationClient,
+    });
+    const response = await app.request(
+      "/api/companies",
+      requestOptions("POST", COMPANY_INPUT)
+    );
+
+    expect(response.status).toBe(201);
+    expect(createCompanyMutationClient).toHaveBeenCalledTimes(1);
+    expect(authMutation.insert).toHaveBeenCalledTimes(1);
   });
 
   it("clears stale corporate input and derives review status for a sole proprietor", async () => {

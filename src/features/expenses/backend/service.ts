@@ -191,6 +191,23 @@ const readStageField = (stageFields: unknown, key: string) => {
   return typeof value === "string" ? value : null;
 };
 
+const readStageChecklists = (stageFields: unknown) => {
+  const checklists = stageFields && typeof stageFields === "object" && !Array.isArray(stageFields)
+    ? (stageFields as Record<string, unknown>).stage_checklists
+    : null;
+  if (!checklists || typeof checklists !== "object" || Array.isArray(checklists)) return {};
+  return Object.fromEntries(
+    Object.entries(checklists as Record<string, unknown>).map(([stageKey, checklist]) => {
+      if (!checklist || typeof checklist !== "object" || Array.isArray(checklist)) return [stageKey, checklist];
+      const values = checklist as Record<string, unknown>;
+      const progress = typeof values.progress === "string"
+        ? values.progress
+        : ["prepared", "managerConfirmed", "pmsRegistered", "finalApproved"].find((key) => values[key] === true) ?? null;
+      return [stageKey, { ...values, progress }];
+    }),
+  );
+};
+
 const mapStageFields = (stageFields: unknown) => ({
   approvalReference: readStageField(stageFields, stageFieldKeys.approvalReference),
   deliverableMemo: readStageField(stageFields, stageFieldKeys.deliverableMemo),
@@ -200,17 +217,18 @@ const mapStageFields = (stageFields: unknown) => ({
   procedures: stageFields && typeof stageFields === "object" && !Array.isArray(stageFields)
     ? (stageFields as Record<string, unknown>).procedures
     : undefined,
+  stageChecklists: readStageChecklists(stageFields),
 });
 
-const toDatabaseStageFields = (stageFields: ExpenseUpdateInput["stageFields"]) =>
-  ({
-    ...Object.fromEntries(
-      Object.entries(stageFieldKeys)
-        .map(([apiKey, databaseKey]) => [databaseKey, stageFields[apiKey as keyof typeof stageFieldKeys] ?? null])
-        .filter(([, value]) => value !== null && value !== ""),
-    ),
-    ...(stageFields.procedures ? { procedures: stageFields.procedures } : {}),
-  });
+const toDatabaseStageFields = (stageFields: ExpenseUpdateInput["stageFields"]) => ({
+  ...Object.fromEntries(
+    Object.entries(stageFieldKeys)
+      .map(([apiKey, databaseKey]) => [databaseKey, stageFields[apiKey as keyof typeof stageFieldKeys] ?? null])
+      .filter(([, value]) => value !== null && value !== ""),
+  ),
+  ...(stageFields.procedures ? { procedures: stageFields.procedures } : {}),
+  stage_checklists: stageFields.stageChecklists,
+});
 
 const toDatabaseStageFieldsWithFundingSource = (input: ExpenseUpdateInput) => ({
   ...toDatabaseStageFields(input.stageFields),

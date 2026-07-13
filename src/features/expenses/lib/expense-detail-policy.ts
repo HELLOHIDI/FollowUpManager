@@ -67,7 +67,6 @@ export const executionRequestStatuses = [
   ["needs_supplement", "보완 필요"],
   ["completed", "집행 완료"],
 ] as const;
-
 const stageEvidenceKeys: Record<ExpenseStageKey, EvidenceDocumentOption["key"][]> = {
   budget_registration: ["quote", "comparative_quote", "contract", "etc"],
   pre_approval: ["pre_approval_document", "institution_confirmation", "pledge_letter", "etc"],
