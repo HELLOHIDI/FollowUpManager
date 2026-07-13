@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { getProjectIdFromPathname, routes } from "./routes";
 
 describe("product routes", () => {
+  it("provides the FAQ route", () => {
+    expect(routes.faq).toBe("/faq");
+  });
+
   it("encodes dynamic route segments", () => {
     expect(routes.project("지원 사업")).toBe("/projects/%EC%A7%80%EC%9B%90%20%EC%82%AC%EC%97%85");
     expect(routes.projectExpenses("p/1")).toBe("/projects/p%2F1/expenses");
