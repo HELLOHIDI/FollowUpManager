@@ -164,9 +164,8 @@ describe("Discord API boundary", () => {
     const mappingClient = {
       from: vi.fn(() => ({ select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: vi.fn().mockResolvedValue({ data: { discord_channel_id: "channel" }, error: null }) })) })) })),
     };
-    vi.stubGlobal("fetch", vi.fn()
-      .mockResolvedValueOnce(Response.json({ permissions: channelPermissions, type: 0 }))
-      .mockResolvedValueOnce(new Response(null, { status: 204 })));
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
     const app = new Hono();
     app.use("*", async (context, next) => {
       context.set("supabase" as never, mappingClient as never);
@@ -178,6 +177,7 @@ describe("Discord API boundary", () => {
 
     expect(response.status).toBe(200);
     expect(historyInsert).toHaveBeenCalledWith(expect.objectContaining({ account_manager: "manager", status: "completed" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(lifecycle.claim).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
