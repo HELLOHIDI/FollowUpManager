@@ -6,8 +6,10 @@ import {
   ArrowRight,
   Building2,
   ChevronDown,
+  ExternalLink,
   FolderKanban,
   Loader2,
+  MessageCircleQuestion,
   Plus,
   Settings,
 } from "lucide-react";
@@ -31,6 +33,12 @@ import {
   useProjectNavigationPrefetch,
 } from "@/features/projects/hooks/use-projects";
 import { cn } from "@/lib/utils";
+
+const FAQ_ITEMS: ReadonlyArray<{
+  description: string;
+  href: string;
+  title: string;
+}> = [];
 const TEAM_FILTER_OPTIONS = ["전체", "1팀", "2팀", "블랜"] as const;
 type TeamFilter = (typeof TEAM_FILTER_OPTIONS)[number];
 
@@ -77,6 +85,7 @@ export default function ProjectsPage() {
           </div>
         }
       />
+      <FaqBriefing />
 
       {companiesQuery.isPending ? (
         <LoadingProjects />
@@ -143,6 +152,59 @@ export default function ProjectsPage() {
         </div>
       )}
     </>
+  );
+}
+
+function FaqBriefing() {
+  return (
+    <section
+      className="mb-6 rounded-lg border bg-card p-4"
+      aria-labelledby="faq-title"
+    >
+      <div className="flex items-start gap-3">
+        <span
+          className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"
+          aria-hidden="true"
+        >
+          <MessageCircleQuestion className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <h2 id="faq-title" className="font-semibold">
+            자주 묻는 질문
+          </h2>
+          {FAQ_ITEMS.length === 0 ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              FAQ를 준비 중입니다.
+            </p>
+          ) : (
+            <ul className="mt-3 grid gap-2">
+              {FAQ_ITEMS.map((item) => (
+                <li key={item.href}>
+                  <a
+                    aria-label={`${item.title} Notion에서 새 탭으로 열기`}
+                    className="flex items-center justify-between gap-3 rounded-md border p-3 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    href={item.href}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-medium">{item.title}</span>
+                      <span className="mt-0.5 block text-sm text-muted-foreground">
+                        {item.description}
+                      </span>
+                    </span>
+                    <ExternalLink
+                      className="size-4 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 

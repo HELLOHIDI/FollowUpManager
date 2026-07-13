@@ -113,6 +113,15 @@ describe("ProjectsPage", () => {
     projectApi.uploadProjectDocuments.mockReset();
   });
 
+  it("shows the FAQ empty state above the project content", async () => {
+    companyApi.fetchCompanies.mockResolvedValue([]);
+
+    renderProjectsPage();
+
+    expect(await screen.findByRole("heading", { name: "자주 묻는 질문" })).toBeInTheDocument();
+    expect(screen.getByText("FAQ를 준비 중입니다.")).toBeInTheDocument();
+  });
+
   it("guides users to company setup when no companies are registered", async () => {
     companyApi.fetchCompanies.mockResolvedValue([]);
 
