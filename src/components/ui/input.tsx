@@ -23,17 +23,32 @@ const inputVariants = cva(
   },
 );
 
+const formatDateInput = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  return [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6, 8)]
+    .filter(Boolean)
+    .join("-");
+};
+
 export interface InputProps
   extends React.InputHTMLAttributes<HTMLInputElement>,
     VariantProps<typeof inputVariants> {}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, variant, ...props }, ref) => {
+  ({ className, type, variant, onChange, ...props }, ref) => {
+    const isDate = type === "date";
     return (
       <input
-        type={type}
+        type={isDate ? "text" : type}
+        inputMode={isDate ? "numeric" : props.inputMode}
+        maxLength={isDate ? 10 : props.maxLength}
+        placeholder={isDate ? "YYYY-MM-DD" : props.placeholder}
         className={cn(inputVariants({ variant }), className)}
         ref={ref}
+        onChange={isDate ? (event) => {
+          event.currentTarget.value = formatDateInput(event.currentTarget.value);
+          onChange?.(event);
+        } : onChange}
         {...props}
       />
     );

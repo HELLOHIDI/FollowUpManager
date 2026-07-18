@@ -165,7 +165,8 @@ export const registerDiscordBriefingRoutes = (app: Hono<AppEnv>) => {
       await recordTestDelivery(body.accountManager as DiscordManagerName, "completed");
       return respond(context, success({ delivered: true }));
     }
-    catch {
+    catch (error) {
+      console.error("Discord test delivery failed", { message: error instanceof Error ? error.message : "Unknown error" });
       try { await recordTestDelivery(body.accountManager as DiscordManagerName, "failed", "Discord test delivery failed."); }
       catch { return respond(context, failure(500, "DISCORD_TEST_HISTORY_ERROR", "The Discord test result could not be recorded.")); }
       return respond(context, failure(502, "DISCORD_TEST_FAILED", "The Discord test delivery failed."));

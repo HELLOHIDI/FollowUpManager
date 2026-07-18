@@ -36,9 +36,6 @@ export function PageHeading({
             돌아가기
           </Link>
         ) : null}
-        {eyebrow ? (
-          <p className="mb-1 text-sm font-medium text-primary">{eyebrow}</p>
-        ) : null}
         <h1 className="text-2xl font-semibold tracking-normal">{title}</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
           {description}
