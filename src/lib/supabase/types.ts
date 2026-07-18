@@ -187,6 +187,91 @@ export type Database = {
         }
         Relationships: []
       }
+      discord_schedule_reminder_deliveries: {
+        Row: {
+          account_manager: string
+          attempt_count: number
+          claim_token: string | null
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          event_date: string
+          external_request_started_at: string | null
+          external_request_step: string | null
+          id: string
+          last_error: string | null
+          lease_expires_at: string | null
+          message_content: string
+          notification_kind: string
+          project_id: string
+          schedule_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          account_manager: string
+          attempt_count?: number
+          claim_token?: string | null
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          event_date: string
+          external_request_started_at?: string | null
+          external_request_step?: string | null
+          id?: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          message_content: string
+          notification_kind: string
+          project_id: string
+          schedule_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          account_manager?: string
+          attempt_count?: number
+          claim_token?: string | null
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          event_date?: string
+          external_request_started_at?: string | null
+          external_request_step?: string | null
+          id?: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          message_content?: string
+          notification_kind?: string
+          project_id?: string
+          schedule_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discord_schedule_reminder_deliveries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discord_schedule_reminder_deliveries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discord_schedule_reminder_deliveries_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "project_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discord_weekly_briefing_deliveries: {
         Row: {
           account_manager: string
@@ -1235,6 +1320,44 @@ export type Database = {
           },
         ]
       }
+      project_schedules: {
+        Row: {
+          created_at: string
+          id: string
+          memo: string | null
+          project_id: string
+          scheduled_on: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          memo?: string | null
+          project_id: string
+          scheduled_on: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          memo?: string | null
+          project_id?: string
+          scheduled_on?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_schedules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           agreement_end_date: string
@@ -1548,6 +1671,22 @@ export type Database = {
           thread_id: string
         }[]
       }
+      claim_discord_schedule_reminder_delivery: {
+        Args: {
+          p_account_manager: string
+          p_company_id: string
+          p_event_date: string
+          p_message_content: string
+          p_notification_kind: string
+          p_project_id: string
+          p_schedule_id: string
+        }
+        Returns: {
+          claim_token: string
+          id: string
+          message_content: string
+        }[]
+      }
       confirm_program_policy_version: {
         Args: {
           p_confirmed_by: string
@@ -1678,6 +1817,10 @@ export type Database = {
         Returns: Json
       }
       renew_discord_weekly_briefing_delivery_lease: {
+        Args: { p_claim_token: string; p_delivery_id: string }
+        Returns: boolean
+      }
+      renew_discord_schedule_reminder_delivery_lease: {
         Args: { p_claim_token: string; p_delivery_id: string }
         Returns: boolean
       }

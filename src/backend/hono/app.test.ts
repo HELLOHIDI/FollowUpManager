@@ -269,7 +269,9 @@ describe("Hono authentication boundary", () => {
     const limit = vi.fn().mockResolvedValue({ data: [{ account_manager: "정현정", external_request_step: "parent", last_error: null, scope_key: "company:1", status: "needs_review" }], error: null });
     const order = vi.fn(() => ({ limit }));
     const select = vi.fn(() => ({ order }));
-    const from = vi.fn(() => ({ select }));
+    const from = vi.fn((table: string) => table === "discord_schedule_reminder_deliveries"
+      ? { select: vi.fn(() => ({ order: vi.fn(() => ({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) })) })) }
+      : { select });
     const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: TEST_USER }, error: null }) }, from } as unknown as SupabaseClient<Database>;
     const app = createHonoApp({ createAuthenticatedClient: vi.fn(() => client) });
 
