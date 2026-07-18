@@ -17,6 +17,7 @@
     "test:all": "npm run test && npm run test:e2e",
     "typecheck": "tsc --noEmit",
     "env:check": "dotenv -e .env.local -- tsx scripts/check-env.ts",
+    "check:ui-baseline": "node scripts/check-ui-baseline.mjs",
     "env:auth": "node scripts/assert-auth-env.mjs"
   },
   "dependencies": {

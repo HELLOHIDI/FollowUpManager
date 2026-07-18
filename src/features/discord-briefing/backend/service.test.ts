@@ -61,6 +61,7 @@ describe("Discord weekly briefing", () => {
     const message = renderScheduleReminder({ accountManager: "\uC815\uD604\uC815", companyId: "company", companyName: "A", memo: "@everyone", projectId: "project", projectName: "P", scheduleId: "schedule", scheduledOn: "2026-07-20", title: "\uBCF4\uACE0" }, "d_day", "https://app.example.com");
     expect(message).toContain("\uC624\uB298 \uC77C\uC815 \uC54C\uB9BC");
     expect(message).toContain("@\u200beveryone");
-    expect(message).toContain("/projects/project/schedules");
+    expect(message).toContain("/projects/project");
+    expect(message).not.toContain("/schedules");
   });
 });
