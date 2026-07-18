@@ -39,6 +39,9 @@ vi.mock("./category-expense-list", () => ({
 vi.mock("./dashboard-kanban-board", () => ({
   DashboardKanbanBoard: ({ projectId }: { projectId: string }) => <div data-testid="dashboard-kanban-board">{projectId}</div>,
 }));
+vi.mock("@/features/project-schedules/components/project-schedule-preview", () => ({
+  ProjectSchedulePreview: () => <div data-testid="project-schedule-preview" />,
+}));
 vi.mock("@/components/ui/button", () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
     <button type="button" onClick={onClick}>

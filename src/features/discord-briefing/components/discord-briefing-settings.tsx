@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/remote/api-client";
 
 type Channel = { account_manager: string; discord_channel_id: string };
-type Delivery = { account_manager: string; external_request_step: string | null; last_error: string | null; scope_key: string; status: string };
+type Delivery = { account_manager: string; external_request_step: string | null; kind: string; last_error: string | null; scope_key: string; status: string };
 const key = ["discord-briefing", "channels"] as const;
 
 export function DiscordBriefingSettings() {
@@ -33,5 +33,6 @@ export function DiscordBriefingSettings() {
       </CardContent>
     </Card>
     {(deliveries.data ?? []).filter((delivery) => delivery.status === "needs_review" || delivery.external_request_step).map((delivery) => <Card key={`${delivery.account_manager}-${delivery.scope_key}`} className="border-destructive/40 shadow-none"><CardContent className="p-4 text-sm"><strong>{delivery.account_manager}</strong> · {delivery.scope_key}<br />검토 필요: {delivery.external_request_step ?? delivery.last_error ?? "Discord 전송 상태를 확인하세요."}</CardContent></Card>)}
+    {(deliveries.data ?? []).filter((delivery) => delivery.status === "failed").map((delivery) => <Card key={`failed-${delivery.kind}-${delivery.account_manager}-${delivery.scope_key}`} className="border-destructive/40 shadow-none"><CardContent className="p-4 text-sm"><strong>{delivery.account_manager}</strong> · {delivery.kind === "d_day" ? "D-Day" : delivery.kind === "d_minus_1" ? "D-1" : "주간 브리핑"} · {delivery.scope_key}<br />{delivery.last_error ?? "Discord 발송에 실패했습니다."}</CardContent></Card>)}
   </section>;
 }

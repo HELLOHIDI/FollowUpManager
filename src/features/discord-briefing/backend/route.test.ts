@@ -5,20 +5,29 @@ const lifecycle = vi.hoisted(() => ({
   claim: vi.fn(),
   createMutationClient: vi.fn(),
   getSnapshot: vi.fn(),
+  getDueReminders: vi.fn(),
   renew: vi.fn(),
+  renewReminder: vi.fn(),
   render: vi.fn(),
+  renderReminder: vi.fn(),
+  claimReminder: vi.fn(),
 }));
 
 vi.mock("@/backend/config", () => ({ getDiscordBriefingConfig: () => ({ appUrl: "https://app.example.com", botToken: "token", cronSecret: "secret" }) }));
 vi.mock("@/backend/supabase/client", () => ({ createMutationClient: lifecycle.createMutationClient }));
 vi.mock("./service", () => ({
   DISCORD_MANAGER_NAMES: ["manager"],
+  claimScheduleReminderDelivery: lifecycle.claimReminder,
   claimScheduledDelivery: lifecycle.claim,
   getActiveBriefingSnapshot: lifecycle.getSnapshot,
+  getDueScheduleReminderCandidates: lifecycle.getDueReminders,
+  getSeoulScheduleRange: () => ({ today: "2026-07-20", weekEnd: "2026-07-26", weekStart: "2026-07-20" }),
   getSeoulWeek: () => ({ key: "2026-7-2", label: "7\uC6D4 2\uC8FC\uCC28" }),
   isValidCronSecret: (value: string | undefined) => value === "secret",
   renewScheduledDeliveryLease: lifecycle.renew,
+  renewScheduleReminderLease: lifecycle.renewReminder,
   renderCompanyBriefing: lifecycle.render,
+  renderScheduleReminder: lifecycle.renderReminder,
 }));
 
 import { discordBriefingTestables, registerDiscordBriefingRoutes } from "./route";
@@ -45,10 +54,16 @@ describe("Discord API boundary", () => {
     lifecycle.claim.mockReset();
     lifecycle.createMutationClient.mockReset();
     lifecycle.getSnapshot.mockReset();
+    lifecycle.getDueReminders.mockReset();
     lifecycle.renew.mockReset();
+    lifecycle.renewReminder.mockReset();
     lifecycle.render.mockReset();
+    lifecycle.renderReminder.mockReset();
+    lifecycle.claimReminder.mockReset();
     lifecycle.render.mockReturnValue({ parent: "parent", projectMessages: ["chunk"], threadName: "thread" });
+    lifecycle.renderReminder.mockReturnValue("reminder");
     lifecycle.renew.mockResolvedValue({ data: true, error: null });
+    lifecycle.renewReminder.mockResolvedValue({ data: true, error: null });
   });
 
   it("requires view, send, and thread permissions", () => {
@@ -84,6 +99,47 @@ describe("Discord API boundary", () => {
     registerDiscordBriefingRoutes(app as never);
     expect((await app.request("/discord/weekly-briefing")).status).toBe(401);
     expect((await app.request("/discord/weekly-briefing", { headers: { Authorization: "Bearer wrong" } })).status).toBe(401);
+  });
+
+  it("sends one protected D-Day reminder with mentions disabled", async () => {
+    const updates: Record<string, unknown>[] = [];
+    lifecycle.createMutationClient.mockReturnValue(ownedDeliveryClient(updates));
+    lifecycle.getDueReminders.mockResolvedValue([{ accountManager: "manager", companyId: "company-1", companyName: "Company", memo: null, projectId: "project-1", projectName: "Project", scheduleId: "schedule-1", scheduledOn: "2026-07-20", title: "Report" }]);
+    lifecycle.claimReminder.mockResolvedValue({ data: { claim_token: "claim", id: "reminder-1", message_content: "reminder" }, error: null });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ id: "message-id" })));
+    const app = new Hono();
+    registerDiscordBriefingRoutes(app as never);
+
+    const response = await app.request("/discord/schedule-reminders", { headers: { Authorization: "Bearer secret" } });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ delivered: 1, failures: [] });
+    expect(lifecycle.claimReminder).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ kind: "d_day" }));
+    expect(JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body)).toMatchObject({ allowed_mentions: { parse: [] }, content: "reminder" });
+    expect(updates).toContainEqual(expect.objectContaining({ status: "completed" }));
+    vi.unstubAllGlobals();
+  });
+
+  it("records a D-1 failure without calling Discord when its channel is not configured", async () => {
+    const updates: Record<string, unknown>[] = [];
+    const noChannelClient = ownedDeliveryClient(updates);
+    noChannelClient.from.mockImplementation((table: string) => table === "discord_manager_channels"
+      ? { select: vi.fn().mockResolvedValue({ data: [], error: null }) }
+      : { update: vi.fn((update: Record<string, unknown>) => { updates.push(update); return { eq: vi.fn(() => ({ eq: vi.fn(() => ({ select: vi.fn(() => ({ maybeSingle: vi.fn().mockResolvedValue({ data: { id: "reminder-1" }, error: null }) })) })) })) }; }) });
+    lifecycle.createMutationClient.mockReturnValue(noChannelClient);
+    lifecycle.getDueReminders.mockResolvedValue([{ accountManager: "manager", companyId: "company-1", companyName: "Company", memo: null, projectId: "project-1", projectName: "Project", scheduleId: "schedule-1", scheduledOn: "2026-07-21", title: "Report" }]);
+    lifecycle.claimReminder.mockResolvedValue({ data: { claim_token: "claim", id: "reminder-1", message_content: "reminder" }, error: null });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const app = new Hono();
+    registerDiscordBriefingRoutes(app as never);
+
+    const response = await app.request("/discord/schedule-reminders", { headers: { Authorization: "Bearer secret" } });
+
+    expect(await response.json()).toEqual({ delivered: 0, failures: ["manager:schedule-1:d_minus_1:channel-not-configured"] });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(updates).toContainEqual(expect.objectContaining({ status: "failed" }));
+    vi.unstubAllGlobals();
   });
 
   it("delivers a scheduled company through parent, thread, and chunk checkpoints with mentions disabled", async () => {
