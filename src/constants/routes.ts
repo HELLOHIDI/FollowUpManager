@@ -1,5 +1,6 @@
 export const routes = {
   projects: "/projects",
+  faq: "/faq",
   companySettings: "/settings/company",
   discordSettings: "/settings/discord",
   companyCreate: (returnTo?: string) =>
