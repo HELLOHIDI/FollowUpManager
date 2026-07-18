@@ -8,6 +8,7 @@ import { useDashboardQuery } from "../hooks/use-dashboard-query";
 import { CategoryExpenseList } from "./category-expense-list";
 import { DashboardKanbanBoard } from "./dashboard-kanban-board";
 import { DashboardKpis } from "./dashboard-kpis";
+import { ProjectSchedulePreview } from "@/features/project-schedules/components/project-schedule-preview";
 
 function DashboardLoading() {
   return (
@@ -63,6 +64,7 @@ export function DashboardPageContent({ projectId }: { projectId: string }) {
         <h2 id="overview-title" className="text-xl font-semibold">개요</h2>
         <DashboardKpis kpis={query.data.kpis} />
       </section>
+      <ProjectSchedulePreview projectId={projectId} />
       <section id="categories" className="mt-10 scroll-mt-24 space-y-4" aria-labelledby="categories-title">
         <div>
           <h2 id="categories-title" className="text-xl font-semibold">비목별 지출</h2>

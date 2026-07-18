@@ -41,6 +41,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: UI baseline
+        run: npm run check:ui-baseline
+
       - name: Unit tests
         run: npm run test
 

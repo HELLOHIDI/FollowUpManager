@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getSeoulWeek, renderCompanyBriefing } from "./service";
+import { getSeoulWeek, renderCompanyBriefing, renderScheduleReminder } from "./service";
 
 describe("Discord weekly briefing", () => {
   it("uses the approved Seoul week buckets", () => {
@@ -42,5 +42,26 @@ describe("Discord weekly briefing", () => {
     const briefing = renderCompanyBriefing({ account_manager: "\uC815\uD604\uC815", company_name: "A", id: "company", projects: [{ id: "project", project_name: "P", expenses }] }, "https://app.example.com", "7\uC6D4 2\uC8FC\uCC28");
     expect(briefing.projectMessages.length).toBeGreaterThan(1);
     expect(briefing.projectMessages.every((message) => message.length <= 2_000)).toBe(true);
+  });
+
+  it("adds the weekly schedule section only when the project has schedules", () => {
+    const withSchedule = renderCompanyBriefing({ account_manager: "\uC815\uD604\uC815", company_name: "A", id: "company", projects: [{ expenses: [], id: "project", project_name: "P", schedules: [{ id: "schedule", memo: "\uC99D\uC740 \uD30C\uC77C \uC900\uBE44", scheduled_on: "2026-07-20", title: "\uC911\uAC04 \uBCF4\uACE0\uC11C \uC81C\uCD9C" }] }] }, "https://app.example.com", "7\uC6D4 3\uC8FC\uCC28");
+    const withoutSchedule = renderCompanyBriefing({ account_manager: "\uC815\uD604\uC815", company_name: "A", id: "company", projects: [{ expenses: [], id: "project", project_name: "P", schedules: [] }] }, "https://app.example.com", "7\uC6D4 3\uC8FC\uCC28");
+    expect(withSchedule.projectMessages[0]).toContain("\uC774\uBC88 \uC8FC \uC8FC\uC694 \uC77C\uC815");
+    expect(withSchedule.projectMessages[0]).toContain("2026-07-20");
+    expect(withoutSchedule.projectMessages[0]).not.toContain("\uC774\uBC88 \uC8FC \uC8FC\uC694 \uC77C\uC815");
+  });
+
+  it("renders one weekly schedule heading for multiple schedules", () => {
+    const briefing = renderCompanyBriefing({ account_manager: "\uC815\uD604\uC815", company_name: "A", id: "company", projects: [{ expenses: [], id: "project", project_name: "P", schedules: [{ id: "one", memo: null, scheduled_on: "2026-07-20", title: "A" }, { id: "two", memo: null, scheduled_on: "2026-07-21", title: "B" }] }] }, "https://app.example.com", "7\uC6D4 3\uC8FC\uCC28");
+    expect(briefing.projectMessages[0].match(/\uC774\uBC88 \uC8FC \uC8FC\uC694 \uC77C\uC815/g)).toHaveLength(1);
+  });
+
+  it("renders a D-Day reminder without allowing Discord mentions", () => {
+    const message = renderScheduleReminder({ accountManager: "\uC815\uD604\uC815", companyId: "company", companyName: "A", memo: "@everyone", projectId: "project", projectName: "P", scheduleId: "schedule", scheduledOn: "2026-07-20", title: "\uBCF4\uACE0" }, "d_day", "https://app.example.com");
+    expect(message).toContain("\uC624\uB298 \uC77C\uC815 \uC54C\uB9BC");
+    expect(message).toContain("@\u200beveryone");
+    expect(message).toContain("/projects/project");
+    expect(message).not.toContain("/schedules");
   });
 });
