@@ -3,13 +3,14 @@ import { getDiscordBriefingConfig } from "@/backend/config";
 import type { Hono } from "hono";
 import { failure, respond, success } from "@/backend/http/response";
 import { getSupabase, type AppEnv } from "@/backend/hono/context";
-import { claimScheduledDelivery, DISCORD_MANAGER_NAMES, getActiveBriefingSnapshot, getSeoulWeek, isValidCronSecret, renderCompanyBriefing, renewScheduledDeliveryLease, type CompanySnapshot, type DiscordManagerName, type DiscordSupabaseClient } from "./service";
+import { claimScheduleReminderDelivery, claimScheduledDelivery, DISCORD_MANAGER_NAMES, getActiveBriefingSnapshot, getDueScheduleReminderCandidates, getSeoulScheduleRange, getSeoulWeek, isValidCronSecret, renderCompanyBriefing, renderScheduleReminder, renewScheduleReminderLease, renewScheduledDeliveryLease, type CompanySnapshot, type DiscordManagerName, type DiscordSupabaseClient } from "./service";
 
 class DiscordAmbiguousDeliveryError extends Error {}
 
 type DiscordMessage = { id: string };
 type DiscordChannel = { permissions?: string; type: number };
 type ScheduledDelivery = { claim_token: string; id: string; message_chunks: string[]; parent_message_id: string | null; sent_message_count: number; thread_id: string | null };
+type ScheduleReminderDelivery = { claim_token: string; id: string; message_content: string };
 
 const discordRequest = async <T>(path: string, init: RequestInit): Promise<T> => {
   const config = getDiscordBriefingConfig();
@@ -57,6 +58,19 @@ const updateOwnedDelivery = async (client: DiscordSupabaseClient, delivery: Pick
 const beginExternalRequest = async (client: DiscordSupabaseClient, delivery: ScheduledDelivery, step: string) => {
   await ensureDeliveryLease(client, delivery);
   await updateOwnedDelivery(client, delivery, { external_request_started_at: new Date().toISOString(), external_request_step: step });
+};
+
+const updateOwnedReminderDelivery = async (client: DiscordSupabaseClient, delivery: Pick<ScheduleReminderDelivery, "claim_token" | "id">, update: Record<string, unknown>) => {
+  const { data, error } = await client.from("discord_schedule_reminder_deliveries").update(update).eq("id", delivery.id).eq("claim_token", delivery.claim_token).select("id").maybeSingle();
+  if (error || !data) throw new DiscordAmbiguousDeliveryError("Schedule reminder delivery state could not be safely persisted.");
+};
+
+const sendScheduleReminder = async (client: DiscordSupabaseClient, delivery: ScheduleReminderDelivery, channelId: string) => {
+  const { data, error } = await renewScheduleReminderLease(client, delivery);
+  if (error || !data) throw new Error("Schedule reminder delivery lease is no longer owned by this worker.");
+  await updateOwnedReminderDelivery(client, delivery, { external_request_started_at: new Date().toISOString() });
+  await discordRequest(`/channels/${channelId}/messages`, { method: "POST", body: JSON.stringify({ content: delivery.message_content, allowed_mentions: { parse: [] } }) });
+  await updateOwnedReminderDelivery(client, delivery, { completed_at: new Date().toISOString(), external_request_started_at: null, status: "completed" });
 };
 
 const resumeScheduledCompany = async (client: DiscordSupabaseClient, delivery: ScheduledDelivery, channelId: string, company: CompanySnapshot) => {
@@ -111,8 +125,17 @@ export const registerDiscordBriefingRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.get("/discord/deliveries", async (context) => {
-    const { data, error } = await getSupabase(context).from("discord_weekly_briefing_deliveries").select("seoul_week_key, account_manager, scope_key, status, external_request_step, last_error, updated_at").order("updated_at", { ascending: false }).limit(100);
-    return respond(context, error ? failure(500, "DISCORD_DELIVERY_FETCH_ERROR", "Unable to load Discord delivery history.") : success(data ?? []));
+    const client = getSupabase(context);
+    const [weekly, reminders] = await Promise.all([
+      client.from("discord_weekly_briefing_deliveries").select("account_manager, external_request_step, last_error, scope_key, status, updated_at").order("updated_at", { ascending: false }).limit(100),
+      client.from("discord_schedule_reminder_deliveries").select("account_manager, last_error, notification_kind, schedule_id, status, updated_at").order("updated_at", { ascending: false }).limit(100),
+    ]);
+    if (weekly.error || reminders.error) return respond(context, failure(500, "DISCORD_DELIVERY_FETCH_ERROR", "Unable to load Discord delivery history."));
+    const data = [
+      ...(weekly.data ?? []).map((delivery) => ({ ...delivery, kind: "weekly" })),
+      ...(reminders.data ?? []).map((delivery) => ({ account_manager: delivery.account_manager, external_request_step: null, kind: delivery.notification_kind, last_error: delivery.last_error, scope_key: `schedule:${delivery.schedule_id ?? "deleted"}`, status: delivery.status, updated_at: delivery.updated_at })),
+    ].sort((left, right) => (right.updated_at ?? "").localeCompare(left.updated_at ?? "")).slice(0, 100);
+    return respond(context, success(data));
   });
 
   app.put("/discord/channels/:accountManager", async (context) => {
@@ -203,6 +226,47 @@ export const registerDiscordBriefingRoutes = (app: Hono<AppEnv>) => {
           }
           failures.push(`${mapping.account_manager}:${company.id}`);
         }
+      }
+    }
+    return context.json({ delivered, failures });
+  });
+
+  app.get("/discord/schedule-reminders", async (context) => {
+    if (!isValidCronSecret(context.req.header("Authorization")?.replace(/^Bearer\s+/i, ""))) return respond(context, failure(401, "INVALID_CRON_SECRET", "Unauthorized."));
+    const client = createMutationClient();
+    const { data: mappings, error: mappingsError } = await getChannels(client);
+    if (mappingsError) return respond(context, failure(500, "DISCORD_CHANNEL_FETCH_ERROR", "Unable to load Discord channels."));
+    const channels = new Map((mappings ?? []).map((mapping) => [mapping.account_manager, mapping.discord_channel_id]));
+    const now = new Date();
+    const range = getSeoulScheduleRange(now);
+    const failures: string[] = [];
+    let delivered = 0;
+    let candidates;
+    try { candidates = await getDueScheduleReminderCandidates(client, now); }
+    catch { return respond(context, failure(500, "DISCORD_SCHEDULE_REMINDER_FETCH_ERROR", "Unable to load due schedule reminders.")); }
+    for (const candidate of candidates) {
+      const kind = candidate.scheduledOn === range.today ? "d_day" : "d_minus_1";
+      const channelId = channels.get(candidate.accountManager);
+      let delivery: ScheduleReminderDelivery | null = null;
+      try {
+        const claim = await claimScheduleReminderDelivery(client, { candidate, eventDate: candidate.scheduledOn, kind, message: renderScheduleReminder(candidate, kind, getDiscordBriefingConfig().appUrl) });
+        if (claim.error) throw new Error("Unable to claim schedule reminder delivery.");
+        delivery = claim.data as ScheduleReminderDelivery | null;
+        if (!delivery) continue;
+        if (!channelId) {
+          await updateOwnedReminderDelivery(client, delivery, { last_error: "Discord channel is not configured for this manager.", status: "failed" });
+          failures.push(`${candidate.accountManager}:${candidate.scheduleId}:${kind}:channel-not-configured`);
+          continue;
+        }
+        await sendScheduleReminder(client, delivery, channelId);
+        delivered += 1;
+      } catch (error) {
+        if (delivery) {
+          const status = error instanceof DiscordAmbiguousDeliveryError ? "needs_review" : "failed";
+          try { await updateOwnedReminderDelivery(client, delivery, { status, last_error: error instanceof Error ? error.message : "Discord schedule reminder failed.", ...(status === "failed" ? { external_request_started_at: null } : {}) }); }
+          catch { /* A lost lease must not overwrite the new owner. */ }
+        }
+        failures.push(`${candidate.accountManager}:${candidate.scheduleId}:${kind}`);
       }
     }
     return context.json({ delivered, failures });

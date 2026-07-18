@@ -16,6 +16,7 @@ import { registerExpenseRoutes } from "@/features/expenses/backend/route";
 import { registerProjectExportRoutes } from "@/features/project-export/backend/route";
 import { registerProgramEvidencePolicyRoutes } from "@/features/program-evidence-policy/backend/route";
 import { registerDiscordBriefingRoutes } from "@/features/discord-briefing/backend/route";
+import { registerProjectScheduleRoutes } from "@/features/project-schedules/backend/route";
 
 type CreateHonoAppOptions = {
   createAuthenticatedClient?: AuthenticatedClientFactory;
@@ -69,6 +70,7 @@ export const createHonoApp = (options: CreateHonoAppOptions = {}) => {
   registerProgramEvidencePolicyRoutes(app);
   registerProjectExportRoutes(app);
   registerDiscordBriefingRoutes(app);
+  registerProjectScheduleRoutes(app);
 
   return app;
 };
