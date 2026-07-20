@@ -91,7 +91,7 @@ const resumeScheduledCompany = async (client: DiscordSupabaseClient, delivery: S
   }
   for (let index = delivery.sent_message_count; index < delivery.message_chunks.length; index += 1) {
     await beginExternalRequest(client, delivery, `project-message-${index + 1}`);
-    await discordRequest(`/channels/${channelId}/messages`, { method: "POST", body: JSON.stringify({ content: delivery.message_chunks[index], allowed_mentions: { parse: [] } }) });
+    await discordRequest(`/channels/${threadId}/messages`, { method: "POST", body: JSON.stringify({ content: delivery.message_chunks[index], allowed_mentions: { parse: [] } }) });
     await updateOwnedDelivery(client, delivery, { sent_message_count: index + 1, external_request_started_at: null, external_request_step: null });
   }
   await updateOwnedDelivery(client, delivery, { status: "completed", completed_at: new Date().toISOString() });

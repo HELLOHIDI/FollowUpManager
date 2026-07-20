@@ -159,6 +159,7 @@ describe("Discord API boundary", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ delivered: 1, failures: [] });
     expect(fetch).toHaveBeenCalledTimes(3);
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls[2]?.[0]).toBe("https://discord.com/api/v10/channels/thread-id/messages");
     for (const [url, init] of (fetch as ReturnType<typeof vi.fn>).mock.calls.filter(([url]) => !String(url).endsWith("/threads"))) {
       expect(JSON.parse((init as RequestInit).body as string).allowed_mentions).toEqual({ parse: [] });
     }
