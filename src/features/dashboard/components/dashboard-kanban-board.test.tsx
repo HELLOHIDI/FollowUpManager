@@ -77,7 +77,7 @@ describe("DashboardKanbanBoard", () => {
       "href",
       `/projects/${projectId}/expenses/22222222-2222-4222-8222-222222222222`,
     );
-    expect(within(screen.getByTestId("kanban-column-budget_registration")).getByRole("link", { name: "지출 등록" })).toHaveAttribute(
+    expect(within(screen.getByTestId("kanban-column-budget_registration")).getByRole("link", { name: "지출 추가" })).toHaveAttribute(
       "href",
       `/projects/${projectId}/expenses`,
     );
@@ -116,6 +116,14 @@ describe("DashboardKanbanBoard", () => {
     expect(within(screen.getByTestId("kanban-column-budget_registration")).getByText(/1\/2/)).toBeInTheDocument();
   });
 
+  it("offers quick expense registration from an empty budget-registration column", () => {
+    render(<DashboardKanbanBoard dashboard={{ ...dashboard, categories: [] }} projectId={projectId} />);
+
+    expect(
+      within(screen.getByTestId("kanban-column-budget_registration")).getByRole("link", { name: "지출 추가" }),
+    ).toHaveAttribute("href", `/projects/${projectId}/expenses`);
+  });
+
   it("moves a card to any different stage through drag and drop", () => {
     render(<DashboardKanbanBoard dashboard={dashboard} projectId={projectId} />);
 
@@ -143,8 +151,15 @@ describe("DashboardKanbanBoard", () => {
   it("rolls back optimistic movement and shows a generic board error on mutation failure", async () => {
     mutationState.mutate.mockImplementation((_variables, options) => options.onError(new Error("failed")));
     render(<DashboardKanbanBoard dashboard={dashboard} projectId={projectId} />);
-    fireEvent.change(screen.getByRole("combobox", { name: /Prototype parts/ }), { target: { value: "pre_approval" } });
+    fireEvent.click(screen.getByRole("button", { name: "다음 단계" }));
 
+    expect(mutationState.mutate).toHaveBeenCalledWith(
+      {
+        expenseId: "22222222-2222-4222-8222-222222222222",
+        input: { targetStageKey: "pre_approval" },
+      },
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
     expect(screen.getByRole("alert")).toHaveTextContent("지출 단계를 변경하지 못했습니다. 다시 시도해 주세요.");
     expect(within(screen.getByTestId("kanban-column-budget_registration")).getByText("Prototype parts")).toBeInTheDocument();
   });

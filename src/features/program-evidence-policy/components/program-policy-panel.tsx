@@ -83,6 +83,7 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
       && draftQuery.data.version.status !== "archived"
       && draftQuery.data.version.operationStatus !== "extraction_failed"
     : false;
+  const canConfirm = Boolean(latestVersionId && canEditDraft);
   const latestStatus = statusQuery.data?.operationStatus ?? "legacy_fallback";
   const isDraftLoading = statusQuery.isPending || (!!latestVersionId && draftQuery.isPending);
   const summary = useMemo(() => ({
@@ -121,6 +122,30 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
       }
     } catch (error) {
       toast({ title: "정책 PDF를 등록하지 못했습니다.", description: extractApiErrorMessage(error), variant: "destructive" });
+    }
+  };
+
+  const onSaveAndConfirmPolicy = async () => {
+    try {
+      await mutations.updateDraftMutation.mutateAsync(draft);
+    } catch (error) {
+      toast({
+        title: "검토 내용을 저장하지 못했습니다.",
+        description: extractApiErrorMessage(error, "입력한 내용을 확인해 주세요."),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await mutations.confirmMutation.mutateAsync();
+      toast({ title: "정책을 확정했습니다.", description: "이제 지출 비목과 증빙서류가 확정된 정책을 따릅니다." });
+    } catch (error) {
+      toast({
+        title: "정책을 확정하지 못했습니다.",
+        description: extractApiErrorMessage(error, "정책을 확정하지 못했습니다. 현재 비목으로 계속 진행해 주세요."),
+        variant: "destructive",
+      });
     }
   };
 
@@ -194,13 +219,12 @@ export function ProgramPolicyPanel({ projectId }: { projectId: string }) {
                 비목 {summary.categories}개 / 하위항목 {summary.subcategories}개 / 증빙서류 {summary.evidence}개
               </div>
               <Button
-                disabled={!canEditDraft || mutations.updateDraftMutation.isPending}
-                onClick={() => mutations.updateDraftMutation.mutate(draft)}
+                disabled={!canConfirm || mutations.updateDraftMutation.isPending || mutations.confirmMutation.isPending}
+                onClick={() => void onSaveAndConfirmPolicy()}
                 type="button"
-                variant="outline"
               >
                 <Save className="mr-2 size-4" />
-                검토 내용 저장
+                검토 내용 저장 및 확정
               </Button>
             </div>
 

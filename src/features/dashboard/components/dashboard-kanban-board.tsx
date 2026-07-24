@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type DragEvent } from "react";
-import { Plus } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { routes } from "@/constants/routes";
@@ -191,25 +191,21 @@ export function DashboardKanbanBoard({
                       증빙 {expense.evidenceUploadedCount ?? 0}/{expense.evidenceRequiredCount}
                     </Badge>
                   ) : null}
-                  <div className="mt-3 flex justify-end">
-                    <select
-                      aria-label={`${expense.title} 단계 이동`}
-                      className="h-8 rounded-md border bg-background px-2 text-xs"
-                      disabled={stageMutation.isPending}
-                      value={column.stageKey}
-                      onChange={(event) => requestMove(expense.id, column.stageKey, event.currentTarget.value as ExpenseStageKey)}
-                    >
-                      {columns.map((targetColumn) => (
-                        <option
-                          key={targetColumn.stageKey}
-                          disabled={targetColumn.stageKey === column.stageKey}
-                          value={targetColumn.stageKey}
-                        >
-                          {targetColumn.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {column.nextStageKey ? (
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        disabled={stageMutation.isPending}
+                        onClick={() => requestMove(expense.id, column.stageKey, column.nextStageKey)}
+                      >
+                        다음 단계
+                        <ArrowRight className="ml-1.5 size-3.5" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  ) : null}
                 </li>
               ))}
               {column.stageKey === "budget_registration" ? (
@@ -217,7 +213,7 @@ export function DashboardKanbanBoard({
                   <Button asChild className="w-full justify-center" variant="outline">
                     <Link href={routes.projectExpenses(projectId)}>
                       <Plus className="mr-2 size-4" aria-hidden="true" />
-                      지출 등록
+                      지출 추가
                     </Link>
                   </Button>
                 </li>

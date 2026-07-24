@@ -68,14 +68,12 @@ export function DashboardPageContent({ projectId }: { projectId: string }) {
       <section id="categories" className="mt-10 scroll-mt-24 space-y-4" aria-labelledby="categories-title">
         <div>
           <h2 id="categories-title" className="text-xl font-semibold">비목별 지출</h2>
-          <p className="mt-1 text-sm text-muted-foreground">활성 지출이 있는 비목만 표시합니다.</p>
         </div>
         <CategoryExpenseList categories={query.data.categories} projectId={projectId} />
       </section>
       <section id="kanban" className="mt-10 scroll-mt-24 space-y-4" aria-labelledby="kanban-title">
         <div>
           <h2 id="kanban-title" className="text-xl font-semibold">지출 칸반</h2>
-          <p className="mt-1 text-sm text-muted-foreground">카드를 드래그하거나 카드 액션을 사용해 한 단계씩 앞으로 이동합니다.</p>
         </div>
         <DashboardKanbanBoard dashboard={query.data} projectId={projectId} />
       </section>
