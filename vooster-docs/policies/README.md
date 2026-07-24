@@ -29,9 +29,9 @@
     - 증빙 파일 종류, 업로드, 중복 감지, 필수/조건부/선택 증빙 상태
     - 관련 기능: 지출 상세 증빙 영역, 파일 업로드, Supabase Storage
 
-  - ui-preservation-policy.md
-    - Production UI 기준선, 작업 브랜치, Preview, PR 승인, Production 배포 정책
-    - 관련 기능: GitHub Actions, Vercel Preview/Production 배포
+  - github-deployment-policy.md
+    - 모든 저장소 작업의 브랜치, 검증, 커밋, Push, Preview, PR 승인, Production 배포 정책
+    - 관련 범위: GitHub 작업 컨벤션, GitHub Actions, Vercel Preview/Production 배포
 
 ## Program Evidence Policy Index Addition (2026-06-29)
 
