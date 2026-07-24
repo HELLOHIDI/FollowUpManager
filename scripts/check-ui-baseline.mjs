@@ -12,6 +12,9 @@ const rules = [
   ["src/app/(protected)/projects/page.tsx", "TEAM_FILTER_OPTIONS", true],
   ["src/app/(protected)/projects/page.tsx", "<FaqBriefing />", false],
   ["src/app/(protected)/projects/page.tsx", "formatBusinessRegistrationNumber(", false],
+  ["src/features/expenses/components/expense-quick-create-sheet.tsx", "<NumberInput", true],
+  ["src/features/expenses/components/expense-quick-create-sheet.tsx", "EXPENSE_FUNDING_SOURCE_BASE_KEYS", true],
+  ["src/features/expenses/components/expense-quick-create-sheet.tsx", 'type="checkbox"', true],
 ];
 
 const failures = rules.flatMap(([path, text, expected]) => {

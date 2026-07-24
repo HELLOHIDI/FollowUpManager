@@ -1,12 +1,9 @@
 name: Vercel
 
 on:
-  pull_request:
-    branches:
-      - main
   push:
     branches:
-      - main
+      - "**"
 
 concurrency:
   group: vercel-${{ github.ref }}
@@ -28,6 +25,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure branch includes latest main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor origin/main HEAD || {
+            echo "::error::This branch must include the latest origin/main before Preview deployment"
+            exit 1
+          }
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -51,11 +59,11 @@ jobs:
         run: npm install --global vercel@latest
 
       - name: Pull Vercel preview environment
-        if: github.event_name == 'pull_request' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        if: env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
         run: vercel pull --yes --environment=preview --token=${{ env.VERCEL_TOKEN }}
 
       - name: Deploy preview
-        if: github.event_name == 'pull_request' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        if: env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
         run: |
           set -a
           source .vercel/.env.preview.local
@@ -99,11 +107,11 @@ jobs:
             --token=${{ env.VERCEL_TOKEN }}
 
       - name: Pull Vercel production environment
-        if: github.event_name == 'push' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        if: github.ref == 'refs/heads/main' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
         run: vercel pull --yes --environment=production --token=${{ env.VERCEL_TOKEN }}
 
       - name: Deploy production
-        if: github.event_name == 'push' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        if: github.ref == 'refs/heads/main' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
         run: |
           set -a
           source .vercel/.env.production.local

@@ -1,7 +1,7 @@
 # FuManager Domain Policies
 
-  이 디렉터리는 FuManager의 도메인별 정책 문서를 관리한다.
-  기능 구현 전 관련 정책 문서를 반드시 확인한다.
+이 디렉터리는 FuManager의 도메인별 정책 문서를 관리한다.
+기능 구현 전 관련 정책 문서를 반드시 확인한다.
 
 ## Policy Index
 
@@ -28,6 +28,11 @@
   - evidence-policy.md
     - 증빙 파일 종류, 업로드, 중복 감지, 필수/조건부/선택 증빙 상태
     - 관련 기능: 지출 상세 증빙 영역, 파일 업로드, Supabase Storage
+
+  - ui-preservation-policy.md
+    - Production UI 기준선, 작업 브랜치, Preview, PR 승인, Production 배포 정책
+    - 관련 기능: GitHub Actions, Vercel Preview/Production 배포
+
 ## Program Evidence Policy Index Addition (2026-06-29)
 
 - program-evidence-policy.md
