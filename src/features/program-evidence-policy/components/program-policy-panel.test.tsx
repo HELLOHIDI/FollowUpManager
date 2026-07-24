@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ProgramPolicyPanel } from "./program-policy-panel";
 
@@ -122,12 +123,14 @@ const setupLoadedDraft = () => {
     },
     isPending: false,
   });
-  hookMocks.useProgramPolicyMutations.mockReturnValue({
+  const mutations = {
     confirmMutation: { isPending: false, mutateAsync: vi.fn() },
     extractMutation: { isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() },
-    updateDraftMutation: { isPending: false, mutate: vi.fn() },
+    updateDraftMutation: { isPending: false, mutateAsync: vi.fn() },
     uploadMutation: { isPending: false, mutateAsync: vi.fn() },
-  });
+  };
+  hookMocks.useProgramPolicyMutations.mockReturnValue(mutations);
+  return mutations;
 };
 
 describe("ProgramPolicyPanel", () => {
@@ -154,14 +157,20 @@ describe("ProgramPolicyPanel", () => {
     expect(screen.queryByText("document_abcd1234")).not.toBeInTheDocument();
   });
 
-  it("does not render a separate policy confirmation button", async () => {
-    setupLoadedDraft();
+  it("saves the draft before confirming while review warnings remain", async () => {
+    const mutations = setupLoadedDraft();
 
     render(<ProgramPolicyPanel projectId={projectId} />);
 
-    const confirmButton = screen.getAllByRole("button").find((button) =>
-      button.textContent?.includes("정책 확정"),
-    );
-    expect(confirmButton).toBeUndefined();
+    const saveAndConfirmButton = screen.getByRole("button", { name: "검토 내용 저장 및 확정" });
+    expect(saveAndConfirmButton).toBeEnabled();
+
+    await userEvent.click(saveAndConfirmButton);
+
+    expect(mutations.updateDraftMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.confirmMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.updateDraftMutation.mutateAsync.mock.invocationCallOrder[0])
+      .toBeLessThan(mutations.confirmMutation.mutateAsync.mock.invocationCallOrder[0]);
+    expect(screen.queryByRole("button", { name: "정책 확정" })).not.toBeInTheDocument();
   });
 });

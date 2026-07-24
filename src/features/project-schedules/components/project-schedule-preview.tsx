@@ -16,7 +16,6 @@ export function ProjectSchedulePreview({ projectId }: { projectId: string }) {
         <CardHeader className="flex-row items-center justify-between gap-4">
           <div>
             <h2 id="this-week-schedules-title" className="text-lg font-bold leading-tight tracking-normal text-[#191f28]">이번 주 일정</h2>
-            <p className="mt-1 text-sm text-muted-foreground">이번 주에 예정된 주요 일정입니다.</p>
           </div>
           <Button asChild size="sm" variant="weak-primary"><Link href={routes.projectSchedules(projectId)}>전체 일정 관리</Link></Button>
         </CardHeader>

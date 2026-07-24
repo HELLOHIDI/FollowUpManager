@@ -87,6 +87,10 @@ describe("dashboard presentation", () => {
     );
 
     expect(screen.getByText("등록된 지출이 없습니다")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "빠른 지출 등록" })).toHaveAttribute(
+      "href",
+      "/projects/11111111-1111-4111-8111-111111111111/expenses",
+    );
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
   });
 
